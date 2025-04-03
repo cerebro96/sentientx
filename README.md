@@ -1,36 +1,117 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# SentientX
+
+SentientX is a modern AI Workflow Automation Platform that allows users to create, manage, and execute automated workflows with a visual, drag-and-drop interface.
+
+![SentientX](https://user-images.githubusercontent.com/your-username/sentientx/assets/screenshot.png)
+
+## Features
+
+- **Visual Workflow Builder**: Drag-and-drop interface to create complex workflows
+- **Real-time Execution Monitoring**: Track workflow executions with detailed status and logs
+- **Custom Node Types**: Extensible architecture with various node categories
+- **User Authentication**: Secure login and profile management
+- **Theme Support**: Multiple theme options (Light, Dark, System, Red, Rose)
+- **Responsive Design**: Full mobile and desktop support
+
+## Tech Stack
+
+- **Frontend**: Next.js 15, React 19, TypeScript
+- **Styling**: Tailwind CSS, shadcn/ui components
+- **State Management**: Zustand, SWR for data fetching
+- **Database**: Supabase
+- **Authentication**: Supabase Auth
 
 ## Getting Started
 
-First, run the development server:
+### Prerequisites
 
-```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
-```
+- Node.js 18.x or higher
+- npm or yarn
+- Access to company Supabase account
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+### Installation
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+1. Clone the repository from the company's private repository:
+   ```bash
+   git clone [INTERNAL_REPOSITORY_URL]
+   cd sentientx
+   ```
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+2. Install dependencies:
+   ```bash
+   npm install
+   # or
+   yarn
+   ```
 
-## Learn More
+3. Request the `.env.local` file from your team lead containing the Supabase credentials.
 
-To learn more about Next.js, take a look at the following resources:
+4. Start the development server:
+   ```bash
+   npm run dev
+   # or
+   yarn dev
+   ```
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+5. Open [http://localhost:3000](http://localhost:3000) in your browser to see the application.
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+## Database Setup
 
-## Deploy on Vercel
+The application requires several tables in the Supabase database:
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+1. `workflows` - Stores workflow definitions
+2. `executions` - Stores workflow execution history
+3. User authentication tables (created automatically by Supabase)
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+All database migrations are managed by the DevOps team. Contact them if you need any changes to the database schema.
+
+## Usage
+
+### Creating a Workflow
+
+1. Navigate to the Workflows page
+2. Click "Create Workflow"
+3. Give your workflow a name and description
+4. Use the visual editor to add and connect nodes
+5. Save your workflow
+
+### Monitoring Executions
+
+1. Navigate to the Executions page
+2. View the status of all workflow executions
+3. Filter by status, search by name, or sort by any column
+4. Enable auto-refresh to see real-time updates (refreshes every 5 seconds)
+
+### User Settings
+
+1. Access your profile settings from the user menu
+2. Update your name and password
+3. Customize application theme
+
+## Development Guidelines
+
+This is a private commercial project. Please follow these guidelines:
+
+1. All code changes must go through the internal review process
+2. Maintain code style and conventions established in the codebase
+3. Document new features and API changes
+4. Add appropriate test coverage for new functionality
+5. Contact your team lead for access to additional resources or documentation
+
+## Proprietary Notice
+
+© 2025 SentientX. All rights reserved.
+
+This software is proprietary and confidential. Unauthorized copying, transfer, or use of this software in source or binary forms via any medium is strictly prohibited without express written permission.
+
+## Third-Party Dependencies
+
+This project makes use of the following third-party libraries:
+
+- [Next.js](https://nextjs.org/)
+- [React](https://reactjs.org/)
+- [Tailwind CSS](https://tailwindcss.com/)
+- [shadcn/ui](https://ui.shadcn.com/)
+- [Supabase](https://supabase.io/)
+- [SWR](https://swr.vercel.app/)
+- [Zustand](https://github.com/pmndrs/zustand)
