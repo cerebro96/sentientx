@@ -24,3 +24,20 @@ CREATE TRIGGER update_executions_updated_at
     BEFORE UPDATE ON executions
     FOR EACH ROW
     EXECUTE FUNCTION update_updated_at_column(); 
+
+
+-- run seoeratly in the supabase console
+
+-- Basic policy to allow inserts (you can restrict this further as needed)
+CREATE POLICY "Allow authenticated inserts on executions"
+ON "public"."executions"
+FOR INSERT
+TO authenticated
+WITH CHECK (true);
+
+-- If you need read access too
+CREATE POLICY "Allow authenticated reads on executions"
+ON "public"."executions"
+FOR SELECT
+TO authenticated
+USING (true);
