@@ -5,13 +5,14 @@ import { useRouter } from 'next/navigation';
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
-import { getCurrentUser, getUserProfile, signOut } from '@/lib/auth';
+import { signOut } from '@/lib/auth';
 import { supabase } from '@/lib/supabase';
 import { ProfileDialog } from '@/components/profile/ProfileDialog';
 import { SettingsDialog } from '@/components/settings/SettingsDialog';
 import { useTheme } from 'next-themes';
+import { Key } from 'lucide-react';
 
-export function Header() {
+export function CredentialHeader() {
   const router = useRouter();
   const { theme, setTheme } = useTheme();
   const [fullName, setFullName] = useState('');
@@ -24,7 +25,6 @@ export function Header() {
   useEffect(() => {
     const fetchUserData = async () => {
       try {
-        console.log('Fetching user data...');
         const { data: { user }, error: userError } = await supabase.auth.getUser();
         
         if (userError) {
@@ -33,7 +33,6 @@ export function Header() {
         }
         
         if (user) {
-          console.log('User found:', user);
           setEmail(user.email || '');
           setFullName(user.user_metadata?.full_name || '');
           
@@ -80,9 +79,10 @@ export function Header() {
     <header className="border-b">
       <div className="flex h-16 items-center justify-between px-6">
         <div className="flex items-center">
-          <h1 className="text-xl font-semibold">Overview</h1>
+          <Key className="mr-2 h-5 w-5 text-primary" />
+          <h1 className="text-xl font-semibold">Credentials</h1>
           <p className="ml-2 text-sm text-muted-foreground">
-            All the AI workflows you have access to
+            Manage your API keys securely
           </p>
         </div>
         <div className="flex items-center gap-4">

@@ -196,3 +196,16 @@
     linear-gradient(to bottom, rgb(226 232 240 / 0.1) 1px, transparent 1px);
   background-color: hsl(var(--background));
 }
+
+/* Add visually-hidden utility class after existing styles */
+.visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border-width: 0;
+}

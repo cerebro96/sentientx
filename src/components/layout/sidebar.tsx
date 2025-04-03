@@ -1,7 +1,13 @@
+'use client';
+
 import Link from "next/link";
-import { LayoutDashboard, Layers, Settings, HelpCircle, FileText, Users, MessageSquare, BookOpen, Bug } from "lucide-react";
+import { usePathname } from "next/navigation";
+import { LayoutDashboard, Layers, Key, HelpCircle, FileText, Users, MessageSquare, BookOpen, Bug, Activity } from "lucide-react";
+import { cn } from "@/lib/utils";
 
 export function Sidebar() {
+  const pathname = usePathname();
+  
   return (
     <div className="h-screen w-64 border-r bg-background p-4 flex flex-col">
       <div className="flex items-center mb-8">
@@ -16,22 +22,58 @@ export function Sidebar() {
       </div>
       
       <nav className="space-y-1 flex-1">
-        <Link href="/" className="flex items-center px-3 py-2 text-sm font-medium rounded-md bg-secondary text-secondary-foreground">
+        <Link 
+          href="/" 
+          className={cn(
+            "flex items-center px-3 py-2 text-sm font-medium rounded-md",
+            pathname === "/" || pathname === "/dashboard"
+              ? "bg-secondary text-secondary-foreground"
+              : "text-muted-foreground hover:bg-secondary hover:text-secondary-foreground"
+          )}
+        >
           <LayoutDashboard className="mr-3 h-5 w-5" />
           Overview
         </Link>
-        <Link href="/templates" className="flex items-center px-3 py-2 text-sm font-medium rounded-md text-muted-foreground hover:bg-secondary hover:text-secondary-foreground">
+        {/* <Link href="/templates" className="flex items-center px-3 py-2 text-sm font-medium rounded-md text-muted-foreground hover:bg-secondary hover:text-secondary-foreground">
           <Layers className="mr-3 h-5 w-5" />
           Templates
+        </Link> */}
+        <Link 
+          href="/executions" 
+          className={cn(
+            "flex items-center px-3 py-2 text-sm font-medium rounded-md",
+            pathname === "/executions"
+              ? "bg-secondary text-secondary-foreground"
+              : "text-muted-foreground hover:bg-secondary hover:text-secondary-foreground"
+          )}
+        >
+          <Activity className="mr-3 h-5 w-5" />
+          Executions
         </Link>
-        <Link href="/variables" className="flex items-center px-3 py-2 text-sm font-medium rounded-md text-muted-foreground hover:bg-secondary hover:text-secondary-foreground">
-          <Settings className="mr-3 h-5 w-5" />
-          Variables
+        <Link 
+          href="/credentials" 
+          className={cn(
+            "flex items-center px-3 py-2 text-sm font-medium rounded-md",
+            pathname === "/credentials"
+              ? "bg-secondary text-secondary-foreground"
+              : "text-muted-foreground hover:bg-secondary hover:text-secondary-foreground"
+          )}
+        >
+          <Key className="mr-3 h-5 w-5" />
+          Credentials
         </Link>
       </nav>
       
       <div className="pt-4 border-t space-y-1">
-        <Link href="/help" className="flex items-center px-3 py-2 text-sm font-medium rounded-md text-muted-foreground hover:bg-secondary hover:text-secondary-foreground">
+        <Link 
+          href="/help" 
+          className={cn(
+            "flex items-center px-3 py-2 text-sm font-medium rounded-md",
+            pathname === "/help"
+              ? "bg-secondary text-secondary-foreground"
+              : "text-muted-foreground hover:bg-secondary hover:text-secondary-foreground"
+          )}
+        >
           <HelpCircle className="mr-3 h-5 w-5" />
           Help
         </Link>
@@ -39,7 +81,15 @@ export function Sidebar() {
           <FileText className="mr-3 h-5 w-5" />
           Quickstart
         </Link> */}
-        <Link href="/documentation" className="flex items-center px-3 py-2 text-sm font-medium rounded-md text-muted-foreground hover:bg-secondary hover:text-secondary-foreground">
+        <Link 
+          href="/documentation" 
+          className={cn(
+            "flex items-center px-3 py-2 text-sm font-medium rounded-md",
+            pathname === "/documentation"
+              ? "bg-secondary text-secondary-foreground"
+              : "text-muted-foreground hover:bg-secondary hover:text-secondary-foreground"
+          )}
+        >
           <BookOpen className="mr-3 h-5 w-5" />
           Documentation
         </Link>
@@ -51,7 +101,15 @@ export function Sidebar() {
           <Users className="mr-3 h-5 w-5" />
           Course
         </Link> */}
-        <Link href="/report-bug" className="flex items-center px-3 py-2 text-sm font-medium rounded-md text-muted-foreground hover:bg-secondary hover:text-secondary-foreground">
+        <Link 
+          href="/report-bug" 
+          className={cn(
+            "flex items-center px-3 py-2 text-sm font-medium rounded-md",
+            pathname === "/report-bug"
+              ? "bg-secondary text-secondary-foreground"
+              : "text-muted-foreground hover:bg-secondary hover:text-secondary-foreground"
+          )}
+        >
           <Bug className="mr-3 h-5 w-5" />
           Report a bug
         </Link>

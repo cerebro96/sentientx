@@ -43,7 +43,7 @@ export default function Home() {
               onCreateWorkflow={handleCreateWorkflow}
               onEditWorkflow={handleEditWorkflow}
             />
-          </div>
+    </div>
         </DashboardLayout>
       )}
     </ProtectedRoute>
