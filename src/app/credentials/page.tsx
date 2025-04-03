@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect, useCallback } from 'react';
 import { CredentialLayout } from "@/components/layout/credential-layout";
 import { 
   Card, 
@@ -42,9 +42,10 @@ import {
 import { Eye, EyeOff, MoreVertical, Plus, Copy, Key, Trash2, Edit2, Search, ArrowUpDown, ChevronDown, ChevronUp, Filter } from 'lucide-react';
 import { toast } from 'sonner';
 import { ProtectedRoute } from "@/components/auth/ProtectedRoute";
+import { createApiKey, getApiKeys, getApiKeyWithValue, deleteApiKey } from "@/lib/api-keys";
 
-// Sample API key data structure
-type ApiKey = {
+// Define UI-specific API key type
+type UIApiKey = {
   id: string;
   name: string;
   key: string;
@@ -53,8 +54,8 @@ type ApiKey = {
   lastUsed: string | null;
 };
 
-// Mock API keys for demonstration
-const mockApiKeys: ApiKey[] = [
+// Sample mock data
+const mockApiKeys: UIApiKey[] = [
   {
     id: '1',
     name: 'OpenAI API Key',
@@ -74,18 +75,24 @@ const mockApiKeys: ApiKey[] = [
 ];
 
 export default function CredentialsPage() {
-  const [apiKeys, setApiKeys] = useState<ApiKey[]>(mockApiKeys);
+  const [apiKeys, setApiKeys] = useState<UIApiKey[]>(mockApiKeys);
   const [isAddKeyDialogOpen, setIsAddKeyDialogOpen] = useState(false);
   const [newKeyName, setNewKeyName] = useState('');
+  const [newKeyService, setNewKeyService] = useState('OpenAI');
   const [newKeyValue, setNewKeyValue] = useState('');
-  const [newKeyType, setNewKeyType] = useState('OpenAI');
-  const [visibleKeys, setVisibleKeys] = useState<{[key: string]: boolean}>({});
+  const [showKey, setShowKey] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [visibleKeys, setVisibleKeys] = useState<Set<string>>(new Set());
   const [searchQuery, setSearchQuery] = useState('');
   const [sortConfig, setSortConfig] = useState<{
-    key: keyof ApiKey | null;
+    key: keyof UIApiKey | null;
     direction: 'asc' | 'desc';
   }>({ key: null, direction: 'asc' });
   const [typeFilters, setTypeFilters] = useState<string[]>([]);
+  const [isLoadingKeys, setIsLoadingKeys] = useState(true);
+  const [selectedKeyId, setSelectedKeyId] = useState<string | null>(null);
+  const [decryptedKey, setDecryptedKey] = useState<string | null>(null);
+  const [isDecrypting, setIsDecrypting] = useState(false);
 
   // Get unique key types from apiKeys
   const availableTypes = useMemo(() => {
@@ -110,7 +117,7 @@ export default function CredentialsPage() {
   };
 
   // Handle sorting
-  const requestSort = (key: keyof ApiKey) => {
+  const requestSort = (key: keyof UIApiKey) => {
     let direction: 'asc' | 'desc' = 'asc';
     if (sortConfig.key === key && sortConfig.direction === 'asc') {
       direction = 'desc';
@@ -157,10 +164,15 @@ export default function CredentialsPage() {
     });
 
   const toggleKeyVisibility = (keyId: string) => {
-    setVisibleKeys(prev => ({
-      ...prev,
-      [keyId]: !prev[keyId]
-    }));
+    setVisibleKeys(prev => {
+      const updated = new Set(prev);
+      if (updated.has(keyId)) {
+        updated.delete(keyId);
+      } else {
+        updated.add(keyId);
+      }
+      return updated;
+    });
   };
 
   const formatDate = (dateString: string | null) => {
@@ -173,50 +185,117 @@ export default function CredentialsPage() {
     }).format(date);
   };
 
-  const handleAddKey = () => {
-    if (!newKeyName.trim() || !newKeyValue.trim() || !newKeyType.trim()) {
-      toast.error('Please fill in all fields');
-      return;
-    }
-
-    const newKey: ApiKey = {
-      id: Date.now().toString(),
-      name: newKeyName,
-      key: newKeyValue,
-      type: newKeyType,
-      created: new Date().toISOString(),
-      lastUsed: null,
-    };
-
-    setApiKeys([...apiKeys, newKey]);
-    resetForm();
-    setIsAddKeyDialogOpen(false);
-    toast.success('API key added successfully');
-  };
-
-  const handleDeleteKey = (keyId: string) => {
-    setApiKeys(apiKeys.filter(key => key.id !== keyId));
-    toast.success('API key deleted successfully');
-  };
-
   const handleCopyKey = (key: string) => {
     navigator.clipboard.writeText(key);
     toast.success('API key copied to clipboard');
   };
 
-  const resetForm = () => {
-    setNewKeyName('');
-    setNewKeyValue('');
-    setNewKeyType('OpenAI');
+  const refreshApiKeys = useCallback(async () => {
+    setIsLoadingKeys(true);
+    try {
+      const backendKeys = await getApiKeys();
+      // Map from backend format to UI format
+      const uiKeys: UIApiKey[] = backendKeys.map(key => ({
+        id: key.id,
+        name: key.name,
+        type: key.service,
+        key: "••••••••••••••••••••••••", // Placeholder until viewed
+        created: key.created_at,
+        lastUsed: key.updated_at
+      }));
+      setApiKeys(uiKeys);
+    } catch (error: any) {
+      toast.error(error.message || "Failed to load API keys");
+    } finally {
+      setIsLoadingKeys(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    refreshApiKeys();
+  }, [refreshApiKeys]);
+
+  const handleAddKey = async (e: React.FormEvent) => {
+    e.preventDefault();
+    
+    if (!newKeyName.trim() || !newKeyService.trim() || !newKeyValue.trim()) {
+      toast.error("All fields are required");
+      return;
+    }
+    
+    setIsSubmitting(true);
+    
+    try {
+      await createApiKey(
+        newKeyName.trim(),
+        newKeyService.trim(),
+        newKeyValue.trim()
+      );
+      
+      toast.success("API key added successfully");
+      
+      // Reset form
+      setNewKeyName('');
+      setNewKeyService('');
+      setNewKeyValue('');
+      setShowKey(false);
+      setIsAddKeyDialogOpen(false);
+      
+      // Refresh the API keys list
+      refreshApiKeys();
+    } catch (error: any) {
+      toast.error(error.message || "Failed to add API key");
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const handleViewKey = async (id: string) => {
+    setIsDecrypting(true);
+    try {
+      const keyWithValue = await getApiKeyWithValue(id);
+      
+      if (keyWithValue && keyWithValue.decrypted_key) {
+        // Update the key in the state with the decrypted value
+        setApiKeys(prevKeys => 
+          prevKeys.map(key => 
+            key.id === id 
+              ? { ...key, key: keyWithValue.decrypted_key } 
+              : key
+          )
+        );
+        
+        // Make the key visible
+        setVisibleKeys(prev => {
+          const updated = new Set(prev);
+          updated.add(id);
+          return updated;
+        });
+        
+        setSelectedKeyId(id);
+      }
+    } catch (error: any) {
+      toast.error(error.message || "Failed to decrypt API key");
+    } finally {
+      setIsDecrypting(false);
+    }
+  };
+
+  const handleDeleteKey = async (id: string) => {
+    try {
+      await deleteApiKey(id);
+      toast.success("API key deleted successfully");
+      refreshApiKeys();
+    } catch (error: any) {
+      toast.error(error.message || "Failed to delete API key");
+    }
   };
 
   const maskApiKey = (key: string) => {
-    const firstFour = key.substring(0, 7);
-    const lastFour = key.substring(key.length - 4);
-    return `${firstFour}...${lastFour}`;
+    return "••••••••••••••••••••••••";
   };
 
-  const getSortIcon = (key: keyof ApiKey) => {
+  const getSortIcon = (key: keyof UIApiKey) => {
     if (sortConfig.key !== key) {
       return <ArrowUpDown className="h-4 w-4" />;
     }
@@ -375,14 +454,14 @@ export default function CredentialsPage() {
                       <TableCell>
                         <div className="flex items-center space-x-2">
                           <span className="font-mono text-sm">
-                            {visibleKeys[apiKey.id] ? apiKey.key : maskApiKey(apiKey.key)}
+                            {visibleKeys.has(apiKey.id) ? apiKey.key : maskApiKey(apiKey.key)}
                           </span>
                           <Button
                             variant="ghost"
                             size="icon"
                             onClick={() => toggleKeyVisibility(apiKey.id)}
                           >
-                            {visibleKeys[apiKey.id] ? (
+                            {visibleKeys.has(apiKey.id) ? (
                               <EyeOff className="h-4 w-4" />
                             ) : (
                               <Eye className="h-4 w-4" />
@@ -391,7 +470,10 @@ export default function CredentialsPage() {
                           <Button
                             variant="ghost"
                             size="icon"
-                            onClick={() => handleCopyKey(apiKey.key)}
+                            onClick={() => {
+                              navigator.clipboard.writeText(apiKey.key);
+                              toast.success('API key copied to clipboard');
+                            }}
                           >
                             <Copy className="h-4 w-4" />
                           </Button>
@@ -407,9 +489,14 @@ export default function CredentialsPage() {
                             </Button>
                           </DropdownMenuTrigger>
                           <DropdownMenuContent align="end">
-                            <DropdownMenuItem onClick={() => handleCopyKey(apiKey.key)}>
+                            <DropdownMenuItem
+                              onClick={() => {
+                                navigator.clipboard.writeText(apiKey.key);
+                                toast.success('API key copied to clipboard');
+                              }}
+                            >
                               <Copy className="mr-2 h-4 w-4" />
-                              Copy
+                              <span>Copy Key</span>
                             </DropdownMenuItem>
                             <DropdownMenuItem onClick={() => handleDeleteKey(apiKey.id)}>
                               <Trash2 className="mr-2 h-4 w-4" />
@@ -427,56 +514,78 @@ export default function CredentialsPage() {
         </Card>
 
         <Dialog open={isAddKeyDialogOpen} onOpenChange={setIsAddKeyDialogOpen}>
-          <DialogContent>
+          <DialogContent className="sm:max-w-[425px]">
             <DialogHeader>
               <DialogTitle>Add New Key</DialogTitle>
               <DialogDescription>
-                Enter your key details below. Keep your keys secure and never share them publicly.
+                Add a new API key to be securely stored. Only you will be able to view this key.
               </DialogDescription>
             </DialogHeader>
-            <div className="grid gap-4 py-4">
-              <div className="grid gap-2">
-                <Label htmlFor="keyName">Name</Label>
-                <Input
-                  id="keyName"
-                  value={newKeyName}
-                  onChange={(e) => setNewKeyName(e.target.value)}
-                  placeholder="e.g. OpenAI Production Key"
-                />
+            <form onSubmit={handleAddKey}>
+              <div className="grid gap-4 py-4">
+                <div className="grid grid-cols-4 items-center gap-4">
+                  <Label htmlFor="name" className="text-right">
+                    Name
+                  </Label>
+                  <Input
+                    id="name"
+                    value={newKeyName}
+                    onChange={(e) => setNewKeyName(e.target.value)}
+                    className="col-span-3"
+                    placeholder="My API Key"
+                    required
+                  />
+                </div>
+                <div className="grid grid-cols-4 items-center gap-4">
+                  <Label htmlFor="service" className="text-right">
+                    Service
+                  </Label>
+                  <Input
+                    id="service"
+                    value={newKeyService}
+                    onChange={(e) => setNewKeyService(e.target.value)}
+                    className="col-span-3"
+                    placeholder="OpenAI, GitHub, etc."
+                    required
+                  />
+                </div>
+                <div className="grid grid-cols-4 items-center gap-4">
+                  <Label htmlFor="key" className="text-right">
+                    API Key
+                  </Label>
+                  <div className="col-span-3 relative">
+                    <Input
+                      id="key"
+                      type={showKey ? "text" : "password"}
+                      value={newKeyValue}
+                      onChange={(e) => setNewKeyValue(e.target.value)}
+                      className="pr-9"
+                      placeholder="Enter your API key"
+                      required
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowKey(!showKey)}
+                      className="absolute inset-y-0 right-0 pr-3 flex items-center"
+                    >
+                      {showKey ? (
+                        <EyeOff className="h-4 w-4 text-muted-foreground" />
+                      ) : (
+                        <Eye className="h-4 w-4 text-muted-foreground" />
+                      )}
+                    </button>
+                  </div>
+                </div>
               </div>
-              <div className="grid gap-2">
-                <Label htmlFor="keyType">API Type</Label>
-                <select
-                  id="keyType"
-                  value={newKeyType}
-                  onChange={(e) => setNewKeyType(e.target.value)}
-                  className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
-                >
-                  <option value="OpenAI">OpenAI</option>
-                  <option value="Anthropic">Anthropic</option>
-                  <option value="Cohere">Cohere</option>
-                  <option value="Hugging Face">Hugging Face</option>
-                  <option value="Stability AI">Stability AI</option>
-                  <option value="Custom">Custom</option>
-                </select>
-              </div>
-              <div className="grid gap-2">
-                <Label htmlFor="keyValue">API Key</Label>
-                <Input
-                  id="keyValue"
-                  value={newKeyValue}
-                  onChange={(e) => setNewKeyValue(e.target.value)}
-                  placeholder="sk-..."
-                  type="password"
-                />
-              </div>
-            </div>
-            <DialogFooter>
-              <DialogClose asChild>
-                <Button variant="outline">Cancel</Button>
-              </DialogClose>
-              <Button onClick={handleAddKey}>Add API Key</Button>
-            </DialogFooter>
+              <DialogFooter>
+                <Button type="button" variant="outline" onClick={() => setIsAddKeyDialogOpen(false)}>
+                  Cancel
+                </Button>
+                <Button type="submit" disabled={isSubmitting}>
+                  {isSubmitting ? "Saving..." : "Save Key"}
+                </Button>
+              </DialogFooter>
+            </form>
           </DialogContent>
         </Dialog>
       </CredentialLayout>
