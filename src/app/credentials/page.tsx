@@ -459,7 +459,15 @@ export default function CredentialsPage() {
                           <Button
                             variant="ghost"
                             size="icon"
-                            onClick={() => toggleKeyVisibility(apiKey.id)}
+                            onClick={() => {
+                              if (!visibleKeys.has(apiKey.id)) {
+                                // First time viewing - need to fetch the decrypted key
+                                handleViewKey(apiKey.id);
+                              } else {
+                                // Just hide the key
+                                toggleKeyVisibility(apiKey.id);
+                              }
+                            }}
                           >
                             {visibleKeys.has(apiKey.id) ? (
                               <EyeOff className="h-4 w-4" />
