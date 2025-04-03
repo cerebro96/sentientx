@@ -32,7 +32,7 @@ export default function RegisterPage() {
       <div className="w-full max-w-md">
         <div className="mb-8 text-center">
           <h1 className="text-3xl font-bold">SentientX</h1>
-          <p className="text-muted-foreground">Create your account</p>
+          <p className="text-muted-foreground">Next Generation of Intelligent AI Agents</p>
         </div>
         <AuthForm 
           mode="register" 

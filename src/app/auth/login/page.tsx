@@ -40,7 +40,7 @@ export default function LoginPage() {
             </svg>
             <h1 className="text-3xl font-bold ml-2">SentientX</h1>
           </Link>
-          <p className="text-muted-foreground">Next Generation of Intelligent Web Agents</p>
+          <p className="text-muted-foreground">Next Generation of Intelligent AI Agents</p>
         </div>
         <AuthForm mode="login" onSubmit={handleLogin} isLoading={isLoading} error={error} />
       </div>
