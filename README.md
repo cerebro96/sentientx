@@ -2,7 +2,7 @@
 
 SentientX is a modern AI Workflow Automation Platform that allows users to create, manage, and execute automated workflows with a visual, drag-and-drop interface.
 
-![SentientX](https://user-images.githubusercontent.com/your-username/sentientx/assets/screenshot.png)
+<!-- ![SentientX](https://user-images.githubusercontent.com/your-username/sentientx/assets/screenshot.png) -->
 
 ## Features
 
