@@ -13,14 +13,11 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { 
-  Table, 
-  TableBody, 
-  TableCell, 
-  TableHead, 
-  TableHeader, 
-  TableRow 
-} from "@/components/ui/table";
+import { Badge } from "@/components/ui/badge";
+import { Eye, EyeOff, MoreVertical, Plus, Copy, Key, Trash2, Edit2, Search, ArrowUpDown, ChevronDown, ChevronUp, Filter } from 'lucide-react';
+import { toast } from 'sonner';
+import { ProtectedRoute } from "@/components/auth/ProtectedRoute";
+import { createApiKey, getApiKeys, getApiKeyWithValue, deleteApiKey } from "@/lib/api-keys";
 import {
   Dialog,
   DialogContent,
@@ -39,10 +36,6 @@ import {
   DropdownMenuSeparator,
   DropdownMenuLabel,
 } from "@/components/ui/dropdown-menu";
-import { Eye, EyeOff, MoreVertical, Plus, Copy, Key, Trash2, Edit2, Search, ArrowUpDown, ChevronDown, ChevronUp, Filter } from 'lucide-react';
-import { toast } from 'sonner';
-import { ProtectedRoute } from "@/components/auth/ProtectedRoute";
-import { createApiKey, getApiKeys, getApiKeyWithValue, deleteApiKey } from "@/lib/api-keys";
 
 // Define UI-specific API key type
 type UIApiKey = {
@@ -54,28 +47,222 @@ type UIApiKey = {
   lastUsed: string | null;
 };
 
-// Sample mock data
-const mockApiKeys: UIApiKey[] = [
-  {
-    id: '1',
-    name: 'OpenAI API Key',
-    key: 'sk-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx',
-    type: 'OpenAI',
-    created: '2023-06-15T10:30:00Z',
-    lastUsed: '2023-07-20T14:45:00Z',
-  },
-  {
-    id: '2',
-    name: 'Anthropic API Key',
-    key: 'sk-ant-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx',
-    type: 'Anthropic',
-    created: '2023-08-05T09:15:00Z',
-    lastUsed: null,
-  },
-];
+// Helper functions used across components
+const formatDate = (dateString: string | null) => {
+  if (!dateString) return 'Never';
+  const date = new Date(dateString);
+  return new Intl.DateTimeFormat('en-US', {
+    year: 'numeric',
+    month: 'short',
+    day: 'numeric',
+  }).format(date);
+};
+
+const maskApiKey = () => {
+  return "••••••••••••••••••••••••";
+};
+
+// Define the ApiKeysTable component
+interface ApiKeysTableProps {
+  apiKeys: UIApiKey[];
+  sortConfig: {
+    key: keyof UIApiKey | null;
+    direction: 'asc' | 'desc';
+  };
+  onSort: (key: keyof UIApiKey) => void;
+  visibleKeys: Set<string>;
+  onToggleKeyVisibility: (keyId: string) => void;
+  onViewKey: (keyId: string) => void;
+  onDeleteKey: (keyId: string) => void;
+  searchQuery?: string;
+  typeFilters: string[];
+  onClearFilters: () => void;
+}
+
+function ApiKeysTable({
+  apiKeys,
+  sortConfig,
+  onSort,
+  visibleKeys,
+  onToggleKeyVisibility,
+  onViewKey,
+  onDeleteKey,
+  searchQuery,
+  typeFilters,
+  onClearFilters
+}: ApiKeysTableProps) {
+  const getSortIcon = (key: keyof UIApiKey) => {
+    if (sortConfig.key !== key) {
+      return <ArrowUpDown className="h-4 w-4" />;
+    }
+    return sortConfig.direction === 'asc' ? (
+      <ChevronUp className="h-4 w-4" />
+    ) : (
+      <ChevronDown className="h-4 w-4" />
+    );
+  };
+
+  return (
+    <div className="rounded-md border">
+      <div className="relative w-full overflow-auto">
+        <table className="w-full caption-bottom text-sm">
+          <thead className="border-b bg-muted/50">
+            <tr>
+              <th 
+                className="h-10 px-4 text-left font-medium text-muted-foreground cursor-pointer"
+                onClick={() => onSort('name')}
+              >
+                <div className="flex items-center">
+                  Name
+                  <span className="ml-1">{getSortIcon('name')}</span>
+                </div>
+              </th>
+              <th 
+                className="h-10 px-4 text-left font-medium text-muted-foreground cursor-pointer"
+                onClick={() => onSort('type')}
+              >
+                <div className="flex items-center">
+                  Type
+                  <span className="ml-1">{getSortIcon('type')}</span>
+                </div>
+              </th>
+              <th className="h-10 px-4 text-left font-medium text-muted-foreground">
+                API Key
+              </th>
+              <th 
+                className="h-10 px-4 text-left font-medium text-muted-foreground cursor-pointer"
+                onClick={() => onSort('created')}
+              >
+                <div className="flex items-center">
+                  Created
+                  <span className="ml-1">{getSortIcon('created')}</span>
+                </div>
+              </th>
+              <th 
+                className="h-10 px-4 text-left font-medium text-muted-foreground cursor-pointer"
+                onClick={() => onSort('lastUsed')}
+              >
+                <div className="flex items-center">
+                  Last Used
+                  <span className="ml-1">{getSortIcon('lastUsed')}</span>
+                </div>
+              </th>
+              <th className="h-10 px-4 text-left font-medium text-muted-foreground w-[50px]"></th>
+            </tr>
+          </thead>
+          <tbody>
+            {apiKeys.length > 0 ? (
+              apiKeys.map((apiKey) => (
+                <tr key={apiKey.id} className="border-b transition-colors hover:bg-muted/50">
+                  <td className="p-4 font-medium">{apiKey.name}</td>
+                  <td className="p-4">
+                    <Badge variant="outline">{apiKey.type}</Badge>
+                  </td>
+                  <td className="p-4">
+                    <div className="flex items-center space-x-2">
+                      <span className="font-mono text-sm">
+                        {visibleKeys.has(apiKey.id) ? apiKey.key : maskApiKey()}
+                      </span>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        onClick={() => {
+                          if (!visibleKeys.has(apiKey.id)) {
+                            onViewKey(apiKey.id);
+                          } else {
+                            onToggleKeyVisibility(apiKey.id);
+                          }
+                        }}
+                      >
+                        {visibleKeys.has(apiKey.id) ? (
+                          <EyeOff className="h-4 w-4" />
+                        ) : (
+                          <Eye className="h-4 w-4" />
+                        )}
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        onClick={() => {
+                          navigator.clipboard.writeText(apiKey.key);
+                          toast.success('API key copied to clipboard');
+                        }}
+                      >
+                        <Copy className="h-4 w-4" />
+                      </Button>
+                    </div>
+                  </td>
+                  <td className="p-4">{formatDate(apiKey.created)}</td>
+                  <td className="p-4">{formatDate(apiKey.lastUsed)}</td>
+                  <td className="p-4">
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild>
+                        <Button variant="ghost" size="icon" className="h-8 w-8">
+                          <MoreVertical className="h-4 w-4" />
+                          <span className="sr-only">Open menu</span>
+                        </Button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="end">
+                        <DropdownMenuItem
+                          onClick={() => {
+                            navigator.clipboard.writeText(apiKey.key);
+                            toast.success('API key copied to clipboard');
+                          }}
+                        >
+                          <Copy className="mr-2 h-4 w-4" />
+                          <span>Copy Key</span>
+                        </DropdownMenuItem>
+                        <DropdownMenuItem onClick={() => onDeleteKey(apiKey.id)}>
+                          <Trash2 className="mr-2 h-4 w-4" />
+                          Delete
+                        </DropdownMenuItem>
+                      </DropdownMenuContent>
+                    </DropdownMenu>
+                  </td>
+                </tr>
+              ))
+            ) : (
+              <tr>
+                <td colSpan={6} className="py-16 text-center">
+                  <div className="flex flex-col items-center justify-center space-y-3">
+                    <div className="relative flex h-24 w-24 items-center justify-center rounded-full bg-muted">
+                      <Key className="h-10 w-10 text-muted-foreground/60" />
+                    </div>
+                    <div className="space-y-1.5">
+                      <p className="text-xl font-medium">
+                        {apiKeys.length === 0 && !searchQuery && typeFilters.length === 0 
+                          ? "No API keys found" 
+                          : "No results found"}
+                      </p>
+                      <p className="text-muted-foreground">
+                        {searchQuery || typeFilters.length > 0 ? (
+                          <>
+                            No API keys match your search criteria.{" "}
+                            <button 
+                              onClick={onClearFilters}
+                              className="text-primary underline"
+                            >
+                              Clear filters
+                            </button>
+                          </>
+                        ) : (
+                          "You haven't added any API keys yet. Add your first API key to get started."
+                        )}
+                      </p>
+                    </div>
+                  </div>
+                </td>
+              </tr>
+            )}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+}
 
 export default function CredentialsPage() {
-  const [apiKeys, setApiKeys] = useState<UIApiKey[]>(mockApiKeys);
+  const [apiKeys, setApiKeys] = useState<UIApiKey[]>([]);
   const [isAddKeyDialogOpen, setIsAddKeyDialogOpen] = useState(false);
   const [newKeyName, setNewKeyName] = useState('');
   const [newKeyService, setNewKeyService] = useState('OpenAI');
@@ -111,12 +298,7 @@ export default function CredentialsPage() {
     });
   };
 
-  // Clear all type filters
-  const clearTypeFilters = () => {
-    setTypeFilters([]);
-  };
-
-  // Handle sorting
+  // Function to handle sorting
   const requestSort = (key: keyof UIApiKey) => {
     let direction: 'asc' | 'desc' = 'asc';
     if (sortConfig.key === key && sortConfig.direction === 'asc') {
@@ -175,21 +357,6 @@ export default function CredentialsPage() {
     });
   };
 
-  const formatDate = (dateString: string | null) => {
-    if (!dateString) return 'Never';
-    const date = new Date(dateString);
-    return new Intl.DateTimeFormat('en-US', {
-      year: 'numeric',
-      month: 'short',
-      day: 'numeric',
-    }).format(date);
-  };
-
-  const handleCopyKey = (key: string) => {
-    navigator.clipboard.writeText(key);
-    toast.success('API key copied to clipboard');
-  };
-
   const refreshApiKeys = useCallback(async () => {
     setIsLoadingKeys(true);
     try {
@@ -199,7 +366,7 @@ export default function CredentialsPage() {
         id: key.id,
         name: key.name,
         type: key.service,
-        key: "••••••••••••••••••••••••", // Placeholder until viewed
+        key: maskApiKey(), // Placeholder until viewed
         created: key.created_at,
         lastUsed: key.updated_at
       }));
@@ -291,19 +458,10 @@ export default function CredentialsPage() {
     }
   };
 
-  const maskApiKey = (key: string) => {
-    return "••••••••••••••••••••••••";
-  };
-
-  const getSortIcon = (key: keyof UIApiKey) => {
-    if (sortConfig.key !== key) {
-      return <ArrowUpDown className="h-4 w-4" />;
-    }
-    return sortConfig.direction === 'asc' ? (
-      <ChevronUp className="h-4 w-4" />
-    ) : (
-      <ChevronDown className="h-4 w-4" />
-    );
+  // Function to clear all filters
+  const clearFilters = () => {
+    setSearchQuery('');
+    setTypeFilters([]);
   };
 
   return (
@@ -365,7 +523,7 @@ export default function CredentialsPage() {
                     {typeFilters.length > 0 && (
                       <>
                         <DropdownMenuSeparator />
-                        <DropdownMenuItem onClick={clearTypeFilters}>
+                        <DropdownMenuItem onClick={clearFilters}>
                           Clear Filters
                         </DropdownMenuItem>
                       </>
@@ -376,147 +534,26 @@ export default function CredentialsPage() {
             </div>
           </CardHeader>
           <CardContent>
-            {filteredAndSortedApiKeys.length === 0 ? (
-              <div className="text-center py-8">
-                {searchQuery || typeFilters.length > 0 ? (
-                  <Search className="h-12 w-12 mx-auto text-muted-foreground opacity-50 mb-4" />
-                ) : (
-                  <Key className="h-12 w-12 mx-auto text-muted-foreground opacity-50 mb-4" />
-                )}
-                <h3 className="text-lg font-medium mb-2">
-                  {apiKeys.length === 0 && !searchQuery && typeFilters.length === 0 
-                    ? "No API keys found" 
-                    : "No results found"}
-                </h3>
-                <p className="text-muted-foreground mb-4">
-                  {searchQuery 
-                    ? `No API keys match your search for "${searchQuery}"` 
-                    : typeFilters.length > 0 
-                      ? 'No API keys match the selected filters' 
-                      : 'You haven\'t added any API keys yet. Add your first API key to get started.'}
-                </p>
-                <div className="flex justify-center gap-2">
-                  {searchQuery && (
-                    <Button variant="outline" onClick={() => setSearchQuery('')}>
-                      Clear Search
-                    </Button>
-                  )}
-                  {typeFilters.length > 0 && (
-                    <Button variant="outline" onClick={clearTypeFilters}>
-                      Clear Filters
-                    </Button>
-                  )}
-                  {(!searchQuery && typeFilters.length === 0) || (apiKeys.length === 0 && !searchQuery && typeFilters.length === 0) ? (
-                    <Button onClick={() => setIsAddKeyDialogOpen(true)}>
-                      <Plus className="mr-2 h-4 w-4" />
-                      Add API Key
-                    </Button>
-                  ) : null}
+            {isLoadingKeys ? (
+              <div className="flex justify-center items-center py-8">
+                <div className="flex flex-col items-center gap-2">
+                  <div className="h-8 w-8 animate-spin rounded-full border-4 border-primary border-t-transparent"></div>
+                  <p className="text-sm text-muted-foreground">Loading API keys...</p>
                 </div>
               </div>
             ) : (
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead onClick={() => requestSort('name')} className="cursor-pointer">
-                      <div className="flex items-center">
-                        Name
-                        <span className="ml-1">{getSortIcon('name')}</span>
-                      </div>
-                    </TableHead>
-                    <TableHead onClick={() => requestSort('type')} className="cursor-pointer">
-                      <div className="flex items-center">
-                        Type
-                        <span className="ml-1">{getSortIcon('type')}</span>
-                      </div>
-                    </TableHead>
-                    <TableHead>API Key</TableHead>
-                    <TableHead onClick={() => requestSort('created')} className="cursor-pointer">
-                      <div className="flex items-center">
-                        Created
-                        <span className="ml-1">{getSortIcon('created')}</span>
-                      </div>
-                    </TableHead>
-                    <TableHead onClick={() => requestSort('lastUsed')} className="cursor-pointer">
-                      <div className="flex items-center">
-                        Last Used
-                        <span className="ml-1">{getSortIcon('lastUsed')}</span>
-                      </div>
-                    </TableHead>
-                    <TableHead className="w-[80px]"></TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {filteredAndSortedApiKeys.map((apiKey) => (
-                    <TableRow key={apiKey.id}>
-                      <TableCell className="font-medium">{apiKey.name}</TableCell>
-                      <TableCell>{apiKey.type}</TableCell>
-                      <TableCell>
-                        <div className="flex items-center space-x-2">
-                          <span className="font-mono text-sm">
-                            {visibleKeys.has(apiKey.id) ? apiKey.key : maskApiKey(apiKey.key)}
-                          </span>
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            onClick={() => {
-                              if (!visibleKeys.has(apiKey.id)) {
-                                // First time viewing - need to fetch the decrypted key
-                                handleViewKey(apiKey.id);
-                              } else {
-                                // Just hide the key
-                                toggleKeyVisibility(apiKey.id);
-                              }
-                            }}
-                          >
-                            {visibleKeys.has(apiKey.id) ? (
-                              <EyeOff className="h-4 w-4" />
-                            ) : (
-                              <Eye className="h-4 w-4" />
-                            )}
-                          </Button>
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            onClick={() => {
-                              navigator.clipboard.writeText(apiKey.key);
-                              toast.success('API key copied to clipboard');
-                            }}
-                          >
-                            <Copy className="h-4 w-4" />
-                          </Button>
-                        </div>
-                      </TableCell>
-                      <TableCell>{formatDate(apiKey.created)}</TableCell>
-                      <TableCell>{formatDate(apiKey.lastUsed)}</TableCell>
-                      <TableCell>
-                        <DropdownMenu>
-                          <DropdownMenuTrigger asChild>
-                            <Button variant="ghost" size="icon">
-                              <MoreVertical className="h-4 w-4" />
-                            </Button>
-                          </DropdownMenuTrigger>
-                          <DropdownMenuContent align="end">
-                            <DropdownMenuItem
-                              onClick={() => {
-                                navigator.clipboard.writeText(apiKey.key);
-                                toast.success('API key copied to clipboard');
-                              }}
-                            >
-                              <Copy className="mr-2 h-4 w-4" />
-                              <span>Copy Key</span>
-                            </DropdownMenuItem>
-                            <DropdownMenuItem onClick={() => handleDeleteKey(apiKey.id)}>
-                              <Trash2 className="mr-2 h-4 w-4" />
-                              Delete
-                            </DropdownMenuItem>
-                          </DropdownMenuContent>
-                        </DropdownMenu>
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
+              <ApiKeysTable 
+                apiKeys={filteredAndSortedApiKeys}
+                sortConfig={sortConfig}
+                onSort={requestSort}
+                visibleKeys={visibleKeys}
+                onToggleKeyVisibility={toggleKeyVisibility}
+                onViewKey={handleViewKey}
+                onDeleteKey={handleDeleteKey}
+                searchQuery={searchQuery}
+                typeFilters={typeFilters}
+                onClearFilters={clearFilters}
+              />
             )}
           </CardContent>
         </Card>
