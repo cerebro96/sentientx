@@ -1,13 +1,28 @@
 'use client';
 
-import { useState, useEffect } from 'react';
-import { Button } from "@/components/ui/button";
-import { Plus } from "lucide-react";
+import { useCallback, useRef, useState, useEffect } from 'react';
+import ReactFlow, {
+  ReactFlowProvider,
+  ReactFlowInstance,
+  Background,
+  Controls,
+  Panel,
+  MiniMap,
+  ConnectionLineType,
+  useReactFlow,
+} from 'reactflow';
+import 'reactflow/dist/style.css';
 import { WorkflowHeader } from './WorkflowHeader';
+import { NodePanel } from './NodePanel';
+import { nodeTypes } from './nodeTypes';
+import { useWorkflowStore } from '@/lib/store/workflow';
+import { Button } from '@/components/ui/button';
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { getWorkflow, Workflow, updateWorkflow } from '@/lib/workflows';
+import { Check, Save, ChevronLeft, Trash2 } from 'lucide-react';
 import { toast } from 'sonner';
+import { NodeData } from '@/lib/store/workflow';
 import { WorkflowFormData } from './WorkflowDialog';
+import { createWorkflow, getWorkflow, updateWorkflow } from '@/lib/workflows';
 
 interface WorkflowCanvasProps {
   isActive: boolean;
@@ -17,93 +32,153 @@ interface WorkflowCanvasProps {
 }
 
 export function WorkflowCanvas({ isActive, onClose, workflowId, newWorkflowData }: WorkflowCanvasProps) {
-  const [workflow, setWorkflow] = useState<Workflow | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
+  const reactFlowWrapper = useRef<HTMLDivElement>(null);
+  const [reactFlowInstance, setReactFlowInstance] = useState<ReactFlowInstance | null>(null);
+  const [workflowName, setWorkflowName] = useState(newWorkflowData?.name || 'My workflow');
+  const [isWorkflowActive, setIsWorkflowActive] = useState(newWorkflowData?.isActive || false);
+  const [tags, setTags] = useState<string[]>(newWorkflowData?.tags || []);
 
+  // Access store state and actions
+  const {
+    nodes,
+    edges,
+    onNodesChange,
+    onEdgesChange,
+    onConnect,
+    addNode,
+    resetWorkflow,
+    isReady,
+    setIsReady,
+  } = useWorkflowStore();
+
+  // Initialize workflow from new data
   useEffect(() => {
-    async function loadWorkflow() {
-      if (!workflowId) {
-        // If no workflow ID, create a new workflow state
-        // Use newWorkflowData if available, otherwise use defaults
-        setWorkflow({
-          id: '',
-          user_id: '',
-          name: newWorkflowData?.name || 'My workflow',
-          description: newWorkflowData?.description || null,
-          is_active: newWorkflowData?.isActive || false,
-          tags: newWorkflowData?.tags || [],
-          nodes: [],
-          edges: [],
-          created_at: new Date().toISOString(),
-          updated_at: new Date().toISOString()
-        });
-        setIsLoading(false);
-        return;
-      }
+    if (newWorkflowData && !workflowId) {
+      setWorkflowName(newWorkflowData.name);
+      setIsWorkflowActive(newWorkflowData.isActive);
+      setTags(newWorkflowData.tags || []);
+    }
+  }, [newWorkflowData, workflowId]);
 
+  const onDragOver = useCallback((event: React.DragEvent) => {
+    event.preventDefault();
+    event.dataTransfer.dropEffect = 'move';
+  }, []);
+
+  const onDrop = useCallback(
+    (event: React.DragEvent) => {
+      event.preventDefault();
+
+      if (!reactFlowWrapper.current || !reactFlowInstance) return;
+
+      const reactFlowBounds = reactFlowWrapper.current.getBoundingClientRect();
+      const nodeData = event.dataTransfer.getData('application/reactflow');
+      
+      if (!nodeData) return;
+      
+      const position = reactFlowInstance.project({
+        x: event.clientX - reactFlowBounds.left,
+        y: event.clientY - reactFlowBounds.top,
+      });
+
+      const newNodeData = JSON.parse(nodeData);
+      const newNode = {
+        id: `${newNodeData.type}-${Date.now()}`,
+        type: newNodeData.type,
+        position,
+        data: {
+          label: newNodeData.label,
+          description: newNodeData.description,
+          type: newNodeData.type,
+        },
+      };
+
+      addNode(newNode);
+    },
+    [reactFlowInstance, addNode]
+  );
+
+  const handleSaveWorkflow = async () => {
+    try {
+      // Prepare workflow data
+      const flowData = {
+        name: workflowName,
+        is_active: isWorkflowActive,
+        tags: tags,
+        nodes: nodes,
+        edges: edges
+      };
+
+      if (workflowId) {
+        // Update existing workflow
+        await updateWorkflow(workflowId, flowData);
+      } else {
+        // Create new workflow
+        await createWorkflow({
+          name: workflowName,
+          description: newWorkflowData?.description,
+          tags: tags,
+          is_active: isWorkflowActive,
+          nodes: nodes,
+          edges: edges
+        });
+      }
+      
+      toast.success('Workflow saved successfully');
+    } catch (error) {
+      console.error('Error saving workflow:', error);
+      toast.error('Failed to save workflow');
+    }
+  };
+
+  // Load existing workflow if editing
+  useEffect(() => {
+    const loadWorkflow = async () => {
+      if (!workflowId) return;
+      
       try {
-        setIsLoading(true);
         const data = await getWorkflow(workflowId);
         if (data) {
-          setWorkflow(data);
-        } else {
-          toast.error('Workflow not found');
-          onClose?.();
+          setWorkflowName(data.name);
+          setIsWorkflowActive(data.is_active);
+          setTags(data.tags || []);
+          
+          // Initialize the flow with the saved nodes and edges
+          if (data.nodes && data.edges) {
+            setIsReady(false); // Temporarily disable while loading
+            setTimeout(() => {
+              useWorkflowStore.setState({
+                nodes: data.nodes,
+                edges: data.edges
+              });
+              setIsReady(true);
+            }, 0);
+          }
         }
       } catch (error) {
         console.error('Error loading workflow:', error);
-        // Toast is already shown in the getWorkflow function
-        onClose?.();
-      } finally {
-        setIsLoading(false);
+        // Error toast is already shown in the getWorkflow function
       }
-    }
+    };
 
     loadWorkflow();
-  }, [workflowId, newWorkflowData, onClose]);
+  }, [workflowId, setIsReady]);
 
-  const handleNameChange = async (name: string) => {
-    if (!workflow) return;
+  useEffect(() => {
+    setIsReady(true);
     
-    const updatedWorkflow = { ...workflow, name };
-    setWorkflow(updatedWorkflow);
-    
-    if (workflow.id) {
-      try {
-        await updateWorkflow(workflow.id, { name });
-      } catch (error) {
-        console.error('Error updating workflow name:', error);
-        // The UI is already updated, so no need to show an error toast here
-      }
-    }
-  };
+    return () => {
+      setIsReady(false);
+      resetWorkflow();
+    };
+  }, [setIsReady, resetWorkflow]);
 
-  const handleActiveChange = async (is_active: boolean) => {
-    if (!workflow) return;
-    
-    const updatedWorkflow = { ...workflow, is_active };
-    setWorkflow(updatedWorkflow);
-    
-    if (workflow.id) {
-      try {
-        await updateWorkflow(workflow.id, { is_active });
-      } catch (error) {
-        console.error('Error updating workflow active state:', error);
-      }
-    }
-  };
-
-  if (isLoading) {
+  if (!isReady) {
     return (
-      <div className="h-full flex flex-col items-center justify-center bg-background">
-        <div className="animate-spin w-8 h-8 border-4 border-primary border-t-transparent rounded-full"></div>
-        <p className="mt-4 text-sm text-muted-foreground">Loading workflow...</p>
+      <div className="h-full flex items-center justify-center">
+        <div className="animate-spin h-8 w-8 border-4 border-primary border-t-transparent rounded-full"></div>
       </div>
     );
-  }
-
-  if (!workflow) {
-    return null;
   }
 
   return (
@@ -120,41 +195,55 @@ export function WorkflowCanvas({ isActive, onClose, workflowId, newWorkflowData 
       </div>
 
       <WorkflowHeader 
-        name={workflow.name}
-        onNameChange={handleNameChange}
-        isActive={workflow.is_active}
-        onActiveChange={handleActiveChange}
+        name={workflowName}
+        onNameChange={setWorkflowName}
+        isActive={isWorkflowActive}
+        onActiveChange={setIsWorkflowActive}
         onBack={onClose}
-        tags={workflow.tags}
-        workflowId={workflow.id}
+        tags={tags}
+        workflowId={workflowId}
       />
       
-      <div className="flex-1">
-        <div className="flex h-full">
-          <div className="flex-1 bg-grid-pattern p-8 overflow-auto">
-            {workflow.nodes.length === 0 ? (
-              <div className="min-h-full flex items-center justify-center text-muted-foreground">
-                <div className="text-center">
-                  <div className="inline-flex items-center justify-center w-32 h-32 rounded-lg border-2 border-dashed mb-4">
-                    <Plus className="h-8 w-8 text-muted-foreground" />
-                  </div>
-                  <p>Add first step...</p>
-                </div>
-              </div>
-            ) : (
-              <div className="min-h-full">
-                {/* Render the actual workflow nodes and edges here */}
-                {/* This will be implemented with a proper workflow editor */}
-              </div>
-            )}
-          </div>
-          
-          <div className="w-12 border-l flex flex-col items-center py-4 gap-2">
-            <Button variant="ghost" size="icon" className="h-8 w-8">
-              <Plus className="h-4 w-4" />
-            </Button>
-          </div>
+      <div className="flex-1 flex">
+        {/* Node Panel */}
+        <div className="w-64 h-full">
+          <NodePanel />
         </div>
+
+        {/* ReactFlow Canvas */}
+        <ReactFlowProvider>
+          <div ref={reactFlowWrapper} className="flex-1 h-full">
+            <ReactFlow
+              nodes={nodes}
+              edges={edges}
+              onNodesChange={onNodesChange}
+              onEdgesChange={onEdgesChange}
+              onConnect={onConnect}
+              onInit={setReactFlowInstance}
+              onDrop={onDrop}
+              onDragOver={onDragOver}
+              nodeTypes={nodeTypes}
+              deleteKeyCode={['Backspace', 'Delete']}
+              fitView
+              fitViewOptions={{ padding: 0.2 }}
+              connectionLineType={ConnectionLineType.SmoothStep}
+            >
+              <Background />
+              <Controls />
+              <MiniMap />
+              <Panel position="top-right" className="flex gap-2">
+                <Button size="sm" variant="outline" onClick={resetWorkflow}>
+                  <Trash2 className="h-4 w-4 mr-1" />
+                  Clear
+                </Button>
+                <Button size="sm" onClick={handleSaveWorkflow}>
+                  <Save className="h-4 w-4 mr-1" />
+                  Save
+                </Button>
+              </Panel>
+            </ReactFlow>
+          </div>
+        </ReactFlowProvider>
       </div>
     </div>
   );
