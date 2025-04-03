@@ -2,12 +2,14 @@ import type { Metadata } from "next";
 import { Inter } from "next/font/google";
 import "./globals.css";
 import { ThemeProvider } from "@/components/theme-provider"
+import { Suspense } from 'react'
+import { Toaster } from '@/components/ui/toaster'
 
 const inter = Inter({ subsets: ["latin"] });
 
 export const metadata: Metadata = {
   title: "SentientX",
-  description: "SentientX Dashboard",
+  description: "AI Workflow Automation Platform",
 };
 
 export default function RootLayout({
@@ -25,9 +27,16 @@ export default function RootLayout({
           disableTransitionOnChange
           themes={["light", "dark", "system", "red", "rose"]}
         >
-          <main className="min-h-screen bg-background antialiased">
-            {children}
-          </main>
+          <Suspense fallback={
+            <div className="flex h-screen w-full items-center justify-center">
+              <div className="h-32 w-32 animate-pulse rounded-full bg-muted" />
+            </div>
+          }>
+            <main className="min-h-screen bg-background antialiased">
+              {children}
+            </main>
+          </Suspense>
+          <Toaster />
         </ThemeProvider>
       </body>
     </html>
