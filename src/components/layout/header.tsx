@@ -82,7 +82,7 @@ export function Header() {
         <div className="flex items-center">
           <h1 className="text-xl font-semibold">Overview</h1>
           <p className="ml-2 text-sm text-muted-foreground">
-            All the workflows, credentials and executions you have access to
+            All the AI workflows, credentials and executions you have access to
           </p>
         </div>
         <div className="flex items-center gap-4">
