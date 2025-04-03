@@ -8,7 +8,6 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Switch } from "@/components/ui/switch";
 import { toast } from 'sonner';
-import { createWorkflow } from '@/lib/workflows';
 import { Tag, X, Plus } from 'lucide-react';
 
 export interface WorkflowFormData {
@@ -61,14 +60,8 @@ export function WorkflowDialog({ isOpen, onClose, onWorkflowCreated }: WorkflowD
     setIsLoading(true);
 
     try {
-      await createWorkflow({
-        name: name.trim(),
-        description: description.trim() || undefined,
-        is_active: isActive,
-        tags: tags,
-        nodes: [],
-        edges: []
-      });
+      // Don't create the workflow here - just pass the data to parent
+      // This prevents the duplicate creation
       
       // Pass form data back to parent
       onWorkflowCreated({
@@ -84,10 +77,11 @@ export function WorkflowDialog({ isOpen, onClose, onWorkflowCreated }: WorkflowD
       setIsActive(true);
       setTags([]);
       
-      toast.success("Workflow created successfully");
+      // Don't show a success message here since the workflow hasn't been created yet
+      // The success message will be shown after saving in the WorkflowCanvas
     } catch (error: any) {
-      // Error handling is already in createWorkflow
-      console.error("Failed to create workflow:", error);
+      console.error("Failed to prepare workflow:", error);
+      toast.error("An unexpected error occurred");
     } finally {
       setIsLoading(false);
     }
@@ -175,7 +169,7 @@ export function WorkflowDialog({ isOpen, onClose, onWorkflowCreated }: WorkflowD
               Cancel
             </Button>
             <Button type="submit" disabled={isLoading || !name.trim()}>
-              {isLoading ? "Creating..." : "Create Workflow"}
+              {isLoading ? "Preparing..." : "Prepare Workflow"}
             </Button>
           </DialogFooter>
         </form>

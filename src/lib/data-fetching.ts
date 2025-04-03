@@ -30,21 +30,41 @@ export const fetchExecutions = cache(async () => {
   try {
     console.log('Fetching executions from Supabase...');
     
-    // First, check if the table exists and has data
-    const { count, error: countError } = await supabase
-      .from('executions')
-      .select('*', { count: 'exact', head: true });
+    // Get the current session to identify the user
+    const { data: sessionData } = await supabase.auth.getSession();
+    const userId = sessionData?.session?.user?.id;
     
-    if (countError) {
-      console.error('Error checking executions table:', countError);
-      throw countError;
+    if (!userId) {
+      console.error('No authenticated user found');
+      return [];
     }
     
-    console.log(`Found ${count} executions in table`);
+    console.log(`Fetching executions for user: ${userId}`);
     
+    // First, fetch all workflows owned by the user
+    const { data: userWorkflows, error: workflowsError } = await supabase
+      .from('workflows')
+      .select('id')
+      .eq('user_id', userId);
+    
+    if (workflowsError) {
+      console.error('Error fetching user workflows:', workflowsError);
+      return [];
+    }
+    
+    // Extract workflow IDs
+    const workflowIds = userWorkflows.map(workflow => workflow.id);
+    
+    if (workflowIds.length === 0) {
+      console.log('User has no workflows');
+      return [];
+    }
+    
+    // Fetch executions for the user's workflows
     const { data: executions, error } = await supabase
       .from('executions')
       .select('*')
+      .in('workflow_id', workflowIds)
       .order('started_at', { ascending: false });
     
     if (error) {
@@ -62,6 +82,29 @@ export const fetchExecutions = cache(async () => {
 
 export const fetchWorkflowExecutions = cache(async (workflowId: string) => {
   try {
+    // Get the current session to identify the user
+    const { data: sessionData } = await supabase.auth.getSession();
+    const userId = sessionData?.session?.user?.id;
+    
+    if (!userId) {
+      console.error('No authenticated user found');
+      return [];
+    }
+    
+    // First verify the workflow belongs to the current user
+    const { data: workflow, error: workflowError } = await supabase
+      .from('workflows')
+      .select('id')
+      .eq('id', workflowId)
+      .eq('user_id', userId)
+      .single();
+    
+    if (workflowError || !workflow) {
+      console.error('Workflow not found or not owned by current user');
+      return [];
+    }
+    
+    // Fetch executions for the specific workflow
     const { data: executions, error } = await supabase
       .from('executions')
       .select('*')

@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Switch } from "@/components/ui/switch";
@@ -21,6 +21,7 @@ interface WorkflowHeaderProps {
   onActiveChange: (active: boolean) => void;
   onBack?: () => void;
   tags?: string[];
+  onTagsChange?: (tags: string[]) => void;
   workflowId?: string;
 }
 
@@ -31,6 +32,7 @@ export function WorkflowHeader({
   onActiveChange,
   onBack,
   tags = [],
+  onTagsChange,
   workflowId
 }: WorkflowHeaderProps) {
   const [isEditing, setIsEditing] = useState(false);
@@ -38,6 +40,11 @@ export function WorkflowHeader({
   const [isTagInputOpen, setIsTagInputOpen] = useState(false);
   const [tagInput, setTagInput] = useState('');
   const [workflowTags, setWorkflowTags] = useState<string[]>(tags);
+
+  // Update local tags when props change
+  useEffect(() => {
+    setWorkflowTags(tags);
+  }, [tags]);
 
   const handleNameSubmit = () => {
     if (editedName.trim()) {
@@ -75,6 +82,11 @@ export function WorkflowHeader({
     setTagInput('');
     setIsTagInputOpen(false);
 
+    // Notify parent component of tag changes
+    if (onTagsChange) {
+      onTagsChange(newTags);
+    }
+    
     // Update in database if we have a workflow ID
     if (workflowId) {
       try {
@@ -89,6 +101,11 @@ export function WorkflowHeader({
     const newTags = workflowTags.filter(tag => tag !== tagToRemove);
     setWorkflowTags(newTags);
 
+    // Notify parent component of tag changes
+    if (onTagsChange) {
+      onTagsChange(newTags);
+    }
+    
     // Update in database if we have a workflow ID
     if (workflowId) {
       try {
@@ -195,9 +212,9 @@ export function WorkflowHeader({
             <Share2 className="h-4 w-4 mr-1" />
             Share
           </Button>
-          <Button size="sm" className="h-7">
+          {/* <Button size="sm" className="h-7">
             Save
-          </Button>
+          </Button> */}
 
           <DropdownMenu>
             <DropdownMenuTrigger asChild>

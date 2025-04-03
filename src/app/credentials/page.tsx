@@ -236,7 +236,7 @@ export default function CredentialsPage() {
           </div>
           <Button onClick={() => setIsAddKeyDialogOpen(true)}>
             <Plus className="mr-2 h-4 w-4" />
-            Add New API Key
+            Add New Key
           </Button>
         </div>
 
@@ -244,7 +244,7 @@ export default function CredentialsPage() {
           <CardHeader>
             <div className="flex justify-between items-center">
               <div>
-                <CardTitle>Your API Keys</CardTitle>
+                <CardTitle>Your Keys</CardTitle>
                 <CardDescription>
                   These keys are used to authenticate your requests to external APIs
                 </CardDescription>
@@ -429,9 +429,9 @@ export default function CredentialsPage() {
         <Dialog open={isAddKeyDialogOpen} onOpenChange={setIsAddKeyDialogOpen}>
           <DialogContent>
             <DialogHeader>
-              <DialogTitle>Add New API Key</DialogTitle>
+              <DialogTitle>Add New Key</DialogTitle>
               <DialogDescription>
-                Enter your API key details below. Keep your keys secure and never share them publicly.
+                Enter your key details below. Keep your keys secure and never share them publicly.
               </DialogDescription>
             </DialogHeader>
             <div className="grid gap-4 py-4">

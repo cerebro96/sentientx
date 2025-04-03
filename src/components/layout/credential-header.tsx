@@ -82,7 +82,7 @@ export function CredentialHeader() {
           <Key className="mr-2 h-5 w-5 text-primary" />
           <h1 className="text-xl font-semibold">Credentials</h1>
           <p className="ml-2 text-sm text-muted-foreground">
-            Manage your API keys securely
+            Manage your keys securely
           </p>
         </div>
         <div className="flex items-center gap-4">

@@ -37,6 +37,7 @@ export function WorkflowCanvas({ isActive, onClose, workflowId, newWorkflowData 
   const [workflowName, setWorkflowName] = useState(newWorkflowData?.name || 'My workflow');
   const [isWorkflowActive, setIsWorkflowActive] = useState(newWorkflowData?.isActive || false);
   const [tags, setTags] = useState<string[]>(newWorkflowData?.tags || []);
+  const [createdWorkflowId, setCreatedWorkflowId] = useState<string | undefined>(undefined);
 
   // Access store state and actions
   const {
@@ -109,12 +110,15 @@ export function WorkflowCanvas({ isActive, onClose, workflowId, newWorkflowData 
         edges: edges
       };
 
-      if (workflowId) {
+      // Use existing workflowId, or the one we already created
+      const existingId = workflowId || createdWorkflowId;
+
+      if (existingId) {
         // Update existing workflow
-        await updateWorkflow(workflowId, flowData);
+        await updateWorkflow(existingId, flowData);
       } else {
-        // Create new workflow
-        await createWorkflow({
+        // Create new workflow - this should only happen once
+        const newWorkflow = await createWorkflow({
           name: workflowName,
           description: newWorkflowData?.description,
           tags: tags,
@@ -122,6 +126,11 @@ export function WorkflowCanvas({ isActive, onClose, workflowId, newWorkflowData 
           nodes: nodes,
           edges: edges
         });
+        
+        // Store the created workflow's ID for future saves
+        if (newWorkflow && newWorkflow.id) {
+          setCreatedWorkflowId(newWorkflow.id);
+        }
       }
       
       toast.success('Workflow saved successfully');
@@ -201,6 +210,7 @@ export function WorkflowCanvas({ isActive, onClose, workflowId, newWorkflowData 
         onActiveChange={setIsWorkflowActive}
         onBack={onClose}
         tags={tags}
+        onTagsChange={setTags}
         workflowId={workflowId}
       />
       
