@@ -10,7 +10,10 @@ import {
   Mail, 
   MessageSquare,
   CircleIcon,
-  SquareIcon
+  SquareIcon,
+  Bot,
+  AlertTriangle,
+  MessageCircle
 } from "lucide-react";
 
 // Registry of node types mapped to their respective components
@@ -30,19 +33,26 @@ export const nodeCatalog = [
     category: 'Basic',
   },
   {
-    type: 'action',
-    label: 'HTTP Request',
-    description: 'Make an HTTP request',
-    icon: Globe,
-    category: 'Actions',
+    type: 'trigger',
+    label: 'When chat message received',
+    description: 'Triggers when a chat message is received',
+    icon: MessageCircle,
+    category: 'Triggers',
   },
-  {
-    type: 'action',
-    label: 'Transform Data',
-    description: 'Transform data using JavaScript',
-    icon: FileJson,
-    category: 'Actions',
-  },
+  // {
+  //   type: 'action',
+  //   label: 'HTTP Request',
+  //   description: 'Make an HTTP request',
+  //   icon: Globe,
+  //   category: 'Actions',
+  // },
+  // {
+  //   type: 'action',
+  //   label: 'Transform Data',
+  //   description: 'Transform data using JavaScript',
+  //   icon: FileJson,
+  //   category: 'Actions',
+  // },
   {
     type: 'action',
     label: 'OpenAI API',
@@ -50,20 +60,20 @@ export const nodeCatalog = [
     icon: BrainCircuit,
     category: 'AI',
   },
-  {
-    type: 'action',
-    label: 'Database Query',
-    description: 'Query a database',
-    icon: Database,
-    category: 'Actions',
-  },
-  {
-    type: 'action',
-    label: 'Send Email',
-    description: 'Send an email notification',
-    icon: Mail,
-    category: 'Actions',
-  },
+  // {
+  //   type: 'action',
+  //   label: 'Database Query',
+  //   description: 'Query a database',
+  //   icon: Database,
+  //   category: 'Actions',
+  // },
+  // {
+  //   type: 'action',
+  //   label: 'Send Email',
+  //   description: 'Send an email notification',
+  //   icon: Mail,
+  //   category: 'Actions',
+  // },
   {
     type: 'action',
     label: 'Chat Completion',
@@ -72,10 +82,24 @@ export const nodeCatalog = [
     category: 'AI',
   },
   {
-    type: 'output',
-    label: 'Result Output',
-    description: 'End your workflow here',
-    icon: SquareIcon,
-    category: 'Basic',
+    type: 'action',
+    label: 'AI Agent',
+    description: 'Tools Agent',
+    icon: Bot,
+    category: 'AI',
+    hasError: true,
+    childNodes: [
+      { label: 'Chat Model*', type: 'connection' },
+      { label: 'Memory', type: 'connection' },
+      { label: 'Tool', type: 'connection' }
+    ]
   },
+  {
+    type: 'action',
+    label: 'Open chat',
+    description: 'Opens the chat interface',
+    icon: MessageCircle,
+    category: 'Actions',
+    buttonStyle: true
+  }
 ]; 

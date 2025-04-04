@@ -3,33 +3,48 @@
 import { memo } from 'react';
 import { Handle, Position, NodeProps } from 'reactflow';
 import { NodeData } from '@/lib/store/workflow';
-import { Zap } from 'lucide-react';
+import { Zap, MessageCircle } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 function TriggerNodeComponent({ data, selected }: NodeProps<NodeData>) {
+  const isChatTrigger = data.label === 'When chat message received';
+  
+  // Use the node's icon if available, otherwise use appropriate default
+  const IconComponent = data.icon || (isChatTrigger ? MessageCircle : Zap);
+  
   return (
     <div 
       className={cn(
-        "p-3 rounded-lg border shadow-sm bg-background flex flex-col min-w-[200px]",
-        selected ? "border-primary" : "border-border"
+        "p-4 rounded-xl border-2 shadow-md bg-white flex flex-col items-center min-w-[180px]",
+        selected ? "border-primary ring-2 ring-primary/30" : "border-gray-200"
       )}
     >
-      <div className="flex items-center gap-2">
-        <div className="flex-shrink-0 p-1 rounded-md bg-amber-100 text-amber-600">
-          <Zap className="h-4 w-4" />
+      <div className="w-full flex flex-col items-center mb-2">
+        <div className={cn(
+          "flex-shrink-0 p-3 rounded-full mb-2",
+          isChatTrigger ? "bg-gray-100 text-gray-700" : "bg-amber-100 text-amber-600"
+        )}>
+          <IconComponent className="h-6 w-6" />
         </div>
-        <div className="font-medium truncate flex-1">{data.label}</div>
+        <div className="font-medium text-center">{data.label}</div>
       </div>
       
       {data.description && (
-        <div className="text-xs text-muted-foreground mt-1">{data.description}</div>
+        <div className="text-xs text-muted-foreground text-center mt-1 mb-1">{data.description}</div>
       )}
       
-      {/* Only output handle for trigger node */}
+      {/* Multiple output handles */}
       <Handle 
+        id="output-right"
         type="source" 
         position={Position.Right} 
-        className="!bg-primary !border-primary !w-3 !h-3"
+        className="!bg-primary !border-primary/30 !w-3 !h-3"
+      />
+      <Handle 
+        id="output-bottom"
+        type="source" 
+        position={Position.Bottom} 
+        className="!bg-primary !border-primary/30 !w-3 !h-3"
       />
     </div>
   );

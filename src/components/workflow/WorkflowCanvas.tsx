@@ -10,6 +10,7 @@ import ReactFlow, {
   MiniMap,
   ConnectionLineType,
   useReactFlow,
+  MarkerType,
 } from 'reactflow';
 import 'reactflow/dist/style.css';
 import { WorkflowHeader } from './WorkflowHeader';
@@ -30,6 +31,19 @@ interface WorkflowCanvasProps {
   workflowId?: string;
   newWorkflowData?: WorkflowFormData | null;
 }
+
+// Add a custom edge style
+const edgeOptions = {
+  type: 'smoothstep',
+  style: { 
+    stroke: '#d1d5db', 
+    strokeWidth: 2 
+  },
+  markerEnd: {
+    type: MarkerType.ArrowClosed,
+    color: '#d1d5db',
+  },
+};
 
 export function WorkflowCanvas({ isActive, onClose, workflowId, newWorkflowData }: WorkflowCanvasProps) {
   const reactFlowWrapper = useRef<HTMLDivElement>(null);
@@ -193,24 +207,22 @@ export function WorkflowCanvas({ isActive, onClose, workflowId, newWorkflowData 
 
   return (
     <div className="h-full flex flex-col bg-background">
-      <div className="flex flex-col h-full">
-        <div className="flex items-center px-4 py-2 border-b">
-          <div className="flex items-center">
-            <svg viewBox="0 0 24 24" className="h-8 w-8 text-primary" fill="none" xmlns="http://www.w3.org/2000/svg">
-              <path d="M12 22C17.5228 22 22 17.5228 22 12C22 6.47715 17.5228 2 12 2C6.47715 2 2 6.47715 2 12C2 17.5228 6.47715 22 12 22Z" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
-              <path d="M7.5 12H16.5" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
-              <path d="M10.5 7.5L7.5 12L10.5 16.5" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
-            </svg>
-            <span className="ml-2 text-xl font-bold">SentientX</span>
-          </div>
-          <div className="flex-1 flex justify-center">
-            <Tabs value={activeTab} onValueChange={setActiveTab} className="w-[400px]">
-              <TabsList className="grid w-full grid-cols-2">
-                <TabsTrigger value="canvas">Canvas</TabsTrigger>
-                <TabsTrigger value="code">Code</TabsTrigger>
-              </TabsList>
-            </Tabs>
-          </div>
+      <div className="flex items-center px-4 py-2 border-b">
+        <div className="flex items-center">
+          <svg viewBox="0 0 24 24" className="h-8 w-8 text-primary" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <path d="M12 22C17.5228 22 22 17.5228 22 12C22 6.47715 17.5228 2 12 2C6.47715 2 2 6.47715 2 12C2 17.5228 6.47715 22 12 22Z" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+            <path d="M7.5 12H16.5" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+            <path d="M10.5 7.5L7.5 12L10.5 16.5" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+          </svg>
+          <span className="ml-2 text-xl font-bold">SentientX</span>
+        </div>
+        <div className="flex-1 flex justify-center">
+          <Tabs value={activeTab} onValueChange={setActiveTab} className="w-[400px]">
+            <TabsList className="grid w-full grid-cols-2">
+              <TabsTrigger value="canvas">Editor</TabsTrigger>
+              <TabsTrigger value="code">Executions</TabsTrigger>
+            </TabsList>
+          </Tabs>
         </div>
       </div>
 
@@ -247,11 +259,25 @@ export function WorkflowCanvas({ isActive, onClose, workflowId, newWorkflowData 
               deleteKeyCode={['Backspace', 'Delete']}
               fitView
               fitViewOptions={{ padding: 0.2 }}
+              defaultEdgeOptions={edgeOptions}
               connectionLineType={ConnectionLineType.SmoothStep}
+              connectionLineStyle={{ stroke: '#d1d5db', strokeWidth: 2 }}
             >
-              <Background />
-              <Controls />
-              <MiniMap />
+              <Background color="#f1f5f9" gap={16} />
+              <Controls className="bg-white border border-gray-200 rounded-md shadow-sm" />
+              <MiniMap 
+                nodeStrokeColor={(n) => {
+                  if (n.type === 'action') return '#ff0072';
+                  if (n.type === 'trigger') return '#0041d0';
+                  return '#eee';
+                }}
+                nodeColor={(n) => {
+                  if (n.type === 'action') return '#f6e6ef';
+                  if (n.type === 'trigger') return '#e6f2ff';
+                  return '#fff';
+                }}
+                maskColor="rgba(241, 245, 249, 0.5)"
+              />
               <Panel position="top-right" className="flex gap-2">
                 <Button size="sm" variant="outline" onClick={resetWorkflow}>
                   <Trash2 className="h-4 w-4 mr-1" />

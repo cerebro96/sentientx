@@ -14,16 +14,24 @@ export function NodePanel() {
   const [collapsedCategories, setCollapsedCategories] = useState<Record<string, boolean>>({});
   const addNode = useWorkflowStore((state) => state.addNode);
 
+  // Filter nodeCatalog to only include AI nodes
+  const aiNodes = nodeCatalog.filter(node => 
+    node.category === 'AI' || 
+    node.category === 'Basic' || 
+    node.category === 'Triggers' ||
+    node.category === 'Actions'
+  );
+  
   // Get unique categories
-  const categories = [...new Set(nodeCatalog.map(node => node.category))];
+  const categories = [...new Set(aiNodes.map(node => node.category))];
 
   // Filter nodes based on search query
   const filteredNodes = searchQuery.trim() 
-    ? nodeCatalog.filter(node => 
+    ? aiNodes.filter(node => 
         node.label.toLowerCase().includes(searchQuery.toLowerCase()) ||
         node.description.toLowerCase().includes(searchQuery.toLowerCase())
       )
-    : nodeCatalog;
+    : aiNodes;
 
   // Group nodes by category
   const nodesByCategory = categories.reduce((acc, category) => {
@@ -57,6 +65,9 @@ export function NodePanel() {
         label: nodeType.label,
         description: nodeType.description,
         type: nodeType.type,
+        icon: nodeType.icon,
+        hasError: nodeType.hasError,
+        childNodes: nodeType.childNodes
       }
     };
     

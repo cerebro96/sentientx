@@ -18,6 +18,10 @@ export type NodeData = {
   inputs?: Record<string, any>;
   outputs?: Record<string, any>;
   type?: string;
+  icon?: any;
+  hasError?: boolean;
+  childNodes?: Array<{label: string; type: string}>;
+  buttonStyle?: boolean;
 };
 
 // Define initial nodes with proper types
