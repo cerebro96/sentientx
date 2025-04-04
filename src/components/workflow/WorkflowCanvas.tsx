@@ -38,6 +38,7 @@ export function WorkflowCanvas({ isActive, onClose, workflowId, newWorkflowData 
   const [isWorkflowActive, setIsWorkflowActive] = useState(newWorkflowData?.isActive || false);
   const [tags, setTags] = useState<string[]>(newWorkflowData?.tags || []);
   const [createdWorkflowId, setCreatedWorkflowId] = useState<string | undefined>(undefined);
+  const [activeTab, setActiveTab] = useState('canvas');
 
   // Access store state and actions
   const {
@@ -192,14 +193,24 @@ export function WorkflowCanvas({ isActive, onClose, workflowId, newWorkflowData 
 
   return (
     <div className="h-full flex flex-col bg-background">
-      <div className="border-b">
-        <div className="flex justify-center py-2">
-          <Tabs defaultValue="editor" className="w-fit">
-            <TabsList>
-              <TabsTrigger value="editor">Editor</TabsTrigger>
-              <TabsTrigger value="executions">Executions</TabsTrigger>
-            </TabsList>
-          </Tabs>
+      <div className="flex flex-col h-full">
+        <div className="flex items-center px-4 py-2 border-b">
+          <div className="flex items-center">
+            <svg viewBox="0 0 24 24" className="h-8 w-8 text-primary" fill="none" xmlns="http://www.w3.org/2000/svg">
+              <path d="M12 22C17.5228 22 22 17.5228 22 12C22 6.47715 17.5228 2 12 2C6.47715 2 2 6.47715 2 12C2 17.5228 6.47715 22 12 22Z" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+              <path d="M7.5 12H16.5" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+              <path d="M10.5 7.5L7.5 12L10.5 16.5" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+            </svg>
+            <span className="ml-2 text-xl font-bold">SentientX</span>
+          </div>
+          <div className="flex-1 flex justify-center">
+            <Tabs value={activeTab} onValueChange={setActiveTab} className="w-[400px]">
+              <TabsList className="grid w-full grid-cols-2">
+                <TabsTrigger value="canvas">Canvas</TabsTrigger>
+                <TabsTrigger value="code">Code</TabsTrigger>
+              </TabsList>
+            </Tabs>
+          </div>
         </div>
       </div>
 
