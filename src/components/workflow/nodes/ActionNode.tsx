@@ -114,31 +114,35 @@ function ActionNodeComponent({ data, selected }: NodeProps<NodeData>) {
         </div>
       )}
       
-      {/* Multiple input handles */}
-      <Handle 
-        id="input-left"
-        type="target" 
-        position={Position.Left} 
-        className={cn(
-          "!transition-all hover:!w-4 hover:!h-4",
-          isAIAgent 
-            ? "!bg-pink-500 !border-pink-400 !w-3 !h-3 hover:!bg-pink-400 hover:!shadow-[0_0_10px_rgba(236,72,153,0.8)]" 
-            : "!bg-blue-500 !border-blue-400 !w-3 !h-3 hover:!bg-blue-400 hover:!shadow-[0_0_10px_rgba(59,130,246,0.8)]"
-        )}
-      />
-      <Handle 
-        id="input-top"
-        type="target" 
-        position={Position.Top} 
-        className={cn(
-          "!transition-all hover:!w-4 hover:!h-4",
-          isAIAgent 
-            ? "!bg-pink-500 !border-pink-400 !w-3 !h-3 hover:!bg-pink-400 hover:!shadow-[0_0_10px_rgba(236,72,153,0.8)]" 
-            : "!bg-blue-500 !border-blue-400 !w-3 !h-3 hover:!bg-blue-400 hover:!shadow-[0_0_10px_rgba(59,130,246,0.8)]"
-        )}
-      />
+      {/* Multiple input handles - conditionally render handles based on node type */}
+      {data.label !== 'Chat Trigger' && (
+        <>
+          <Handle 
+            id="input-left"
+            type="target" 
+            position={Position.Left} 
+            className={cn(
+              "!transition-all hover:!w-4 hover:!h-4",
+              isAIAgent 
+                ? "!bg-pink-500 !border-pink-400 !w-3 !h-3 hover:!bg-pink-400 hover:!shadow-[0_0_10px_rgba(236,72,153,0.8)]" 
+                : "!bg-blue-500 !border-blue-400 !w-3 !h-3 hover:!bg-blue-400 hover:!shadow-[0_0_10px_rgba(59,130,246,0.8)]"
+            )}
+          />
+          <Handle 
+            id="input-top"
+            type="target" 
+            position={Position.Top} 
+            className={cn(
+              "!transition-all hover:!w-4 hover:!h-4",
+              isAIAgent 
+                ? "!bg-pink-500 !border-pink-400 !w-3 !h-3 hover:!bg-pink-400 hover:!shadow-[0_0_10px_rgba(236,72,153,0.8)]" 
+                : "!bg-blue-500 !border-blue-400 !w-3 !h-3 hover:!bg-blue-400 hover:!shadow-[0_0_10px_rgba(59,130,246,0.8)]"
+            )}
+          />
+        </>
+      )}
       
-      {/* Multiple output handles */}
+      {/* Multiple output handles - conditionally render handles based on node type */}
       <Handle 
         id="output-right"
         type="source" 
@@ -150,17 +154,19 @@ function ActionNodeComponent({ data, selected }: NodeProps<NodeData>) {
             : "!bg-blue-500 !border-blue-400 !w-3 !h-3 hover:!bg-blue-400 hover:!shadow-[0_0_10px_rgba(59,130,246,0.8)]"
         )}
       />
-      <Handle 
-        id="output-bottom"
-        type="source" 
-        position={Position.Bottom} 
-        className={cn(
-          "!transition-all hover:!w-4 hover:!h-4",
-          isAIAgent 
-            ? "!bg-pink-500 !border-pink-400 !w-3 !h-3 hover:!bg-pink-400 hover:!shadow-[0_0_10px_rgba(236,72,153,0.8)]" 
-            : "!bg-blue-500 !border-blue-400 !w-3 !h-3 hover:!bg-blue-400 hover:!shadow-[0_0_10px_rgba(59,130,246,0.8)]"
-        )}
-      />
+      {data.label !== 'Chat Trigger' && (
+        <Handle 
+          id="output-bottom"
+          type="source" 
+          position={Position.Bottom} 
+          className={cn(
+            "!transition-all hover:!w-4 hover:!h-4",
+            isAIAgent 
+              ? "!bg-pink-500 !border-pink-400 !w-3 !h-3 hover:!bg-pink-400 hover:!shadow-[0_0_10px_rgba(236,72,153,0.8)]" 
+              : "!bg-blue-500 !border-blue-400 !w-3 !h-3 hover:!bg-blue-400 hover:!shadow-[0_0_10px_rgba(59,130,246,0.8)]"
+          )}
+        />
+      )}
     </div>
   );
 }
