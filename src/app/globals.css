@@ -213,15 +213,38 @@
 /* Custom animations */
 @keyframes pulse-slow {
   0%, 100% {
-    opacity: 0.5;
+    opacity: 1;
   }
   50% {
-    opacity: 0.8;
+    opacity: 0.5;
   }
 }
 
 @layer utilities {
   .animate-pulse-slow {
     animation: pulse-slow 3s ease-in-out infinite;
+  }
+
+  .animate-dash {
+    stroke-dasharray: 100;
+    stroke-dashoffset: 100;
+    animation: dash 1.5s ease-in-out infinite alternate;
+  }
+
+  .delay-100 {
+    animation-delay: 0.1s;
+  }
+
+  .delay-200 {
+    animation-delay: 0.2s;
+  }
+}
+
+@keyframes dash {
+  from {
+    stroke-dashoffset: 100;
+  }
+  to {
+    stroke-dashoffset: 0;
   }
 }
