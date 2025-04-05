@@ -12,6 +12,10 @@ function ActionNodeComponent({ data, selected }: NodeProps<NodeData>) {
   const isAIAgent = data.label === 'AI Agent';
   const isButtonNode = data.buttonStyle === true;
   
+  // Check if the node is an LLM API node
+  const isLLMNode = data.label === 'OpenAI API' || data.label === 'Google Gemini API' || data.label === 'Deepseek API';
+  const isMemoryNode = data.label === 'Simple Memory';
+  
   // Handle icon selection based on node type
   let IconComponent = CircleIcon;
   
@@ -19,9 +23,9 @@ function ActionNodeComponent({ data, selected }: NodeProps<NodeData>) {
     IconComponent = Bot;
   } else if (isButtonNode) {
     IconComponent = MessageCircle;
-  } else if (data.label === 'OpenAI API' || data.label === 'Google Gemini API' || data.label === 'Deepseek API') {
+  } else if (isLLMNode) {
     IconComponent = BrainCircuit;
-  } else if (data.label === 'Simple Memory') {
+  } else if (isMemoryNode) {
     IconComponent = DatabaseZap;
   } else if (data.label === 'Chat Trigger') {
     IconComponent = MessageCircle;
@@ -114,47 +118,54 @@ function ActionNodeComponent({ data, selected }: NodeProps<NodeData>) {
         </div>
       )}
       
-      {/* Multiple input handles - conditionally render handles based on node type */}
-      {data.label !== 'Chat Trigger' && (
-        <>
-          <Handle 
-            id="input-left"
-            type="target" 
-            position={Position.Left} 
-            className={cn(
-              "!transition-all hover:!w-4 hover:!h-4",
-              isAIAgent 
-                ? "!bg-pink-500 !border-pink-400 !w-3 !h-3 hover:!bg-pink-400 hover:!shadow-[0_0_10px_rgba(236,72,153,0.8)]" 
-                : "!bg-blue-500 !border-blue-400 !w-3 !h-3 hover:!bg-blue-400 hover:!shadow-[0_0_10px_rgba(59,130,246,0.8)]"
-            )}
-          />
-          <Handle 
-            id="input-top"
-            type="target" 
-            position={Position.Top} 
-            className={cn(
-              "!transition-all hover:!w-4 hover:!h-4",
-              isAIAgent 
-                ? "!bg-pink-500 !border-pink-400 !w-3 !h-3 hover:!bg-pink-400 hover:!shadow-[0_0_10px_rgba(236,72,153,0.8)]" 
-                : "!bg-blue-500 !border-blue-400 !w-3 !h-3 hover:!bg-blue-400 hover:!shadow-[0_0_10px_rgba(59,130,246,0.8)]"
-            )}
-          />
-        </>
+      {/* Input handles */}
+      {/* Top input handle - always shown for LLM and Memory nodes, and other nodes except Chat Trigger */}
+      {(data.label !== 'Chat Trigger') && (
+        <Handle 
+          id="input-top"
+          type="target" 
+          position={Position.Top} 
+          className={cn(
+            "!transition-all hover:!w-4 hover:!h-4",
+            isAIAgent 
+              ? "!bg-pink-500 !border-pink-400 !w-3 !h-3 hover:!bg-pink-400 hover:!shadow-[0_0_10px_rgba(236,72,153,0.8)]" 
+              : "!bg-blue-500 !border-blue-400 !w-3 !h-3 hover:!bg-blue-400 hover:!shadow-[0_0_10px_rgba(59,130,246,0.8)]"
+          )}
+        />
       )}
       
-      {/* Multiple output handles - conditionally render handles based on node type */}
-      <Handle 
-        id="output-right"
-        type="source" 
-        position={Position.Right} 
-        className={cn(
-          "!transition-all hover:!w-4 hover:!h-4",
-          isAIAgent 
-            ? "!bg-pink-500 !border-pink-400 !w-3 !h-3 hover:!bg-pink-400 hover:!shadow-[0_0_10px_rgba(236,72,153,0.8)]" 
-            : "!bg-blue-500 !border-blue-400 !w-3 !h-3 hover:!bg-blue-400 hover:!shadow-[0_0_10px_rgba(59,130,246,0.8)]"
-        )}
-      />
-      {data.label !== 'Chat Trigger' && (
+      {/* Left input handle - not shown for LLM, Memory, or Chat Trigger nodes */}
+      {(data.label !== 'Chat Trigger' && !isLLMNode && !isMemoryNode) && (
+        <Handle 
+          id="input-left"
+          type="target" 
+          position={Position.Left} 
+          className={cn(
+            "!transition-all hover:!w-4 hover:!h-4",
+            isAIAgent 
+              ? "!bg-pink-500 !border-pink-400 !w-3 !h-3 hover:!bg-pink-400 hover:!shadow-[0_0_10px_rgba(236,72,153,0.8)]" 
+              : "!bg-blue-500 !border-blue-400 !w-3 !h-3 hover:!bg-blue-400 hover:!shadow-[0_0_10px_rgba(59,130,246,0.8)]"
+          )}
+        />
+      )}
+      
+      {/* Right output handle - for Chat Trigger and all nodes except LLM and Memory */}
+      {(data.label === 'Chat Trigger' || (!isLLMNode && !isMemoryNode)) && (
+        <Handle 
+          id="output-right"
+          type="source" 
+          position={Position.Right} 
+          className={cn(
+            "!transition-all hover:!w-4 hover:!h-4",
+            isAIAgent 
+              ? "!bg-pink-500 !border-pink-400 !w-3 !h-3 hover:!bg-pink-400 hover:!shadow-[0_0_10px_rgba(236,72,153,0.8)]" 
+              : "!bg-blue-500 !border-blue-400 !w-3 !h-3 hover:!bg-blue-400 hover:!shadow-[0_0_10px_rgba(59,130,246,0.8)]"
+          )}
+        />
+      )}
+      
+      {/* Bottom output handle - not shown for Chat Trigger, LLM, or Memory nodes */}
+      {(data.label !== 'Chat Trigger' && !isLLMNode && !isMemoryNode) && (
         <Handle 
           id="output-bottom"
           type="source" 
