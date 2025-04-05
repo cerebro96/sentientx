@@ -3,7 +3,7 @@
 import { memo } from 'react';
 import { Handle, Position, NodeProps } from 'reactflow';
 import { NodeData } from '@/lib/store/workflow';
-import { CircleIcon, AlertTriangle, Bot, MessageCircle, Plus } from 'lucide-react';
+import { CircleIcon, AlertTriangle, Bot, MessageCircle, Plus, BrainCircuit, DatabaseZap } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 
@@ -12,10 +12,20 @@ function ActionNodeComponent({ data, selected }: NodeProps<NodeData>) {
   const isAIAgent = data.label === 'AI Agent';
   const isButtonNode = data.buttonStyle === true;
   
-  // Safely render icon component
-  const IconComponent = isAIAgent ? (data.icon || Bot) : 
-                       isButtonNode ? (data.icon || MessageCircle) : 
-                       CircleIcon;
+  // Handle icon selection based on node type
+  let IconComponent = CircleIcon;
+  
+  if (isAIAgent) {
+    IconComponent = Bot;
+  } else if (isButtonNode) {
+    IconComponent = MessageCircle;
+  } else if (data.label === 'OpenAI API' || data.label === 'Google Gemini API' || data.label === 'Deepseek API') {
+    IconComponent = BrainCircuit;
+  } else if (data.label === 'Simple Memory') {
+    IconComponent = DatabaseZap;
+  } else if (data.label === 'Chat Trigger') {
+    IconComponent = MessageCircle;
+  }
   
   // If it's a button style node, render a button
   if (isButtonNode) {
@@ -34,6 +44,7 @@ function ActionNodeComponent({ data, selected }: NodeProps<NodeData>) {
     <div 
       className={cn(
         "p-4 rounded-lg border-2 bg-slate-800 flex flex-col min-w-[180px] transition-all duration-200 relative",
+        isAIAgent ? "min-w-[280px] min-h-[240px]" : "",
         isAIAgent 
           ? selected 
             ? "border-pink-500 shadow-[0_0_20px_-5px_rgba(236,72,153,0.7)]" 
@@ -77,13 +88,26 @@ function ActionNodeComponent({ data, selected }: NodeProps<NodeData>) {
       
       {/* Child nodes connections for AI Agent */}
       {isAIAgent && data.childNodes && (
-        <div className="relative z-10 mt-3 w-full flex justify-between px-6">
+        <div className="relative z-10 mt-10 w-full flex justify-between px-4">
           {data.childNodes.map((childNode: any, index: number) => (
-            <div key={index} className="flex flex-col items-center group">
-              <div className="w-3 h-3 bg-pink-500 rotate-45 mb-1 group-hover:scale-110 transition-transform"></div>
-              <div className="text-xs text-slate-300 group-hover:text-pink-300 transition-colors">{childNode.label}</div>
-              <div className="mt-2 p-1 border border-slate-600 rounded-full bg-slate-700 hover:border-pink-400 hover:bg-slate-600 transition-colors group-hover:scale-110 group-hover:shadow-[0_0_10px_rgba(236,72,153,0.5)]">
-                <Plus size={14} className="text-pink-400 group-hover:text-pink-300" />
+            <div key={index} className="flex flex-col items-center group relative mx-2">
+              <div className="text-xs text-slate-300 group-hover:text-pink-300 transition-colors mb-2">{childNode.label}</div>
+              
+              <div className="w-full h-[1px] bg-pink-500/30 my-1"></div>
+              
+              <div className="relative flex items-center justify-center w-16 h-16 border-2 border-pink-500/50 rounded-lg bg-slate-700/80 hover:border-pink-400 hover:bg-slate-600/80 transition-all group-hover:scale-105 group-hover:shadow-[0_0_15px_rgba(236,72,153,0.4)]">
+                <div className="relative w-full h-full flex items-center justify-center">
+                  <Plus size={24} className="text-pink-400 group-hover:text-pink-300" />
+                  
+                  {/* Output handle (source) - only keeping this one */}
+                  <Handle
+                    id={`${childNode.label.toLowerCase()}-output`}
+                    type="source"
+                    position={Position.Bottom}
+                    className="!absolute !bottom-0 !translate-y-[50%] !bg-pink-500 !border-pink-400 !w-5 !h-5 hover:!w-6 hover:!h-6 hover:!bg-pink-400 !z-50 !transition-all"
+                    style={{ left: '50%', transform: 'translate(-50%, 50%)' }}
+                  />
+                </div>
               </div>
             </div>
           ))}

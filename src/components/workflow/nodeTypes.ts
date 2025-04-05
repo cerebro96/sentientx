@@ -13,7 +13,9 @@ import {
   SquareIcon,
   Bot,
   AlertTriangle,
-  MessageCircle
+  MessageCircle,
+  MemoryStickIcon,
+  DatabaseZap
 } from "lucide-react";
 
 // Registry of node types mapped to their respective components
@@ -43,7 +45,21 @@ export const nodeCatalog = [
   {
     type: 'action',
     label: 'OpenAI API',
-    description: 'Generate content with AI',
+    description: 'OpenAI Chat Model',
+    icon: BrainCircuit,
+    category: 'LLM APIs',
+  },
+  {
+    type: 'action',
+    label: 'Google Gemini API',
+    description: 'Gemini Chat Model',
+    icon: BrainCircuit,
+    category: 'LLM APIs',
+  },
+  {
+    type: 'action',
+    label: 'Deepseek API',
+    description: 'Deepseek Chat Model',
     icon: BrainCircuit,
     category: 'LLM APIs',
   },
@@ -54,24 +70,31 @@ export const nodeCatalog = [
   //   icon: Database,
   //   category: 'Actions',
   // },
-  // {
-  //   type: 'action',
-  //   label: 'Send Email',
-  //   description: 'Send an email notification',
-  //   icon: Mail,
-  //   category: 'Actions',
-  // },
+  {
+    type: 'action',
+    label: 'Chat Trigger',
+    description: 'Trigger the chat',
+    icon: MessageCircle,
+    category: 'Triggers',
+  },
   {
     type: 'action',
     label: 'AI Agent',
     description: 'Tools Agent',
     icon: Bot,
     category: 'AI',
-    hasError: true,
+    // hasError: true,
     childNodes: [
-      { label: 'Chat Model*', type: 'connection' },
+      { label: 'LLM', type: 'connection' },
       { label: 'Memory', type: 'connection' },
       { label: 'Tool', type: 'connection' }
     ]
+  },
+  {
+  type: 'action',
+  label: 'Simple Memory',
+  description: 'Stores a customizable length of chat history',
+  icon: DatabaseZap,
+  category: 'AI',
   }
 ]; 

@@ -111,6 +111,10 @@ export function WorkflowCanvas({ isActive, onClose, workflowId, newWorkflowData 
           label: newNodeData.label,
           description: newNodeData.description,
           type: newNodeData.type,
+          icon: newNodeData.icon,
+          hasError: newNodeData.hasError,
+          childNodes: newNodeData.childNodes,
+          buttonStyle: newNodeData.buttonStyle
         },
       };
 
@@ -263,7 +267,10 @@ export function WorkflowCanvas({ isActive, onClose, workflowId, newWorkflowData 
               nodeTypes={nodeTypes}
               deleteKeyCode={['Backspace', 'Delete']}
               fitView
-              fitViewOptions={{ padding: 0.2 }}
+              fitViewOptions={{ padding: 0.5, maxZoom: 0.8 }}
+              defaultViewport={{ x: 0, y: 0, zoom: 0.6 }}
+              minZoom={0.2}
+              maxZoom={1.5}
               defaultEdgeOptions={edgeOptions}
               connectionLineType={ConnectionLineType.SmoothStep}
               connectionLineStyle={{ stroke: '#3b82f6', strokeWidth: 2, opacity: 0.8 }}
