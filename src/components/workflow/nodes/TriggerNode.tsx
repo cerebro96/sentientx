@@ -15,22 +15,30 @@ function TriggerNodeComponent({ data, selected }: NodeProps<NodeData>) {
   return (
     <div 
       className={cn(
-        "p-4 rounded-xl border-2 shadow-md bg-white flex flex-col items-center min-w-[180px]",
-        selected ? "border-primary ring-2 ring-primary/30" : "border-gray-200"
+        "p-4 rounded-lg border-2 bg-slate-800 flex flex-col items-center min-w-[180px]",
+        "transition-all duration-200 relative group",
+        selected 
+          ? "border-blue-500 shadow-[0_0_20px_-5px_rgba(59,130,246,0.7)]" 
+          : "border-blue-600 shadow-[0_0_10px_-5px_rgba(59,130,246,0.3)]"
       )}
     >
-      <div className="w-full flex flex-col items-center mb-2">
+      {/* Gradient glow effect */}
+      <div className="absolute inset-0 rounded-lg opacity-50 blur-sm bg-gradient-to-r from-blue-600 to-indigo-600 animate-pulse-slow" />
+      
+      <div className="relative w-full flex flex-col items-center mb-2 z-10">
         <div className={cn(
-          "flex-shrink-0 p-3 rounded-full mb-2",
-          isChatTrigger ? "bg-gray-100 text-gray-700" : "bg-amber-100 text-amber-600"
+          "flex-shrink-0 p-3 rounded-full mb-2 transition-all",
+          isChatTrigger 
+            ? "bg-slate-700 text-blue-400" 
+            : "bg-slate-700 text-indigo-400"
         )}>
           <IconComponent className="h-6 w-6" />
         </div>
-        <div className="font-medium text-center">{data.label}</div>
+        <div className="font-medium text-center text-white">{data.label}</div>
       </div>
       
       {data.description && (
-        <div className="text-xs text-muted-foreground text-center mt-1 mb-1">{data.description}</div>
+        <div className="relative z-10 text-xs text-slate-300 text-center mt-1 mb-1">{data.description}</div>
       )}
       
       {/* Multiple output handles */}
@@ -38,13 +46,13 @@ function TriggerNodeComponent({ data, selected }: NodeProps<NodeData>) {
         id="output-right"
         type="source" 
         position={Position.Right} 
-        className="!bg-primary !border-primary/30 !w-3 !h-3"
+        className="!bg-blue-500 !border-blue-400 !w-3 !h-3 !transition-all hover:!w-4 hover:!h-4 hover:!bg-blue-400 hover:!shadow-[0_0_10px_rgba(59,130,246,0.8)]"
       />
       <Handle 
         id="output-bottom"
         type="source" 
         position={Position.Bottom} 
-        className="!bg-primary !border-primary/30 !w-3 !h-3"
+        className="!bg-blue-500 !border-blue-400 !w-3 !h-3 !transition-all hover:!w-4 hover:!h-4 hover:!bg-blue-400 hover:!shadow-[0_0_10px_rgba(59,130,246,0.8)]"
       />
     </div>
   );

@@ -19,7 +19,8 @@ export function NodePanel() {
     node.category === 'AI' || 
     node.category === 'Basic' || 
     node.category === 'Triggers' ||
-    node.category === 'Actions'
+    node.category === 'Actions' ||
+    node.category === 'LLM APIs'
   );
   
   // Get unique categories

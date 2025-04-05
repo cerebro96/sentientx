@@ -25,20 +25,7 @@ export const nodeTypes = {
 
 // Catalog of available nodes for the NodePanel
 export const nodeCatalog = [
-  {
-    type: 'trigger',
-    label: 'Start Trigger',
-    description: 'Start your workflow here',
-    icon: Zap,
-    category: 'Basic',
-  },
-  {
-    type: 'trigger',
-    label: 'When chat message received',
-    description: 'Triggers when a chat message is received',
-    icon: MessageCircle,
-    category: 'Triggers',
-  },
+ 
   // {
   //   type: 'action',
   //   label: 'HTTP Request',
@@ -58,7 +45,7 @@ export const nodeCatalog = [
     label: 'OpenAI API',
     description: 'Generate content with AI',
     icon: BrainCircuit,
-    category: 'AI',
+    category: 'LLM APIs',
   },
   // {
   //   type: 'action',
@@ -76,13 +63,6 @@ export const nodeCatalog = [
   // },
   {
     type: 'action',
-    label: 'Chat Completion',
-    description: 'AI chat completion',
-    icon: MessageSquare,
-    category: 'AI',
-  },
-  {
-    type: 'action',
     label: 'AI Agent',
     description: 'Tools Agent',
     icon: Bot,
@@ -93,13 +73,5 @@ export const nodeCatalog = [
       { label: 'Memory', type: 'connection' },
       { label: 'Tool', type: 'connection' }
     ]
-  },
-  {
-    type: 'action',
-    label: 'Open chat',
-    description: 'Opens the chat interface',
-    icon: MessageCircle,
-    category: 'Actions',
-    buttonStyle: true
   }
 ]; 

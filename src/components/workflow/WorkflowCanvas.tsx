@@ -11,6 +11,7 @@ import ReactFlow, {
   ConnectionLineType,
   useReactFlow,
   MarkerType,
+  BackgroundVariant,
 } from 'reactflow';
 import 'reactflow/dist/style.css';
 import { WorkflowHeader } from './WorkflowHeader';
@@ -36,13 +37,17 @@ interface WorkflowCanvasProps {
 const edgeOptions = {
   type: 'smoothstep',
   style: { 
-    stroke: '#d1d5db', 
-    strokeWidth: 2 
+    stroke: 'url(#edge-gradient)', 
+    strokeWidth: 2,
+    opacity: 0.9
   },
   markerEnd: {
     type: MarkerType.ArrowClosed,
-    color: '#d1d5db',
+    color: '#3b82f6',
+    width: 20,
+    height: 20
   },
+  animated: true
 };
 
 export function WorkflowCanvas({ isActive, onClose, workflowId, newWorkflowData }: WorkflowCanvasProps) {
@@ -261,22 +266,32 @@ export function WorkflowCanvas({ isActive, onClose, workflowId, newWorkflowData 
               fitViewOptions={{ padding: 0.2 }}
               defaultEdgeOptions={edgeOptions}
               connectionLineType={ConnectionLineType.SmoothStep}
-              connectionLineStyle={{ stroke: '#d1d5db', strokeWidth: 2 }}
+              connectionLineStyle={{ stroke: '#3b82f6', strokeWidth: 2, opacity: 0.8 }}
+              className="bg-background"
             >
-              <Background color="#f1f5f9" gap={16} />
+              <svg style={{ position: 'absolute', width: 0, height: 0 }}>
+                <defs>
+                  <linearGradient id="edge-gradient" x1="0%" y1="0%" x2="100%" y2="0%">
+                    <stop offset="0%" stopColor="#1d4ed8" />
+                    <stop offset="100%" stopColor="#3b82f6" />
+                  </linearGradient>
+                </defs>
+              </svg>
+              <Background color="#f1f5f9" gap={16} variant={BackgroundVariant.Dots} />
               <Controls className="bg-white border border-gray-200 rounded-md shadow-sm" />
               <MiniMap 
                 nodeStrokeColor={(n) => {
-                  if (n.type === 'action') return '#ff0072';
-                  if (n.type === 'trigger') return '#0041d0';
-                  return '#eee';
+                  if (n.type === 'action') return '#ec4899';
+                  if (n.type === 'trigger') return '#3b82f6';
+                  return '#94a3b8';
                 }}
                 nodeColor={(n) => {
-                  if (n.type === 'action') return '#f6e6ef';
-                  if (n.type === 'trigger') return '#e6f2ff';
-                  return '#fff';
+                  if (n.type === 'action') return '#4c1d95';
+                  if (n.type === 'trigger') return '#1e3a8a';
+                  return '#1e293b';
                 }}
-                maskColor="rgba(241, 245, 249, 0.5)"
+                maskColor="rgba(15, 23, 42, 0.6)"
+                style={{ background: '#0f172a' }}
               />
               <Panel position="top-right" className="flex gap-2">
                 <Button size="sm" variant="outline" onClick={resetWorkflow}>
