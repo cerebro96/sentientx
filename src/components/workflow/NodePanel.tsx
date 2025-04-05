@@ -20,7 +20,8 @@ export function NodePanel() {
     node.category === 'Basic' || 
     node.category === 'Triggers' ||
     node.category === 'Actions' ||
-    node.category === 'LLM APIs'
+    node.category === 'LLM APIs' ||
+    node.category === 'Webhook' 
   );
   
   // Get unique categories

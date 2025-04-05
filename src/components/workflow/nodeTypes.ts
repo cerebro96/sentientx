@@ -15,7 +15,8 @@ import {
   AlertTriangle,
   MessageCircle,
   MemoryStickIcon,
-  DatabaseZap
+  DatabaseZap,
+  Webhook
 } from "lucide-react";
 
 // Registry of node types mapped to their respective components
@@ -28,20 +29,20 @@ export const nodeTypes = {
 // Catalog of available nodes for the NodePanel
 export const nodeCatalog = [
  
-  // {
-  //   type: 'action',
-  //   label: 'HTTP Request',
-  //   description: 'Make an HTTP request',
-  //   icon: Globe,
-  //   category: 'Actions',
-  // },
-  // {
-  //   type: 'action',
-  //   label: 'Transform Data',
-  //   description: 'Transform data using JavaScript',
-  //   icon: FileJson,
-  //   category: 'Actions',
-  // },
+  {
+    type: 'action',
+    label: 'HTTP Request',
+    description: 'Make an HTTP request',
+    icon: Globe,
+    category: 'Actions',
+  },
+  {
+    type: 'action',
+    label: 'Transform Data',
+    description: 'Transform data using JavaScript',
+    icon: FileJson,
+    category: 'Actions',
+  },
   {
     type: 'action',
     label: 'OpenAI API',
@@ -80,7 +81,7 @@ export const nodeCatalog = [
   {
     type: 'action',
     label: 'AI Agent',
-    description: 'Tools Agent',
+    description: 'AI-Powered Automation',
     icon: Bot,
     category: 'AI',
     // hasError: true,
@@ -96,5 +97,19 @@ export const nodeCatalog = [
   description: 'Stores a customizable length of chat history',
   icon: DatabaseZap,
   category: 'AI',
+  },
+  {
+    type: 'action',
+    label: 'Respond to Webhook',
+    description: 'Stores a customizable length of chat history',
+    icon: Webhook,
+    category: 'Webhook',
+  },
+  {
+    type: 'action',
+    label: 'Webhook',
+    description: 'Start the workflow when a webhook is called',
+    icon: Webhook,
+    category: 'Webhook',
   }
 ]; 

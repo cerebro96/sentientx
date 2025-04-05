@@ -3,7 +3,7 @@
 import { memo } from 'react';
 import { Handle, Position, NodeProps } from 'reactflow';
 import { NodeData } from '@/lib/store/workflow';
-import { CircleIcon, AlertTriangle, Bot, MessageCircle, Plus, BrainCircuit, DatabaseZap } from 'lucide-react';
+import { CircleIcon, AlertTriangle, Bot, MessageCircle, Plus, BrainCircuit, DatabaseZap, Webhook, Globe, FileJson } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 
@@ -15,10 +15,15 @@ function ActionNodeComponent({ data, selected }: NodeProps<NodeData>) {
   // Check if the node is an LLM API node
   const isLLMNode = data.label === 'OpenAI API' || data.label === 'Google Gemini API' || data.label === 'Deepseek API';
   const isMemoryNode = data.label === 'Simple Memory';
+  const isWebhookTrigger = data.label === 'Webhook';
+  const isWebhookResponse = data.label === 'Respond to Webhook';
+  const isHttpRequest = data.label === 'HTTP Request';
+  const isTransformData = data.label === 'Transform Data';
   
   // Handle icon selection based on node type
-  let IconComponent = CircleIcon;
+  let IconComponent;
   
+  // Select the appropriate icon based on node type
   if (isAIAgent) {
     IconComponent = Bot;
   } else if (isButtonNode) {
@@ -29,6 +34,14 @@ function ActionNodeComponent({ data, selected }: NodeProps<NodeData>) {
     IconComponent = DatabaseZap;
   } else if (data.label === 'Chat Trigger') {
     IconComponent = MessageCircle;
+  } else if (isWebhookTrigger || isWebhookResponse) {
+    IconComponent = Webhook;
+  } else if (isHttpRequest) {
+    IconComponent = Globe;
+  } else if (isTransformData) {
+    IconComponent = FileJson;
+  } else {
+    IconComponent = CircleIcon;
   }
   
   // If it's a button style node, render a button
@@ -119,8 +132,8 @@ function ActionNodeComponent({ data, selected }: NodeProps<NodeData>) {
       )}
       
       {/* Input handles */}
-      {/* Top input handle - always shown for LLM and Memory nodes, and other nodes except Chat Trigger */}
-      {(data.label !== 'Chat Trigger') && (
+      {/* Top input handle - always shown for LLM and Memory nodes, and other nodes except Chat Trigger, Webhook nodes, HTTP Request, Transform Data, and AI Agent */}
+      {(data.label !== 'Chat Trigger' && !isWebhookTrigger && !isWebhookResponse && !isHttpRequest && !isTransformData && !isAIAgent) && (
         <Handle 
           id="input-top"
           type="target" 
@@ -135,7 +148,7 @@ function ActionNodeComponent({ data, selected }: NodeProps<NodeData>) {
       )}
       
       {/* Left input handle - not shown for LLM, Memory, or Chat Trigger nodes */}
-      {(data.label !== 'Chat Trigger' && !isLLMNode && !isMemoryNode) && (
+      {(data.label !== 'Chat Trigger' && !isLLMNode && !isMemoryNode && !isWebhookTrigger) && (
         <Handle 
           id="input-left"
           type="target" 
@@ -149,8 +162,8 @@ function ActionNodeComponent({ data, selected }: NodeProps<NodeData>) {
         />
       )}
       
-      {/* Right output handle - for Chat Trigger and all nodes except LLM and Memory */}
-      {(data.label === 'Chat Trigger' || (!isLLMNode && !isMemoryNode)) && (
+      {/* Right output handle - for Chat Trigger, Webhook nodes, HTTP Request, Transform Data, and all nodes except LLM and Memory */}
+      {(data.label === 'Chat Trigger' || isWebhookTrigger || isWebhookResponse || isHttpRequest || isTransformData || (!isLLMNode && !isMemoryNode)) && (
         <Handle 
           id="output-right"
           type="source" 
@@ -164,8 +177,8 @@ function ActionNodeComponent({ data, selected }: NodeProps<NodeData>) {
         />
       )}
       
-      {/* Bottom output handle - not shown for Chat Trigger, LLM, or Memory nodes */}
-      {(data.label !== 'Chat Trigger' && !isLLMNode && !isMemoryNode) && (
+      {/* Bottom output handle - not shown for Chat Trigger, Webhook nodes, HTTP Request, Transform Data, LLM, or Memory nodes */}
+      {(data.label !== 'Chat Trigger' && !isWebhookTrigger && !isWebhookResponse && !isHttpRequest && !isTransformData && !isLLMNode && !isMemoryNode) && (
         <Handle 
           id="output-bottom"
           type="source" 
