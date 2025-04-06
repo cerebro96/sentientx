@@ -3,14 +3,16 @@
 import { memo } from 'react';
 import { Handle, Position, NodeProps } from 'reactflow';
 import { NodeData } from '@/lib/store/workflow';
-import { CircleIcon, AlertTriangle, Bot, MessageCircle, Plus, BrainCircuit, DatabaseZap, Webhook, Globe, FileJson } from 'lucide-react';
+import { CircleIcon, AlertTriangle, Bot, MessageCircle, Plus, BrainCircuit, DatabaseZap, Webhook, Globe, FileJson, MessageSquare } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
+import { toast } from 'sonner';
 
 function ActionNodeComponent({ data, selected }: NodeProps<NodeData>) {
   // Check node types
   const isAIAgent = data.label === 'AI Agent';
   const isButtonNode = data.buttonStyle === true;
+  const isChatTrigger = data.label === 'Chat Trigger';
   
   // Check if the node is an LLM API node
   const isLLMNode = data.label === 'OpenAI API' || data.label === 'Google Gemini API' || data.label === 'Deepseek API';
@@ -32,7 +34,7 @@ function ActionNodeComponent({ data, selected }: NodeProps<NodeData>) {
     IconComponent = BrainCircuit;
   } else if (isMemoryNode) {
     IconComponent = DatabaseZap;
-  } else if (data.label === 'Chat Trigger') {
+  } else if (isChatTrigger) {
     IconComponent = MessageCircle;
   } else if (isWebhookTrigger || isWebhookResponse) {
     IconComponent = Webhook;
@@ -43,6 +45,13 @@ function ActionNodeComponent({ data, selected }: NodeProps<NodeData>) {
   } else {
     IconComponent = CircleIcon;
   }
+  
+  const handleOpenChat = () => {
+    toast.success('Opening chat interface...', {
+      description: 'Chat interface would open here'
+    });
+    console.log('Open chat clicked');
+  };
   
   // If it's a button style node, render a button
   if (isButtonNode) {
@@ -103,6 +112,20 @@ function ActionNodeComponent({ data, selected }: NodeProps<NodeData>) {
         <div className="relative z-10 text-xs text-slate-300 text-center mt-1 mb-1">{data.description}</div>
       )}
       
+      {/* Chat button that appears only for Chat Trigger nodes */}
+      {isChatTrigger && (
+        <div className="absolute right-0 top-full mt-2 z-20">
+          <Button 
+            size="sm" 
+            onClick={handleOpenChat}
+            className="bg-gradient-to-r from-pink-500 to-rose-500 hover:from-pink-600 hover:to-rose-600 text-white font-medium shadow-[0_0_15px_-3px_rgba(236,72,153,0.5)] border border-pink-400 transition-all duration-200 rounded-full p-2"
+          >
+            <MessageSquare className="h-4 w-4" />
+            <span className="ml-1.5">Open Chat</span>
+          </Button>
+        </div>
+      )}
+      
       {/* Child nodes connections for AI Agent */}
       {isAIAgent && data.childNodes && (
         <div className="relative z-10 mt-10 w-full flex justify-between px-4">
@@ -133,7 +156,7 @@ function ActionNodeComponent({ data, selected }: NodeProps<NodeData>) {
       
       {/* Input handles */}
       {/* Top input handle - always shown for LLM and Memory nodes, and other nodes except Chat Trigger, Webhook nodes, HTTP Request, Transform Data, and AI Agent */}
-      {(data.label !== 'Chat Trigger' && !isWebhookTrigger && !isWebhookResponse && !isHttpRequest && !isTransformData && !isAIAgent) && (
+      {(!isChatTrigger && !isWebhookTrigger && !isWebhookResponse && !isHttpRequest && !isTransformData && !isAIAgent) && (
         <Handle 
           id="input-top"
           type="target" 
@@ -148,7 +171,7 @@ function ActionNodeComponent({ data, selected }: NodeProps<NodeData>) {
       )}
       
       {/* Left input handle - not shown for LLM, Memory, or Chat Trigger nodes */}
-      {(data.label !== 'Chat Trigger' && !isLLMNode && !isMemoryNode && !isWebhookTrigger) && (
+      {(!isChatTrigger && !isLLMNode && !isMemoryNode && !isWebhookTrigger) && (
         <Handle 
           id="input-left"
           type="target" 
@@ -163,7 +186,7 @@ function ActionNodeComponent({ data, selected }: NodeProps<NodeData>) {
       )}
       
       {/* Right output handle - for Chat Trigger, Webhook nodes, HTTP Request, Transform Data, and all nodes except LLM and Memory */}
-      {(data.label === 'Chat Trigger' || isWebhookTrigger || isWebhookResponse || isHttpRequest || isTransformData || (!isLLMNode && !isMemoryNode)) && (
+      {(isChatTrigger || isWebhookTrigger || isWebhookResponse || isHttpRequest || isTransformData || (!isLLMNode && !isMemoryNode)) && (
         <Handle 
           id="output-right"
           type="source" 
@@ -178,7 +201,7 @@ function ActionNodeComponent({ data, selected }: NodeProps<NodeData>) {
       )}
       
       {/* Bottom output handle - not shown for Chat Trigger, Webhook nodes, HTTP Request, Transform Data, LLM, or Memory nodes */}
-      {(data.label !== 'Chat Trigger' && !isWebhookTrigger && !isWebhookResponse && !isHttpRequest && !isTransformData && !isLLMNode && !isMemoryNode) && (
+      {(!isChatTrigger && !isWebhookTrigger && !isWebhookResponse && !isHttpRequest && !isTransformData && !isLLMNode && !isMemoryNode) && (
         <Handle 
           id="output-bottom"
           type="source" 
