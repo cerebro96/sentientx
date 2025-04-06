@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { nodeCatalog } from './nodeTypes';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -26,6 +26,16 @@ export function NodePanel() {
   
   // Get unique categories
   const categories = [...new Set(aiNodes.map(node => node.category))];
+  
+  // Initialize all categories as collapsed on first render
+  useEffect(() => {
+    const initialCollapsedState = categories.reduce((acc, category) => {
+      acc[category] = true; // Set all categories to be collapsed
+      return acc;
+    }, {} as Record<string, boolean>);
+    
+    setCollapsedCategories(initialCollapsedState);
+  }, []);
 
   // Filter nodes based on search query
   const filteredNodes = searchQuery.trim() 

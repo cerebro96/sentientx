@@ -12,6 +12,10 @@ import ReactFlow, {
   useReactFlow,
   MarkerType,
   BackgroundVariant,
+  NodeChange,
+  EdgeChange,
+  Connection,
+  Node,
 } from 'reactflow';
 import 'reactflow/dist/style.css';
 import { WorkflowHeader } from './WorkflowHeader';
@@ -20,7 +24,7 @@ import { nodeTypes } from './nodeTypes';
 import { useWorkflowStore } from '@/lib/store/workflow';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Check, Save, ChevronLeft, Trash2 } from 'lucide-react';
+import { Check, Save, ChevronLeft, Trash2, Maximize } from 'lucide-react';
 import { toast } from 'sonner';
 import { NodeData } from '@/lib/store/workflow';
 import { WorkflowFormData } from './WorkflowDialog';
@@ -58,19 +62,169 @@ export function WorkflowCanvas({ isActive, onClose, workflowId, newWorkflowData 
   const [tags, setTags] = useState<string[]>(newWorkflowData?.tags || []);
   const [createdWorkflowId, setCreatedWorkflowId] = useState<string | undefined>(undefined);
   const [activeTab, setActiveTab] = useState('canvas');
+  
+  // Add debounce for auto-saving
+  const autoSaveTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  
+  // Add a flag to prevent auto-saving during initial load
+  const initialLoadRef = useRef(true);
 
   // Access store state and actions
   const {
     nodes,
     edges,
-    onNodesChange,
-    onEdgesChange,
-    onConnect,
-    addNode,
+    onNodesChange: originalOnNodesChange,
+    onEdgesChange: originalOnEdgesChange,
+    onConnect: originalOnConnect,
+    addNode: originalAddNode,
     resetWorkflow,
     isReady,
     setIsReady,
   } = useWorkflowStore();
+  
+  // Add a ref to track if we need to focus the view
+  const shouldFitViewRef = useRef(false);
+  
+  // Add a saveWorkflow function that both the handleSaveWorkflow and triggerAutoSave can use
+  const saveWorkflow = async (isAutoSave = false) => {
+    try {
+      // Don't save if we're still in initial loading
+      if (initialLoadRef.current) {
+        return;
+      }
+      
+      // Prepare workflow data
+      const flowData = {
+        name: workflowName,
+        is_active: isWorkflowActive,
+        tags: tags,
+        nodes: nodes,
+        edges: edges
+      };
+
+      // Use existing workflowId, or the one we already created
+      const existingId = workflowId || createdWorkflowId;
+
+      if (existingId) {
+        // Update existing workflow
+        await updateWorkflow(existingId, flowData);
+        // Only show notification for manual saves, not auto-saves
+        if (!isAutoSave) {
+          toast.success('Workflow saved successfully');
+        }
+      } else {
+        // Create new workflow - this should only happen once
+        const newWorkflow = await createWorkflow({
+          name: workflowName,
+          description: newWorkflowData?.description,
+          tags: tags,
+          is_active: isWorkflowActive,
+          nodes: nodes,
+          edges: edges
+        });
+        
+        // Store the created workflow's ID for future saves
+        if (newWorkflow && newWorkflow.id) {
+          setCreatedWorkflowId(newWorkflow.id);
+        }
+        
+        // Always show notification for new workflow creation
+        toast.success('Workflow created and saved');
+      }
+    } catch (error) {
+      console.error('Error saving workflow:', error);
+      // Only show error notification for manual saves, not auto-saves
+      if (!isAutoSave) {
+        toast.error('Failed to save workflow');
+      }
+    }
+  };
+
+  // Simple wrapper for manual saves
+  const handleSaveWorkflow = () => saveWorkflow(false);
+  
+  // Debounced auto-save function
+  const triggerAutoSave = useCallback(() => {
+    // Clear any existing timeout
+    if (autoSaveTimeoutRef.current) {
+      clearTimeout(autoSaveTimeoutRef.current);
+    }
+    
+    // Set a new timeout for auto-saving
+    autoSaveTimeoutRef.current = setTimeout(() => {
+      saveWorkflow(true);
+    }, 1000); // Wait 1 second before saving to avoid too many saves
+  }, [
+    // We're intentionally not including saveWorkflow in deps
+    // to avoid circular reference, since it refers to state variables
+    // that are already included here
+    workflowName, 
+    isWorkflowActive, 
+    tags, 
+    nodes, 
+    edges, 
+    workflowId, 
+    createdWorkflowId, 
+    newWorkflowData
+  ]);
+  
+  // Wrap the store's handlers to add auto-save functionality
+  const onNodesChange = useCallback((changes: NodeChange[]) => {
+    originalOnNodesChange(changes);
+    
+    // Only auto-save position changes, not selection changes
+    const hasPositionChange = changes.some(change => change.type === 'position');
+    if (hasPositionChange && !initialLoadRef.current) {
+      triggerAutoSave();
+    }
+  }, [originalOnNodesChange, triggerAutoSave]);
+
+  const onEdgesChange = useCallback((changes: EdgeChange[]) => {
+    originalOnEdgesChange(changes);
+    
+    // Only auto-save if edges are added or removed, not selected
+    const hasStructuralChange = changes.some(change => change.type === 'add' || change.type === 'remove');
+    if (hasStructuralChange && !initialLoadRef.current) {
+      triggerAutoSave();
+    }
+  }, [originalOnEdgesChange, triggerAutoSave]);
+
+  const onConnect = useCallback((connection: Connection) => {
+    originalOnConnect(connection);
+    
+    // Auto-save when new connections are made
+    if (!initialLoadRef.current) {
+      triggerAutoSave();
+    }
+  }, [originalOnConnect, triggerAutoSave]);
+
+  const addNode = useCallback((node: Node<NodeData>) => {
+    originalAddNode(node);
+    
+    // Auto-save when new nodes are added
+    if (!initialLoadRef.current) {
+      triggerAutoSave();
+    }
+  }, [originalAddNode, triggerAutoSave]);
+
+  // Clear initial load flag after component mounts and data is loaded
+  useEffect(() => {
+    if (isReady) {
+      // Set a small delay to ensure all loading is complete
+      setTimeout(() => {
+        initialLoadRef.current = false;
+      }, 1000);
+    }
+  }, [isReady]);
+
+  // Clean up timeout on unmount
+  useEffect(() => {
+    return () => {
+      if (autoSaveTimeoutRef.current) {
+        clearTimeout(autoSaveTimeoutRef.current);
+      }
+    };
+  }, []);
 
   // Initialize workflow from new data
   useEffect(() => {
@@ -123,47 +277,6 @@ export function WorkflowCanvas({ isActive, onClose, workflowId, newWorkflowData 
     [reactFlowInstance, addNode]
   );
 
-  const handleSaveWorkflow = async () => {
-    try {
-      // Prepare workflow data
-      const flowData = {
-        name: workflowName,
-        is_active: isWorkflowActive,
-        tags: tags,
-        nodes: nodes,
-        edges: edges
-      };
-
-      // Use existing workflowId, or the one we already created
-      const existingId = workflowId || createdWorkflowId;
-
-      if (existingId) {
-        // Update existing workflow
-        await updateWorkflow(existingId, flowData);
-      } else {
-        // Create new workflow - this should only happen once
-        const newWorkflow = await createWorkflow({
-          name: workflowName,
-          description: newWorkflowData?.description,
-          tags: tags,
-          is_active: isWorkflowActive,
-          nodes: nodes,
-          edges: edges
-        });
-        
-        // Store the created workflow's ID for future saves
-        if (newWorkflow && newWorkflow.id) {
-          setCreatedWorkflowId(newWorkflow.id);
-        }
-      }
-      
-      toast.success('Workflow saved successfully');
-    } catch (error) {
-      console.error('Error saving workflow:', error);
-      toast.error('Failed to save workflow');
-    }
-  };
-
   // Load existing workflow if editing
   useEffect(() => {
     const loadWorkflow = async () => {
@@ -179,13 +292,13 @@ export function WorkflowCanvas({ isActive, onClose, workflowId, newWorkflowData 
           // Initialize the flow with the saved nodes and edges
           if (data.nodes && data.edges) {
             setIsReady(false); // Temporarily disable while loading
-            setTimeout(() => {
-              useWorkflowStore.setState({
-                nodes: data.nodes,
-                edges: data.edges
-              });
-              setIsReady(true);
-            }, 0);
+            useWorkflowStore.setState({
+              nodes: data.nodes,
+              edges: data.edges
+            });
+            setIsReady(true);
+            // Immediately flag that we need to center view
+            shouldFitViewRef.current = true;
           }
         }
       } catch (error) {
@@ -196,6 +309,27 @@ export function WorkflowCanvas({ isActive, onClose, workflowId, newWorkflowData 
 
     loadWorkflow();
   }, [workflowId, setIsReady]);
+
+  // Single, fast-acting effect to center the view
+  useEffect(() => {
+    if (reactFlowInstance && isReady) {
+      // Immediate centering attempt
+      reactFlowInstance.fitView({
+        padding: 0.5,
+        includeHiddenNodes: true,
+        duration: 200 // Faster animation
+      });
+      
+      // Quick follow-up to ensure it worked
+      setTimeout(() => {
+        reactFlowInstance.fitView({
+          padding: 0.5,
+          includeHiddenNodes: true,
+          duration: 100
+        });
+      }, 50); // Very short delay
+    }
+  }, [reactFlowInstance, isReady]);
 
   useEffect(() => {
     setIsReady(true);
@@ -334,6 +468,18 @@ export function WorkflowCanvas({ isActive, onClose, workflowId, newWorkflowData 
                 style={{ background: '#0f172a' }}
               />
               <Panel position="top-right" className="flex gap-2">
+                <Button size="sm" variant="outline" onClick={() => {
+                  if (reactFlowInstance) {
+                    reactFlowInstance.fitView({
+                      padding: 0.4,
+                      includeHiddenNodes: true,
+                      duration: 800
+                    });
+                  }
+                }}>
+                  <Maximize className="h-4 w-4 mr-1" />
+                  Center View
+                </Button>
                 <Button size="sm" variant="outline" onClick={resetWorkflow}>
                   <Trash2 className="h-4 w-4 mr-1" />
                   Clear

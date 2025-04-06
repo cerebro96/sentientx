@@ -108,7 +108,7 @@ export async function updateWorkflow(id: string, updates: Partial<CreateWorkflow
       .single();
     
     if (error) throw error;
-    toast.success('Workflow updated successfully');
+    // toast.success('Workflow updated successfully');
     return data;
   } catch (error: any) {
     console.error('Error updating workflow:', error);
