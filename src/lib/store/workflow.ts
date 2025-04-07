@@ -29,6 +29,10 @@ export type NodeData = {
     model?: string;
     options?: Array<{ key: string; value: string }>;
   };
+  memoryConfig?: {
+    sessionTTL?: string;
+    contextWindowLength?: string;
+  };
 };
 
 // Define initial nodes with proper types

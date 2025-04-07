@@ -9,11 +9,13 @@ import { Button } from '@/components/ui/button';
 import { toast } from 'sonner';
 import { ChatTriggerModal } from '../chat-trigger-modal';
 import { LlmNodeModal } from '../llm-node-modal';
+import { RedisMemoryModal } from '../redis-memory-modal';
 import { useWorkflowStore } from '@/lib/store/workflow';
 
 function ActionNodeComponent({ id, data, selected }: NodeProps<NodeData>) {
   const [isChatModalOpen, setIsChatModalOpen] = useState(false);
   const [isLlmModalOpen, setIsLlmModalOpen] = useState(false);
+  const [isMemoryModalOpen, setIsMemoryModalOpen] = useState(false);
   const [llmProvider, setLlmProvider] = useState<string>('');
   
   // Check node types
@@ -72,6 +74,10 @@ function ActionNodeComponent({ id, data, selected }: NodeProps<NodeData>) {
     setIsLlmModalOpen(true);
   };
   
+  const handleOpenMemoryConfig = () => {
+    setIsMemoryModalOpen(true);
+  };
+  
   const handleChatButtonClick = (e: React.MouseEvent) => {
     e.stopPropagation();
     toast.success('Chat interface opened', {
@@ -124,6 +130,30 @@ function ActionNodeComponent({ id, data, selected }: NodeProps<NodeData>) {
     }
   };
   
+  const handleMemoryConfigSave = (configData: any) => {
+    if (id) {
+      // Access updateNodeData from the workflow store
+      const updateNodeData = useWorkflowStore.getState().updateNodeData;
+      
+      console.log('Saving Redis Memory configuration in node:', configData);
+      
+      // Update the node data
+      updateNodeData(id, {
+        memoryConfig: {
+          apiKeyId: configData.apiKeyId,
+          sessionKey: configData.sessionKey,
+          sessionTTL: configData.sessionTTL,
+          contextWindowLength: configData.contextWindowLength
+        }
+      });
+      
+      toast.success('Redis Memory configuration updated', {
+        description: `Context Window: ${configData.contextWindowLength} messages`,
+        duration: 3000
+      });
+    }
+  };
+  
   // If it's a button style node, render a button
   if (isButtonNode) {
     return (
@@ -151,8 +181,16 @@ function ActionNodeComponent({ id, data, selected }: NodeProps<NodeData>) {
               ? "border-blue-500 shadow-[0_0_20px_-5px_rgba(59,130,246,0.7)]" 
               : "border-blue-600 shadow-[0_0_10px_-5px_rgba(59,130,246,0.3)]"
         )}
-        onClick={isChatTrigger ? handleOpenChat : isLLMNode ? handleOpenLlmConfig : undefined}
-        style={(isChatTrigger || isLLMNode) ? { cursor: 'pointer' } : undefined}
+        onClick={
+          isChatTrigger 
+            ? handleOpenChat 
+            : isLLMNode 
+              ? handleOpenLlmConfig 
+              : isMemoryNode
+                ? handleOpenMemoryConfig
+                : undefined
+        }
+        style={(isChatTrigger || isLLMNode || isMemoryNode) ? { cursor: 'pointer' } : undefined}
       >
         {/* Gradient glow effect */}
         <div className={cn(
@@ -306,6 +344,17 @@ function ActionNodeComponent({ id, data, selected }: NodeProps<NodeData>) {
           provider={llmProvider}
           nodeData={data.llmConfig || {}}
           onSave={handleLlmConfigSave}
+        />
+      )}
+      
+      {/* Redis Memory Configuration Modal */}
+      {isMemoryNode && (
+        <RedisMemoryModal
+          isOpen={isMemoryModalOpen}
+          onClose={() => setIsMemoryModalOpen(false)}
+          nodeId={id}
+          nodeData={data.memoryConfig || {}}
+          onSave={handleMemoryConfigSave}
         />
       )}
     </>
