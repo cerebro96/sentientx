@@ -32,7 +32,7 @@ interface ChatTriggerModalProps {
 
 export function ChatTriggerModal({ isOpen, onClose }: ChatTriggerModalProps) {
   const [activeTab, setActiveTab] = useState("parameters");
-  const [isPublic, setIsPublic] = useState(true);
+  const [isPublic, setIsPublic] = useState(false);
   const [initialMessage, setInitialMessage] = useState("Hello! How can I assist you today?");
   const [mode, setMode] = useState("hosted");
   const [auth, setAuth] = useState("none");
@@ -83,23 +83,25 @@ export function ChatTriggerModal({ isOpen, onClose }: ChatTriggerModalProps) {
           
           <TabsContent value="parameters" className="space-y-6">
             <div className="space-y-4">
-              <div>
-                <Label htmlFor="chat-url" className="mb-2 block">Chat URL</Label>
-                <div className="flex gap-2">
-                  <Input 
-                    id="chat-url" 
-                    value={chatUrl} 
-                    readOnly 
-                  />
-                  <Button 
-                    variant="outline" 
-                    size="icon" 
-                    onClick={handleCopyUrl}
-                  >
-                    {copied ? <Check className="h-4 w-4 text-green-500" /> : <Copy className="h-4 w-4" />}
-                  </Button>
+              {isPublic && (
+                <div>
+                  <Label htmlFor="chat-url" className="mb-2 block">Chat URL</Label>
+                  <div className="flex gap-2">
+                    <Input 
+                      id="chat-url" 
+                      value={chatUrl} 
+                      readOnly 
+                    />
+                    <Button 
+                      variant="outline" 
+                      size="icon" 
+                      onClick={handleCopyUrl}
+                    >
+                      {copied ? <Check className="h-4 w-4 text-green-500" /> : <Copy className="h-4 w-4" />}
+                    </Button>
+                  </div>
                 </div>
-              </div>
+              )}
               
               <div className="flex items-center justify-between">
                 <div className="space-y-0.5">
@@ -130,8 +132,10 @@ export function ChatTriggerModal({ isOpen, onClose }: ChatTriggerModalProps) {
               <div className="p-3 bg-muted rounded-md border text-sm flex items-start">
                 <AlertCircle className="h-5 w-5 mr-2 flex-shrink-0 mt-0.5" />
                 <p className="text-muted-foreground">
-                  Chat will be live at the URL above once you activate this workflow. 
-                  Live executions will show up in the executions tab.
+                  {isPublic 
+                    ? "Chat will be live at the URL above once you activate this workflow." 
+                    : "Chat is currently private. Enable 'Make Chat Publicly Available' to get a shareable URL."}
+                  {isPublic && " Live executions will show up in the executions tab."}
                 </p>
               </div>
             </div>
@@ -155,7 +159,7 @@ export function ChatTriggerModal({ isOpen, onClose }: ChatTriggerModalProps) {
               </div>
               
               <div>
-                <Label htmlFor="initial-message" className="mb-2 block">Initial Message(s)</Label>
+                <Label htmlFor="initial-message" className="mb-2 block">Initial Message(s) [Prompt]</Label>
                 <Textarea 
                   id="initial-message" 
                   value={initialMessage}
@@ -183,14 +187,14 @@ export function ChatTriggerModal({ isOpen, onClose }: ChatTriggerModalProps) {
                 </ul>
               </div>
               
-              <div className="space-y-2">
+              {/* <div className="space-y-2">
                 <h4 className="font-medium">Examples</h4>
                 <ul className="list-disc list-inside text-muted-foreground space-y-1">
                   <li>Customer support chatbot</li>
                   <li>Interactive FAQ assistant</li>
                   <li>Data collection through conversation</li>
                 </ul>
-              </div>
+              </div> */}
               
               <div className="flex items-center space-x-2 text-foreground hover:text-foreground/80 mt-4">
                 <ExternalLink className="h-4 w-4" />

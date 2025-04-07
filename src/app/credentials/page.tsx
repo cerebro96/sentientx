@@ -280,6 +280,8 @@ export default function CredentialsPage() {
   const [selectedKeyId, setSelectedKeyId] = useState<string | null>(null);
   const [decryptedKey, setDecryptedKey] = useState<string | null>(null);
   const [isDecrypting, setIsDecrypting] = useState(false);
+  const [customServiceName, setCustomServiceName] = useState('');
+  const [isCustomService, setIsCustomService] = useState(false);
 
   // Get unique key types from apiKeys
   const availableTypes = useMemo(() => {
@@ -320,7 +322,7 @@ export default function CredentialsPage() {
         if (!matchesSearch) return false;
       }
       
-      // Type filter
+      // Type filter - only apply if filters are actually selected
       if (typeFilters.length > 0 && !typeFilters.includes(key.type)) {
         return false;
       }
@@ -382,10 +384,19 @@ export default function CredentialsPage() {
     refreshApiKeys();
   }, [refreshApiKeys]);
 
+  const handleServiceChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
+    const value = e.target.value;
+    setNewKeyService(value);
+    setIsCustomService(value === 'Custom');
+  };
+
   const handleAddKey = async (e: React.FormEvent) => {
     e.preventDefault();
     
-    if (!newKeyName.trim() || !newKeyService.trim() || !newKeyValue.trim()) {
+    // Determine the actual service name to use
+    const serviceToUse = isCustomService ? customServiceName : newKeyService;
+    
+    if (!newKeyName.trim() || !serviceToUse.trim() || !newKeyValue.trim()) {
       toast.error("All fields are required");
       return;
     }
@@ -395,7 +406,7 @@ export default function CredentialsPage() {
     try {
       await createApiKey(
         newKeyName.trim(),
-        newKeyService.trim(),
+        serviceToUse.trim(),
         newKeyValue.trim()
       );
       
@@ -403,7 +414,9 @@ export default function CredentialsPage() {
       
       // Reset form
       setNewKeyName('');
-      setNewKeyService('');
+      setNewKeyService('OpenAI');
+      setCustomServiceName('');
+      setIsCustomService(false);
       setNewKeyValue('');
       setShowKey(false);
       setIsAddKeyDialogOpen(false);
@@ -585,15 +598,40 @@ export default function CredentialsPage() {
                   <Label htmlFor="service" className="text-right">
                     Service
                   </Label>
-                  <Input
-                    id="service"
-                    value={newKeyService}
-                    onChange={(e) => setNewKeyService(e.target.value)}
-                    className="col-span-3"
-                    placeholder="OpenAI, GitHub, etc."
-                    required
-                  />
+                  <div className="col-span-3">
+                    <select
+                      id="service"
+                      value={newKeyService}
+                      onChange={handleServiceChange}
+                      className="w-full rounded-md border border-input bg-background px-3 py-2"
+                      required
+                    >
+                      <option value="OpenAI">OpenAI</option>
+                      <option value="Google Gemini">Google Gemini</option>
+                      <option value="Anthropic">Anthropic</option>
+                      <option value="Deepseek">Deepseek</option>
+                      <option value="GitHub">GitHub</option>
+                      <option value="Custom">Custom</option>
+                    </select>
+                  </div>
                 </div>
+                {isCustomService && (
+                  <div className="grid grid-cols-4 items-center gap-4">
+                    <Label htmlFor="customServiceName" className="text-right">
+                      Custom Service Name
+                    </Label>
+                    <div className="col-span-3">
+                      <Input
+                        id="customServiceName"
+                        value={customServiceName}
+                        onChange={(e) => setCustomServiceName(e.target.value)}
+                        className="col-span-3"
+                        placeholder="Enter custom service name"
+                        required={isCustomService}
+                      />
+                    </div>
+                  </div>
+                )}
                 <div className="grid grid-cols-4 items-center gap-4">
                   <Label htmlFor="key" className="text-right">
                     API Key

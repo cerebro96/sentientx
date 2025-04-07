@@ -22,6 +22,13 @@ export type NodeData = {
   hasError?: boolean;
   childNodes?: Array<{label: string; type: string}>;
   buttonStyle?: boolean;
+  llmConfig?: {
+    provider?: string;
+    credential?: string;
+    apiKeyId?: string;
+    model?: string;
+    options?: Array<{ key: string; value: string }>;
+  };
 };
 
 // Define initial nodes with proper types

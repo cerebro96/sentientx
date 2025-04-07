@@ -102,6 +102,18 @@ export function WorkflowCanvas({ isActive, onClose, workflowId, newWorkflowData 
         'Nodes:', currentNodes.length, 
         'Edges:', currentEdges.length);
       
+      // Special handling for Anthropic nodes
+      const nodesWithAnthropic = currentNodes.filter(node => 
+        node.data?.llmConfig?.provider === 'anthropic'
+      );
+      
+      if (nodesWithAnthropic.length > 0) {
+        console.log('Found Anthropic nodes:', nodesWithAnthropic.length);
+        nodesWithAnthropic.forEach(node => {
+          console.log('Anthropic node config:', node.id, node.data.llmConfig);
+        });
+      }
+      
       // Prepare workflow data
       const flowData = {
         name: workflowName,

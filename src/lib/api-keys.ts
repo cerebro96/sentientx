@@ -41,6 +41,10 @@ export async function getApiKeys(): Promise<ApiKey[]> {
       .order('created_at', { ascending: false });
     
     if (error) throw error;
+    
+    // Log the data to verify all records are returned
+    console.log('API keys fetched:', data?.length, data);
+    
     return data || [];
   } catch (error: any) {
     console.error('Error fetching API keys:', error);

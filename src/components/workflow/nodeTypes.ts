@@ -53,14 +53,21 @@ export const nodeCatalog = [
   {
     type: 'action',
     label: 'Google Gemini API',
-    description: 'Gemini Chat Model',
+    description: 'Gemini Set of Model',
+    icon: BrainCircuit,
+    category: 'LLM APIs',
+  },
+  {
+    type: 'action',
+    label: 'Anthropic API',
+    description: 'Claude Set Of Model',
     icon: BrainCircuit,
     category: 'LLM APIs',
   },
   {
     type: 'action',
     label: 'Deepseek API',
-    description: 'Deepseek Chat Model',
+    description: 'Deepseek Set Of Model',
     icon: BrainCircuit,
     category: 'LLM APIs',
   },

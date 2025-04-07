@@ -8,9 +8,13 @@ import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import { toast } from 'sonner';
 import { ChatTriggerModal } from '../chat-trigger-modal';
+import { LlmNodeModal } from '../llm-node-modal';
+import { useWorkflowStore } from '@/lib/store/workflow';
 
-function ActionNodeComponent({ data, selected }: NodeProps<NodeData>) {
+function ActionNodeComponent({ id, data, selected }: NodeProps<NodeData>) {
   const [isChatModalOpen, setIsChatModalOpen] = useState(false);
+  const [isLlmModalOpen, setIsLlmModalOpen] = useState(false);
+  const [llmProvider, setLlmProvider] = useState<string>('');
   
   // Check node types
   const isAIAgent = data.label === 'AI Agent';
@@ -18,7 +22,12 @@ function ActionNodeComponent({ data, selected }: NodeProps<NodeData>) {
   const isChatTrigger = data.label === 'Chat Trigger';
   
   // Check if the node is an LLM API node
-  const isLLMNode = data.label === 'OpenAI API' || data.label === 'Google Gemini API' || data.label === 'Deepseek API';
+  const isOpenAI = data.label === 'OpenAI API';
+  const isGemini = data.label === 'Google Gemini API';
+  const isAnthropic = data.label === 'Anthropic API';
+  const isDeepseek = data.label === 'Deepseek API';
+  const isLLMNode = isOpenAI || isGemini || isAnthropic || isDeepseek;
+  
   const isMemoryNode = data.label === 'Simple Memory';
   const isWebhookTrigger = data.label === 'Webhook';
   const isWebhookResponse = data.label === 'Respond to Webhook';
@@ -53,12 +62,66 @@ function ActionNodeComponent({ data, selected }: NodeProps<NodeData>) {
     setIsChatModalOpen(true);
   };
   
+  const handleOpenLlmConfig = () => {
+    // Set the appropriate LLM provider based on the node label
+    if (isOpenAI) setLlmProvider('openai');
+    else if (isGemini) setLlmProvider('gemini');
+    else if (isAnthropic) setLlmProvider('anthropic');
+    else if (isDeepseek) setLlmProvider('deepseek');
+    
+    setIsLlmModalOpen(true);
+  };
+  
   const handleChatButtonClick = (e: React.MouseEvent) => {
     e.stopPropagation();
     toast.success('Chat interface opened', {
       description: 'Users can now interact with your chat',
       duration: 3000
     });
+  };
+  
+  const handleLlmConfigSave = (configData: any) => {
+    // Use the id from the node props instead of looking for it in data
+    if (id) {
+      // Access updateNodeData from the workflow store
+      const updateNodeData = useWorkflowStore.getState().updateNodeData;
+      
+      console.log('Saving LLM configuration in node:', configData);
+      
+      // Special handling for Anthropic to ensure it saves properly
+      if (configData.provider === 'anthropic') {
+        console.log('Saving Anthropic configuration with special handling:', {
+          provider: configData.provider,
+          apiKeyId: configData.apiKeyId,
+          model: configData.model
+        });
+      }
+      
+      // Update the node data
+      updateNodeData(id, {
+        llmConfig: {
+          provider: configData.provider,
+          apiKeyId: configData.apiKeyId,
+          model: configData.model,
+          options: configData.options
+        }
+      });
+      
+      // Force a rerender of the node to ensure UI is updated
+      setTimeout(() => {
+        // Trigger a save to the database to persist the changes
+        if (configData.provider === 'anthropic') {
+          console.log('Anthropic configuration saved. Verifying data:', 
+            useWorkflowStore.getState().nodes.find(n => n.id === id)?.data?.llmConfig
+          );
+        }
+      }, 100);
+      
+      toast.success('LLM configuration updated', {
+        description: `Model: ${configData.model}`,
+        duration: 3000
+      });
+    }
   };
   
   // If it's a button style node, render a button
@@ -88,8 +151,8 @@ function ActionNodeComponent({ data, selected }: NodeProps<NodeData>) {
               ? "border-blue-500 shadow-[0_0_20px_-5px_rgba(59,130,246,0.7)]" 
               : "border-blue-600 shadow-[0_0_10px_-5px_rgba(59,130,246,0.3)]"
         )}
-        onClick={isChatTrigger ? handleOpenChat : undefined}
-        style={isChatTrigger ? { cursor: 'pointer' } : undefined}
+        onClick={isChatTrigger ? handleOpenChat : isLLMNode ? handleOpenLlmConfig : undefined}
+        style={(isChatTrigger || isLLMNode) ? { cursor: 'pointer' } : undefined}
       >
         {/* Gradient glow effect */}
         <div className={cn(
@@ -232,6 +295,17 @@ function ActionNodeComponent({ data, selected }: NodeProps<NodeData>) {
         <ChatTriggerModal 
           isOpen={isChatModalOpen} 
           onClose={() => setIsChatModalOpen(false)}
+        />
+      )}
+      
+      {/* LLM Configuration Modal */}
+      {isLLMNode && llmProvider && (
+        <LlmNodeModal
+          isOpen={isLlmModalOpen}
+          onClose={() => setIsLlmModalOpen(false)}
+          provider={llmProvider}
+          nodeData={data.llmConfig || {}}
+          onSave={handleLlmConfigSave}
         />
       )}
     </>
