@@ -53,10 +53,10 @@ export function ChatTriggerModal({ isOpen, onClose }: ChatTriggerModalProps) {
     toast.success("URL copied to clipboard");
   };
   
-  const handleTestChat = () => {
-    window.open(`/chat/${chatId}`, '_blank');
-    toast.success("Test chat opened in new tab");
-  };
+  // const handleTestChat = () => {
+  //   window.open(`/chat/${chatId}`, '_blank');
+  //   toast.success("Test chat opened in new tab");
+  // };
   
   return (
     <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
@@ -64,13 +64,13 @@ export function ChatTriggerModal({ isOpen, onClose }: ChatTriggerModalProps) {
         <DialogHeader>
           <DialogTitle className="text-xl font-bold flex items-center">
             When chat message received
-            <Button 
+            {/* <Button 
               size="sm" 
               className="ml-auto"
               onClick={handleTestChat}
             >
               Test Chat
-            </Button>
+            </Button> */}
           </DialogTitle>
         </DialogHeader>
         
