@@ -28,7 +28,7 @@ function ActionNodeComponent({ id, data, selected }: NodeProps<NodeData>) {
   const isDeepseek = data.label === 'Deepseek API';
   const isLLMNode = isOpenAI || isGemini || isAnthropic || isDeepseek;
   
-  const isMemoryNode = data.label === 'Simple Memory';
+  const isMemoryNode = data.label === 'Redis Memory';
   const isWebhookTrigger = data.label === 'Webhook';
   const isWebhookResponse = data.label === 'Respond to Webhook';
   const isHttpRequest = data.label === 'HTTP Request';

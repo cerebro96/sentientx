@@ -100,7 +100,7 @@ export const nodeCatalog = [
   },
   {
   type: 'action',
-  label: 'Simple Memory',
+  label: 'Redis Memory',
   description: 'Stores a customizable length of chat history',
   icon: DatabaseZap,
   category: 'AI',
