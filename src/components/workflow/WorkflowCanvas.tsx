@@ -90,16 +90,25 @@ export function WorkflowCanvas({ isActive, onClose, workflowId, newWorkflowData 
     try {
       // Don't save if we're still in initial loading
       if (initialLoadRef.current) {
+        console.log('Skipping save during initial load');
         return;
       }
+      
+      // Get the current state directly from the store to ensure we have the latest nodes and edges
+      const currentNodes = useWorkflowStore.getState().nodes;
+      const currentEdges = useWorkflowStore.getState().edges;
+      
+      console.log('Saving workflow:', isAutoSave ? 'auto' : 'manual', 
+        'Nodes:', currentNodes.length, 
+        'Edges:', currentEdges.length);
       
       // Prepare workflow data
       const flowData = {
         name: workflowName,
         is_active: isWorkflowActive,
         tags: tags,
-        nodes: nodes,
-        edges: edges
+        nodes: currentNodes,
+        edges: currentEdges
       };
 
       // Use existing workflowId, or the one we already created
@@ -119,8 +128,8 @@ export function WorkflowCanvas({ isActive, onClose, workflowId, newWorkflowData 
           description: newWorkflowData?.description,
           tags: tags,
           is_active: isWorkflowActive,
-          nodes: nodes,
-          edges: edges
+          nodes: currentNodes,
+          edges: currentEdges
         });
         
         // Store the created workflow's ID for future saves
@@ -172,9 +181,12 @@ export function WorkflowCanvas({ isActive, onClose, workflowId, newWorkflowData 
   const onNodesChange = useCallback((changes: NodeChange[]) => {
     originalOnNodesChange(changes);
     
-    // Only auto-save position changes, not selection changes
+    // Auto-save on position changes and node deletions
     const hasPositionChange = changes.some(change => change.type === 'position');
-    if (hasPositionChange && !initialLoadRef.current) {
+    const hasNodeRemoval = changes.some(change => change.type === 'remove');
+    
+    if ((hasPositionChange || hasNodeRemoval) && !initialLoadRef.current) {
+      console.log('Auto-saving after node change:', hasPositionChange ? 'moved' : 'removed');
       triggerAutoSave();
     }
   }, [originalOnNodesChange, triggerAutoSave]);
@@ -182,9 +194,13 @@ export function WorkflowCanvas({ isActive, onClose, workflowId, newWorkflowData 
   const onEdgesChange = useCallback((changes: EdgeChange[]) => {
     originalOnEdgesChange(changes);
     
-    // Only auto-save if edges are added or removed, not selected
-    const hasStructuralChange = changes.some(change => change.type === 'add' || change.type === 'remove');
-    if (hasStructuralChange && !initialLoadRef.current) {
+    // Auto-save if edges are added or removed
+    const hasEdgeChange = changes.some(change => 
+      change.type === 'add' || change.type === 'remove' || change.type === 'reset'
+    );
+    
+    if (hasEdgeChange && !initialLoadRef.current) {
+      console.log('Auto-saving after edge change:', changes);
       triggerAutoSave();
     }
   }, [originalOnEdgesChange, triggerAutoSave]);
@@ -192,8 +208,9 @@ export function WorkflowCanvas({ isActive, onClose, workflowId, newWorkflowData 
   const onConnect = useCallback((connection: Connection) => {
     originalOnConnect(connection);
     
-    // Auto-save when new connections are made
+    // Always auto-save when new connections are made
     if (!initialLoadRef.current) {
+      console.log('Auto-saving after new connection:', connection);
       triggerAutoSave();
     }
   }, [originalOnConnect, triggerAutoSave]);
@@ -339,6 +356,41 @@ export function WorkflowCanvas({ isActive, onClose, workflowId, newWorkflowData 
       resetWorkflow();
     };
   }, [setIsReady, resetWorkflow]);
+
+  // Setup keyboard handlers for delete operations
+  useEffect(() => {
+    const handleKeyDown = (event: KeyboardEvent) => {
+      // Handle node deletion with Delete or Backspace keys
+      if ((event.key === 'Delete' || event.key === 'Backspace') && 
+          reactFlowInstance && 
+          !initialLoadRef.current) {
+        
+        const selectedNodes = useWorkflowStore.getState().nodes.filter(node => node.selected);
+        const selectedEdges = useWorkflowStore.getState().edges.filter(edge => edge.selected);
+        
+        // Only process if there are selected items
+        if (selectedNodes.length > 0 || selectedEdges.length > 0) {
+          console.log('Keyboard delete detected for:', 
+            selectedNodes.length, 'nodes and', 
+            selectedEdges.length, 'edges');
+          
+          // The actual deletion is handled by react-flow, but we need to trigger a save
+          // after the state has been updated (in the next tick)
+          setTimeout(() => {
+            triggerAutoSave();
+          }, 50);
+        }
+      }
+    };
+
+    // Add event listener for keyboard events
+    document.addEventListener('keydown', handleKeyDown);
+    
+    // Cleanup
+    return () => {
+      document.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [reactFlowInstance, triggerAutoSave]);
 
   if (!isReady) {
     return (

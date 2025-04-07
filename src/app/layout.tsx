@@ -67,7 +67,7 @@ export default function RootLayout({
             </div>
           }>
             <main className="min-h-screen bg-background antialiased">
-              {children}
+        {children}
             </main>
           </Suspense>
           <Toaster />
