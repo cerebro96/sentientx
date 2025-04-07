@@ -61,14 +61,8 @@ export function WorkflowDialog({ isOpen, onClose, onWorkflowCreated }: WorkflowD
     setIsLoading(true);
 
     try {
-      await createWorkflow({
-        name: name.trim(),
-        description: description.trim() || undefined,
-        is_active: isActive,
-        tags: tags,
-        nodes: [],
-        edges: []
-      });
+      // Remove the direct workflow creation - let the parent component handle it
+      // Instead just pass the form data to the parent
       
       // Pass form data back to parent
       onWorkflowCreated({
@@ -84,10 +78,10 @@ export function WorkflowDialog({ isOpen, onClose, onWorkflowCreated }: WorkflowD
       setIsActive(true);
       setTags([]);
       
-      toast.success("Workflow created successfully");
+      // Toast message will be shown by parent component
     } catch (error: any) {
-      // Error handling is already in createWorkflow
-      console.error("Failed to create workflow:", error);
+      console.error("Failed to handle workflow creation:", error);
+      toast.error("An error occurred while creating the workflow");
     } finally {
       setIsLoading(false);
     }

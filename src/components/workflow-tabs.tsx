@@ -8,7 +8,7 @@ import { Plus, ChevronDown, Search, MoreHorizontal, PenSquare, Copy, Trash2, Tag
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { WorkflowItem } from "./workflow-item";
 import { WorkflowDialog, WorkflowFormData } from "./workflow/WorkflowDialog";
-import { getWorkflows, Workflow, deleteWorkflow } from "@/lib/workflows";
+import { getWorkflows, Workflow, deleteWorkflow, createWorkflow } from "@/lib/workflows";
 import { Input } from "@/components/ui/input";
 import { formatDistanceToNow } from 'date-fns';
 import { toast } from 'sonner';
@@ -63,9 +63,31 @@ export function WorkflowTabs({
     }
   };
 
-  const handleCreateWorkflowSuccess = (formData: WorkflowFormData) => {
-    setIsWorkflowDialogOpen(false);
-    onCreateWorkflow(formData);
+  const handleCreateWorkflowSuccess = async (formData: WorkflowFormData) => {
+    try {
+      // Create the workflow in the database
+      await createWorkflow({
+        name: formData.name,
+        description: formData.description || undefined,
+        is_active: formData.isActive,
+        tags: formData.tags,
+        nodes: [],
+        edges: []
+      });
+      
+      // Success notification
+      toast.success("Workflow created successfully");
+      
+      // Send to canvas for editing
+      setIsWorkflowDialogOpen(false);
+      onCreateWorkflow(formData);
+      
+      // Refresh the list (optional, as user will be in canvas)
+      loadWorkflows();
+    } catch (error) {
+      console.error("Failed to create workflow:", error);
+      // Error toast is handled in createWorkflow function
+    }
   };
 
   const handleEditWorkflow = (workflowId: string) => {

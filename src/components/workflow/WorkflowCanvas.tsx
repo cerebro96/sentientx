@@ -24,11 +24,11 @@ import { nodeTypes } from './nodeTypes';
 import { useWorkflowStore } from '@/lib/store/workflow';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Check, Save, ChevronLeft, Trash2, Maximize } from 'lucide-react';
+import { Check, Save, ChevronLeft, Trash2, Maximize, Search, PanelLeftClose } from 'lucide-react';
 import { toast } from 'sonner';
 import { NodeData } from '@/lib/store/workflow';
 import { WorkflowFormData } from './WorkflowDialog';
-import { createWorkflow, getWorkflow, updateWorkflow } from '@/lib/workflows';
+import { createWorkflow, getWorkflow, updateWorkflow, getWorkflows } from '@/lib/workflows';
 
 interface WorkflowCanvasProps {
   isActive: boolean;
@@ -62,6 +62,7 @@ export function WorkflowCanvas({ isActive, onClose, workflowId, newWorkflowData 
   const [tags, setTags] = useState<string[]>(newWorkflowData?.tags || []);
   const [createdWorkflowId, setCreatedWorkflowId] = useState<string | undefined>(undefined);
   const [activeTab, setActiveTab] = useState('canvas');
+  const [isPanelVisible, setIsPanelVisible] = useState(true);
   
   // Add debounce for auto-saving
   const autoSaveTimeoutRef = useRef<NodeJS.Timeout | null>(null);
@@ -133,24 +134,39 @@ export function WorkflowCanvas({ isActive, onClose, workflowId, newWorkflowData 
         if (!isAutoSave) {
           toast.success('Workflow saved successfully');
         }
-      } else {
-        // Create new workflow - this should only happen once
-        const newWorkflow = await createWorkflow({
-          name: workflowName,
-          description: newWorkflowData?.description,
-          tags: tags,
-          is_active: isWorkflowActive,
-          nodes: currentNodes,
-          edges: currentEdges
-        });
+      } else if (newWorkflowData) {
+        // We're dealing with a new workflow that's already been created by the WorkflowDialog
+        // Just do the first update - we'll need to fetch its ID first
         
-        // Store the created workflow's ID for future saves
-        if (newWorkflow && newWorkflow.id) {
-          setCreatedWorkflowId(newWorkflow.id);
+        try {
+          // Try to find the workflow by name using the getWorkflows function
+          const workflows = await getWorkflows();
+          const matchingWorkflow = workflows.find((w) => 
+            w.name === newWorkflowData.name && 
+            w.description === newWorkflowData.description
+          );
+          
+          if (matchingWorkflow) {
+            // Update the existing workflow we just found
+            await updateWorkflow(matchingWorkflow.id, flowData);
+            setCreatedWorkflowId(matchingWorkflow.id);
+            
+            if (!isAutoSave) {
+              toast.success('Workflow updated successfully');
+            }
+          } else {
+            // Fallback: create a new workflow if somehow we couldn't find the one that should exist
+            console.warn('Could not find existing workflow, creating a new one');
+            createNewWorkflow();
+          }
+        } catch (error) {
+          console.error('Error finding workflow:', error);
+          // Fallback to creating a new one
+          createNewWorkflow();
         }
-        
-        // Always show notification for new workflow creation
-        toast.success('Workflow created and saved');
+      } else {
+        // No existing ID and no new workflow data - create a brand new workflow
+        createNewWorkflow();
       }
     } catch (error) {
       console.error('Error saving workflow:', error);
@@ -159,6 +175,26 @@ export function WorkflowCanvas({ isActive, onClose, workflowId, newWorkflowData 
         toast.error('Failed to save workflow');
       }
     }
+  };
+  
+  // Helper to create a new workflow
+  const createNewWorkflow = async () => {
+    const newWorkflow = await createWorkflow({
+      name: workflowName,
+      description: newWorkflowData?.description,
+      tags: tags,
+      is_active: isWorkflowActive,
+      nodes: useWorkflowStore.getState().nodes,
+      edges: useWorkflowStore.getState().edges
+    });
+    
+    // Store the created workflow's ID for future saves
+    if (newWorkflow && newWorkflow.id) {
+      setCreatedWorkflowId(newWorkflow.id);
+    }
+    
+    // Always show notification for new workflow creation
+    toast.success('Workflow created and saved');
   };
 
   // Simple wrapper for manual saves
@@ -478,10 +514,34 @@ export function WorkflowCanvas({ isActive, onClose, workflowId, newWorkflowData 
       />
       
       <div className="flex-1 flex">
-        {/* Node Panel */}
-        <div className="w-64 h-full">
-          <NodePanel />
+        {/* Node Panel with toggle button */}
+        <div className={`h-full transition-all duration-300 ${isPanelVisible ? 'w-64' : 'w-0'} relative overflow-hidden`}>
+          {isPanelVisible && (
+            <NodePanel onToggle={() => setIsPanelVisible(false)} />
+          )}
+          <Button 
+            variant="ghost" 
+            size="icon" 
+            className="absolute -right-10 top-2 z-10 bg-background rounded-full shadow-md hidden md:flex"
+            onClick={() => setIsPanelVisible(!isPanelVisible)}
+            title={isPanelVisible ? "Hide node panel" : "Show node panel"}
+          >
+            <ChevronLeft className={`h-5 w-5 transform transition-transform duration-300 ${isPanelVisible ? '' : 'rotate-180'}`} />
+          </Button>
         </div>
+
+        {/* Mobile toggle button - only visible when panel is hidden */}
+        {!isPanelVisible && (
+          <Button
+            variant="outline"
+            size="sm"
+            className="absolute left-2 top-[72px] z-10 md:hidden"
+            onClick={() => setIsPanelVisible(true)}
+          >
+            <Search className="h-4 w-4 mr-2" />
+            Nodes
+          </Button>
+        )}
 
         {/* ReactFlow Canvas */}
         <ReactFlowProvider>
@@ -531,6 +591,25 @@ export function WorkflowCanvas({ isActive, onClose, workflowId, newWorkflowData 
                 maskColor="rgba(15, 23, 42, 0.6)"
                 style={{ background: '#0f172a' }}
               />
+              <Panel position="top-left" className="ml-2 mt-2">
+                <Button 
+                  size="sm" 
+                  variant="outline" 
+                  onClick={() => setIsPanelVisible(!isPanelVisible)}
+                >
+                  {isPanelVisible ? (
+                    <>
+                      <PanelLeftClose className="h-4 w-4 mr-2" />
+                      Hide Panel
+                    </>
+                  ) : (
+                    <>
+                      <Search className="h-4 w-4 mr-2" />
+                      Show Panel
+                    </>
+                  )}
+                </Button>
+              </Panel>
               <Panel position="top-right" className="flex gap-2">
                 <Button size="sm" variant="outline" onClick={() => {
                   if (reactFlowInstance) {

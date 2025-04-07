@@ -6,10 +6,14 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { useWorkflowStore } from '@/lib/store/workflow';
-import { Search, ChevronDown, ChevronUp } from 'lucide-react';
+import { Search, ChevronDown, ChevronUp, PanelLeftClose } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
-export function NodePanel() {
+export interface NodePanelProps {
+  onToggle?: () => void;
+}
+
+export function NodePanel({ onToggle }: NodePanelProps) {
   const [searchQuery, setSearchQuery] = useState('');
   const [collapsedCategories, setCollapsedCategories] = useState<Record<string, boolean>>({});
   const addNode = useWorkflowStore((state) => state.addNode);
