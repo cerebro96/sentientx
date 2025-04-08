@@ -226,6 +226,23 @@ export function LlmNodeModal({ isOpen, onClose, provider, nodeData, onSave }: Ll
   
   // Handle save
   const handleSave = () => {
+    let errorMessage;
+    // Check if an API key is selected
+    if (provider === 'openai' && !selectedApiKeyId) {
+      errorMessage = 'Please select an OpenAI API key';
+    } else if (provider === 'anthropic' && !selectedApiKeyId) {
+      errorMessage = 'Please select an Anthropic API key';
+    } else if (provider === 'gemini' && !selectedApiKeyId) {
+      errorMessage = 'Please select a Google Gemini API key';
+    } else if (provider === 'deepseek' && !selectedApiKeyId) {
+      errorMessage = 'Please select a Deepseek API key';
+    }
+
+    if (errorMessage) {
+      toast.error(errorMessage);
+      return;
+    }
+
     // Log detailed information
     console.log(`Saving ${provider} configuration:`, {
       provider,
@@ -235,11 +252,6 @@ export function LlmNodeModal({ isOpen, onClose, provider, nodeData, onSave }: Ll
       advancedSettings
     });
     
-    if (!selectedApiKeyId) {
-      toast.error(`Please select or add a ${getServiceNameForProvider(provider)} API key to continue.`);
-      return;
-    }
-
     // Combine regular options with advanced settings
     const allOptions = [...options.filter(option => option.key && option.value)];
     

@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import {
   Dialog,
   DialogContent,
@@ -24,27 +24,51 @@ import {
 import { AlertCircle, ExternalLink, Copy, Check } from "lucide-react";
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
+import { useWorkflowStore } from '@/lib/store/workflow';
 
 interface ChatTriggerModalProps {
   isOpen: boolean;
   onClose: () => void;
+  nodeId?: string;
+  nodeData?: any;
+  onSave?: (data: any) => void;
 }
 
-export function ChatTriggerModal({ isOpen, onClose }: ChatTriggerModalProps) {
+export function ChatTriggerModal({ isOpen, onClose, nodeId, nodeData, onSave }: ChatTriggerModalProps) {
   const [activeTab, setActiveTab] = useState("parameters");
   const [isPublic, setIsPublic] = useState(false);
   const [initialMessage, setInitialMessage] = useState("Hello! How can I assist you today?");
   const [mode, setMode] = useState("hosted");
   const [auth, setAuth] = useState("none");
   const [copied, setCopied] = useState(false);
+  const [chatId, setChatId] = useState(() => generateRandomId());
   
   // Generate a random chat URL
-  const generateRandomId = () => {
+  function generateRandomId() {
     return Math.random().toString(36).substring(2, 10);
-  };
+  }
   
-  const chatId = generateRandomId();
   const chatUrl = `http://localhost:3000/api/chat/${chatId}`;
+  
+  // Load existing data when modal opens
+  useEffect(() => {
+    if (isOpen) {
+      console.log('Chat Trigger modal opened with nodeData:', nodeData);
+      
+      // Only update state if we have actual data
+      if (nodeData && Object.keys(nodeData).length > 0) {
+        setIsPublic(nodeData.isPublic ?? false);
+        setInitialMessage(nodeData.initialMessage ?? "Hello! How can I assist you today?");
+        setMode(nodeData.mode ?? "hosted");
+        setAuth(nodeData.auth ?? "none");
+        
+        // Only set chatId if it exists, otherwise keep the generated one
+        if (nodeData.chatId) {
+          setChatId(nodeData.chatId);
+        }
+      }
+    }
+  }, [isOpen, nodeData]);
   
   const handleCopyUrl = () => {
     navigator.clipboard.writeText(chatUrl);
@@ -53,10 +77,68 @@ export function ChatTriggerModal({ isOpen, onClose }: ChatTriggerModalProps) {
     toast.success("URL copied to clipboard");
   };
   
-  // const handleTestChat = () => {
-  //   window.open(`/chat/${chatId}`, '_blank');
-  //   toast.success("Test chat opened in new tab");
-  // };
+  // Save changes to Supabase
+  const handleSave = () => {
+    console.log('Saving Chat Trigger configuration:', {
+      isPublic,
+      initialMessage,
+      mode,
+      auth,
+      chatId
+    });
+    
+    const chatConfig = {
+      isPublic,
+      initialMessage,
+      mode,
+      auth,
+      chatId
+    };
+    
+    // Use the onSave prop if provided
+    if (onSave) {
+      onSave(chatConfig);
+      
+      // Force a manual save to ensure changes persist
+      setTimeout(() => {
+        // Try to verify the data was saved correctly
+        if (nodeId) {
+          const node = useWorkflowStore.getState().nodes.find(n => n.id === nodeId);
+          console.log('After save, node data is:', node?.data?.chatConfig);
+        }
+        
+        // Apply manual workflow save to ensure changes propagate
+        const saveBtn = document.querySelector('button:has(.lucide-save)');
+        if (saveBtn) {
+          console.log(`Triggering manual workflow save for Chat Trigger`);
+          (saveBtn as HTMLButtonElement).click();
+        }
+      }, 100);
+    } else if (nodeId) {
+      // Otherwise update the node data directly
+      const updateNodeData = useWorkflowStore.getState().updateNodeData;
+      updateNodeData(nodeId, {
+        chatConfig
+      });
+      
+      // Force a manual save to ensure changes persist
+      setTimeout(() => {
+        // Try to verify the data was saved correctly
+        const node = useWorkflowStore.getState().nodes.find(n => n.id === nodeId);
+        console.log('After direct update, node data is:', node?.data?.chatConfig);
+        
+        // Apply manual workflow save to ensure changes propagate
+        const saveBtn = document.querySelector('button:has(.lucide-save)');
+        if (saveBtn) {
+          console.log(`Triggering manual workflow save for Chat Trigger`);
+          (saveBtn as HTMLButtonElement).click();
+        }
+      }, 100);
+    }
+    
+    toast.success("Chat Trigger configuration saved");
+    onClose();
+  };
   
   return (
     <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
@@ -64,13 +146,6 @@ export function ChatTriggerModal({ isOpen, onClose }: ChatTriggerModalProps) {
         <DialogHeader>
           <DialogTitle className="text-xl font-bold flex items-center">
             When chat message received
-            {/* <Button 
-              size="sm" 
-              className="ml-auto"
-              onClick={handleTestChat}
-            >
-              Test Chat
-            </Button> */}
           </DialogTitle>
         </DialogHeader>
         
@@ -187,15 +262,6 @@ export function ChatTriggerModal({ isOpen, onClose }: ChatTriggerModalProps) {
                 </ul>
               </div>
               
-              {/* <div className="space-y-2">
-                <h4 className="font-medium">Examples</h4>
-                <ul className="list-disc list-inside text-muted-foreground space-y-1">
-                  <li>Customer support chatbot</li>
-                  <li>Interactive FAQ assistant</li>
-                  <li>Data collection through conversation</li>
-                </ul>
-              </div> */}
-              
               <div className="flex items-center space-x-2 text-foreground hover:text-foreground/80 mt-4">
                 <ExternalLink className="h-4 w-4" />
                 <a href="https://docs.sentientx.io/triggers/chat" target="_blank" rel="noreferrer" className="text-sm">
@@ -214,10 +280,7 @@ export function ChatTriggerModal({ isOpen, onClose }: ChatTriggerModalProps) {
             Close
           </Button>
           <Button 
-            onClick={() => {
-              toast.success("Changes saved");
-              onClose();
-            }}
+            onClick={handleSave}
           >
             Save Changes
           </Button>

@@ -33,6 +33,13 @@ export type NodeData = {
     sessionTTL?: string;
     contextWindowLength?: string;
   };
+  chatConfig?: {
+    isPublic?: boolean;
+    initialMessage?: string;
+    mode?: string;
+    auth?: string;
+    chatId?: string;
+  };
 };
 
 // Define initial nodes with proper types

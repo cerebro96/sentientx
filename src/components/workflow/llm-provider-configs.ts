@@ -98,6 +98,12 @@ export const llmProviderConfigs: Record<string, LlmProviderConfig> = {
         label: 'Max Output Tokens',
         type: 'number',
         placeholder: 'Max response length'
+      },
+      {
+        id: 'system-prompt',
+        label: 'System Prompt',
+        type: 'text',
+        placeholder: 'Instructions for the AI assistant'
       }
     ],
     documentation: {
@@ -184,6 +190,12 @@ export const llmProviderConfigs: Record<string, LlmProviderConfig> = {
         label: 'Max Length',
         type: 'number',
         placeholder: 'Max response length'
+      },
+      {
+        id: 'system-prompt',
+        label: 'System Prompt',
+        type: 'text',
+        placeholder: 'Instructions for the AI assistant'
       }
     ],
     documentation: {

@@ -61,6 +61,7 @@ function ActionNodeComponent({ id, data, selected }: NodeProps<NodeData>) {
   }
   
   const handleOpenChat = () => {
+    console.log('Opening Chat Trigger Modal with data:', id, data.chatConfig);
     setIsChatModalOpen(true);
   };
   
@@ -140,8 +141,8 @@ function ActionNodeComponent({ id, data, selected }: NodeProps<NodeData>) {
       // Update the node data
       updateNodeData(id, {
         memoryConfig: {
-          apiKeyId: configData.apiKeyId,
-          sessionKey: configData.sessionKey,
+          // apiKeyId: configData.apiKeyId,
+          // sessionKey: configData.sessionKey,
           sessionTTL: configData.sessionTTL,
           contextWindowLength: configData.contextWindowLength
         }
@@ -149,6 +150,31 @@ function ActionNodeComponent({ id, data, selected }: NodeProps<NodeData>) {
       
       toast.success('Redis Memory configuration updated', {
         description: `Context Window: ${configData.contextWindowLength} messages`,
+        duration: 3000
+      });
+    }
+  };
+  
+  const handleChatConfigSave = (configData: any) => {
+    if (id) {
+      // Access updateNodeData from the workflow store
+      const updateNodeData = useWorkflowStore.getState().updateNodeData;
+      
+      console.log('Saving Chat Trigger configuration in node:', configData);
+      
+      // Update the node data
+      updateNodeData(id, {
+        chatConfig: {
+          isPublic: configData.isPublic,
+          initialMessage: configData.initialMessage,
+          mode: configData.mode,
+          auth: configData.auth,
+          chatId: configData.chatId
+        }
+      });
+      
+      toast.success('Chat Trigger configuration updated', {
+        description: `Chat URL ${configData.isPublic ? 'is public' : 'is private'}`,
         duration: 3000
       });
     }
@@ -333,6 +359,9 @@ function ActionNodeComponent({ id, data, selected }: NodeProps<NodeData>) {
         <ChatTriggerModal 
           isOpen={isChatModalOpen} 
           onClose={() => setIsChatModalOpen(false)}
+          nodeId={id}
+          nodeData={(data && data.chatConfig) ? data.chatConfig : {}}
+          onSave={handleChatConfigSave}
         />
       )}
       
