@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react';
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Switch } from "@/components/ui/switch";
-import { Share2, MoreHorizontal, ChevronLeft, Tag, X } from "lucide-react";
+import { Share2, MoreHorizontal, ChevronLeft, Tag, X, Play, Pause, Square } from "lucide-react";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -23,6 +23,10 @@ interface WorkflowHeaderProps {
   tags?: string[];
   onTagsChange?: (tags: string[]) => void;
   workflowId?: string;
+  onStartWorkflow?: () => void;
+  onStopWorkflow?: () => void;
+  onPauseWorkflow?: () => void;
+  workflowStatus?: 'idle' | 'running' | 'paused';
 }
 
 export function WorkflowHeader({ 
@@ -33,7 +37,11 @@ export function WorkflowHeader({
   onBack,
   tags = [],
   onTagsChange,
-  workflowId
+  workflowId,
+  onStartWorkflow,
+  onStopWorkflow,
+  onPauseWorkflow,
+  workflowStatus
 }: WorkflowHeaderProps) {
   const [isEditing, setIsEditing] = useState(false);
   const [editedName, setEditedName] = useState(name);
@@ -194,6 +202,43 @@ export function WorkflowHeader({
             </Button>
           )}
         </div>
+      </div>
+
+      {/* Workflow control buttons */}
+      <div className="flex items-center gap-2">
+        <Button 
+          variant="outline" 
+          size="sm" 
+          className={`h-8 ${workflowStatus === 'running' ? 'bg-green-100' : ''}`}
+          onClick={onStartWorkflow}
+          disabled={workflowStatus === 'running'}
+          title="Start Workflow"
+        >
+          <Play className="h-4 w-4 mr-1" />
+          Start
+        </Button>
+        <Button 
+          variant="outline" 
+          size="sm" 
+          className={`h-8 ${workflowStatus === 'paused' ? 'bg-yellow-100' : ''}`}
+          onClick={onPauseWorkflow}
+          disabled={workflowStatus !== 'running'}
+          title="Pause Workflow"
+        >
+          <Pause className="h-4 w-4 mr-1" />
+          Pause
+        </Button>
+        <Button 
+          variant="outline" 
+          size="sm" 
+          className="h-8"
+          onClick={onStopWorkflow}
+          disabled={workflowStatus === 'idle'}
+          title="Stop Workflow"
+        >
+          <Square className="h-4 w-4 mr-1" />
+          Stop
+        </Button>
       </div>
 
       <div className="flex items-center gap-4">

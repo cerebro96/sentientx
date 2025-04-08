@@ -64,6 +64,7 @@ export function WorkflowCanvas({ isActive, onClose, workflowId, newWorkflowData 
   const [createdWorkflowId, setCreatedWorkflowId] = useState<string | undefined>(undefined);
   const [activeTab, setActiveTab] = useState('canvas');
   const [isPanelVisible, setIsPanelVisible] = useState(true);
+  const [workflowStatus, setWorkflowStatus] = useState<'idle' | 'running' | 'paused'>('idle');
   
   // Add debounce for auto-saving
   const autoSaveTimeoutRef = useRef<NodeJS.Timeout | null>(null);
@@ -469,6 +470,31 @@ export function WorkflowCanvas({ isActive, onClose, workflowId, newWorkflowData 
     };
   }, [reactFlowInstance, triggerAutoSave]);
 
+  // Workflow control handlers
+  const handleStartWorkflow = () => {
+    setWorkflowStatus('running');
+    toast.success('Workflow started', {
+      description: 'Your workflow is now running',
+      duration: 3000
+    });
+  };
+
+  const handlePauseWorkflow = () => {
+    setWorkflowStatus('paused');
+    toast.info('Workflow paused', {
+      description: 'Your workflow is now paused',
+      duration: 3000
+    });
+  };
+
+  const handleStopWorkflow = () => {
+    setWorkflowStatus('idle');
+    toast.info('Workflow stopped', {
+      description: 'Your workflow has been stopped',
+      duration: 3000
+    });
+  };
+
   if (!isReady) {
     return (
       <div className="h-full flex items-center justify-center bg-background">
@@ -531,7 +557,7 @@ export function WorkflowCanvas({ isActive, onClose, workflowId, newWorkflowData 
         </div>
       </div>
 
-      <WorkflowHeader 
+      <WorkflowHeader
         name={workflowName}
         onNameChange={setWorkflowName}
         isActive={isWorkflowActive}
@@ -540,6 +566,10 @@ export function WorkflowCanvas({ isActive, onClose, workflowId, newWorkflowData 
         tags={tags}
         onTagsChange={setTags}
         workflowId={workflowId}
+        onStartWorkflow={handleStartWorkflow}
+        onPauseWorkflow={handlePauseWorkflow}
+        onStopWorkflow={handleStopWorkflow}
+        workflowStatus={workflowStatus}
       />
       
       <div className="flex-1 flex">
