@@ -10,12 +10,14 @@ import { toast } from 'sonner';
 import { ChatTriggerModal } from '../chat-trigger-modal';
 import { LlmNodeModal } from '../llm-node-modal';
 import { RedisMemoryModal } from '../redis-memory-modal';
+import { AiAgentModal } from '../ai-agent-modal';
 import { useWorkflowStore } from '@/lib/store/workflow';
 
 function ActionNodeComponent({ id, data, selected }: NodeProps<NodeData>) {
   const [isChatModalOpen, setIsChatModalOpen] = useState(false);
   const [isLlmModalOpen, setIsLlmModalOpen] = useState(false);
   const [isMemoryModalOpen, setIsMemoryModalOpen] = useState(false);
+  const [isAiAgentModalOpen, setIsAiAgentModalOpen] = useState(false);
   const [llmProvider, setLlmProvider] = useState<string>('');
   
   // Check node types
@@ -77,6 +79,10 @@ function ActionNodeComponent({ id, data, selected }: NodeProps<NodeData>) {
   
   const handleOpenMemoryConfig = () => {
     setIsMemoryModalOpen(true);
+  };
+  
+  const handleOpenAiAgentConfig = () => {
+    setIsAiAgentModalOpen(true);
   };
   
   const handleChatButtonClick = (e: React.MouseEvent) => {
@@ -214,9 +220,11 @@ function ActionNodeComponent({ id, data, selected }: NodeProps<NodeData>) {
               ? handleOpenLlmConfig 
               : isMemoryNode
                 ? handleOpenMemoryConfig
-                : undefined
+                : isAIAgent
+                  ? handleOpenAiAgentConfig
+                  : undefined
         }
-        style={(isChatTrigger || isLLMNode || isMemoryNode) ? { cursor: 'pointer' } : undefined}
+        style={(isChatTrigger || isLLMNode || isMemoryNode || isAIAgent) ? { cursor: 'pointer' } : undefined}
       >
         {/* Gradient glow effect */}
         <div className={cn(
@@ -384,6 +392,15 @@ function ActionNodeComponent({ id, data, selected }: NodeProps<NodeData>) {
           nodeId={id}
           nodeData={data.memoryConfig || {}}
           onSave={handleMemoryConfigSave}
+        />
+      )}
+      
+      {/* AI Agent Configuration Modal */}
+      {isAIAgent && (
+        <AiAgentModal
+          isOpen={isAiAgentModalOpen}
+          onClose={() => setIsAiAgentModalOpen(false)}
+          nodeId={id}
         />
       )}
     </>
