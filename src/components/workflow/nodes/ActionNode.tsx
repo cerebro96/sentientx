@@ -339,7 +339,7 @@ function ActionNodeComponent({ id, data, selected }: NodeProps<NodeData>) {
         )}
         
         {/* Bottom output handle - not shown for Chat Trigger, Webhook nodes, HTTP Request, Transform Data, LLM, or Memory nodes */}
-        {(!isChatTrigger && !isWebhookTrigger && !isWebhookResponse && !isHttpRequest && !isTransformData && !isLLMNode && !isMemoryNode) && (
+        {(!isChatTrigger && !isWebhookTrigger && !isWebhookResponse && !isHttpRequest && !isTransformData && !isLLMNode && !isMemoryNode && !isAIAgent) && (
           <Handle 
             id="output-bottom"
             type="source" 

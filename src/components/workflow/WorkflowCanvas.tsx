@@ -29,6 +29,7 @@ import { toast } from 'sonner';
 import { NodeData } from '@/lib/store/workflow';
 import { WorkflowFormData } from './WorkflowDialog';
 import { createWorkflow, getWorkflow, updateWorkflow, getWorkflows } from '@/lib/workflows';
+import { nodeCatalog } from './nodeTypes';
 
 interface WorkflowCanvasProps {
   isActive: boolean;
@@ -81,6 +82,7 @@ export function WorkflowCanvas({ isActive, onClose, workflowId, newWorkflowData 
     resetWorkflow,
     isReady,
     setIsReady,
+    updateNodeData,
   } = useWorkflowStore();
   
   // Add a ref to track if we need to focus the view
@@ -290,6 +292,33 @@ export function WorkflowCanvas({ isActive, onClose, workflowId, newWorkflowData 
       }
     };
   }, []);
+
+  // Update existing AI Agent nodes with the latest childNodes configuration
+  useEffect(() => {
+    if (isReady && !initialLoadRef.current) {
+      const { nodes, updateNodeData } = useWorkflowStore.getState();
+      const aiAgentNodes = nodes.filter(node => node.data.label === 'AI Agent');
+      
+      if (aiAgentNodes.length > 0) {
+        // Get the latest childNodes configuration from nodeCatalog
+        const aiAgentConfig = nodeCatalog.find(node => node.label === 'AI Agent');
+        
+        if (aiAgentConfig && aiAgentConfig.childNodes) {
+          console.log('Updating AI Agent nodes with latest childNodes config');
+          
+          // Update each AI Agent node
+          aiAgentNodes.forEach(node => {
+            updateNodeData(node.id, {
+              childNodes: aiAgentConfig.childNodes
+            });
+          });
+          
+          // Trigger a save after updating
+          triggerAutoSave();
+        }
+      }
+    }
+  }, [isReady]);
 
   // Initialize workflow from new data
   useEffect(() => {

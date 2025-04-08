@@ -95,7 +95,8 @@ export const nodeCatalog = [
     childNodes: [
       { label: 'LLM', type: 'connection' },
       { label: 'Memory', type: 'connection' },
-      { label: 'Tool', type: 'connection' }
+      { label: 'Tool', type: 'connection' },
+      { label: 'Parser', type: 'connection' }
     ]
   },
   {
