@@ -40,6 +40,33 @@ const getConnectedNodes = (
   return nodes.filter(node => connectedNodeIds.includes(node.id));
 };
 
+// Helper function to get nodes connected to the main input/output handles
+const getMainConnectedNodes = (
+  nodeId: string,
+  nodes: Node<NodeData>[],
+  edges: Edge[],
+  isOutput: boolean = false
+): Node<NodeData>[] => {
+  // For main output connections (nodes this agent connects to)
+  if (isOutput) {
+    const outgoingEdges = edges.filter(edge => 
+      edge.source === nodeId && 
+      (!edge.sourceHandle || edge.sourceHandle === 'output-right')
+    );
+    const targetNodeIds = outgoingEdges.map(edge => edge.target);
+    return nodes.filter(node => targetNodeIds.includes(node.id));
+  } 
+  // For main input connections (nodes that connect to this agent)
+  else {
+    const incomingEdges = edges.filter(edge => 
+      edge.target === nodeId && 
+      (!edge.targetHandle || edge.targetHandle === 'input-left')
+    );
+    const sourceNodeIds = incomingEdges.map(edge => edge.source);
+    return nodes.filter(node => sourceNodeIds.includes(node.id));
+  }
+};
+
 export function AiAgentModal({ isOpen, onClose, nodeId }: AiAgentModalProps) {
   const [activeTab, setActiveTab] = useState("overview");
   const { nodes, edges } = useWorkflowStore();
@@ -52,6 +79,10 @@ export function AiAgentModal({ isOpen, onClose, nodeId }: AiAgentModalProps) {
   const connectedMemory = getConnectedNodes(nodeId, nodes, edges, 'memory');
   const connectedTools = getConnectedNodes(nodeId, nodes, edges, 'tool');
   const connectedParsers = getConnectedNodes(nodeId, nodes, edges, 'parser');
+  
+  // Get main connected nodes
+  const inputNodes = getMainConnectedNodes(nodeId, nodes, edges, false);
+  const outputNodes = getMainConnectedNodes(nodeId, nodes, edges, true);
 
   if (!currentNode) return null;
   
@@ -113,12 +144,13 @@ export function AiAgentModal({ isOpen, onClose, nodeId }: AiAgentModalProps) {
         </DialogHeader>
         
         <Tabs defaultValue="overview" value={activeTab} onValueChange={setActiveTab}>
-          <TabsList className="grid grid-cols-5 mb-6">
+          <TabsList className="grid grid-cols-6 mb-6">
             <TabsTrigger value="overview">Overview</TabsTrigger>
             <TabsTrigger value="llm">LLM {getConnectionStatusIcon(connectedLLMs)}</TabsTrigger>
             <TabsTrigger value="memory">Memory {getConnectionStatusIcon(connectedMemory)}</TabsTrigger>
             <TabsTrigger value="tools">Tools {getConnectionStatusIcon(connectedTools)}</TabsTrigger>
             <TabsTrigger value="parser">Parser {getConnectionStatusIcon(connectedParsers)}</TabsTrigger>
+            <TabsTrigger value="connections">Connections</TabsTrigger>
           </TabsList>
           
           <TabsContent value="overview" className="space-y-4">
@@ -155,6 +187,55 @@ export function AiAgentModal({ isOpen, onClose, nodeId }: AiAgentModalProps) {
                 </div>
               </div>
             </div>
+            
+            {/* <div className="p-4 border rounded-md"> */}
+              {/* <h3 className="font-medium mb-3">Main Connections</h3> */}
+              {/* <div className="space-y-3"> */}
+                {/* <div>
+                  <h4 className="text-sm font-medium mb-2">Input Connections <span className="text-xs font-normal text-muted-foreground">({inputNodes.length})</span></h4>
+                  {inputNodes.length === 0 ? (
+                    <div className="p-2 bg-muted rounded-md text-xs text-muted-foreground">
+                      No nodes connected to input
+                    </div>
+                  ) : (
+                    <div className="space-y-2">
+                      {inputNodes.map((node, index) => (
+                        <div key={index} className="p-2 border rounded-md flex items-center">
+                          <div className="font-medium text-sm">{node.data.label}</div>
+                          {node.data.description && (
+                            <div className="text-xs text-muted-foreground ml-2">
+                              ({node.data.description})
+                            </div>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div> */}
+                
+                {/* <div>
+                  <h4 className="text-sm font-medium mb-2">Output Connections <span className="text-xs font-normal text-muted-foreground">({outputNodes.length})</span></h4>
+                  {outputNodes.length === 0 ? (
+                    <div className="p-2 bg-muted rounded-md text-xs text-muted-foreground">
+                      No nodes connected to output
+                    </div>
+                  ) : (
+                    <div className="space-y-2">
+                      {outputNodes.map((node, index) => (
+                        <div key={index} className="p-2 border rounded-md flex items-center">
+                          <div className="font-medium text-sm">{node.data.label}</div>
+                          {node.data.description && (
+                            <div className="text-xs text-muted-foreground ml-2">
+                              ({node.data.description})
+                            </div>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div> */}
+              {/* </div> */}
+            {/* </div> */}
             
             <div className="p-4 border rounded-md bg-muted/50">
               <h3 className="font-medium mb-2">Agent Configuration</h3>
@@ -206,6 +287,103 @@ export function AiAgentModal({ isOpen, onClose, nodeId }: AiAgentModalProps) {
               </p>
               
               {renderConnectedNodeDetails(connectedParsers, 'Parser')}
+            </div>
+          </TabsContent>
+          
+          <TabsContent value="connections" className="space-y-4">
+            <div className="space-y-6">
+              <div>
+                <h3 className="text-lg font-medium">Main Workflow Connections</h3>
+                <p className="text-sm text-muted-foreground mb-4">
+                  See what nodes are connected to and from this AI Agent in the main workflow
+                </p>
+                
+                <div className="space-y-6">
+                  {/* Input Connections */}
+                  <div className="space-y-3">
+                    <h4 className="text-md font-medium flex items-center">
+                      <div className="h-3 w-3 rounded-full bg-blue-500 mr-2"></div>
+                      Incoming Connections ({inputNodes.length})
+                    </h4>
+                    
+                    {inputNodes.length === 0 ? (
+                      <div className="p-4 border rounded-md text-sm text-muted-foreground bg-muted/30">
+                        <p>No nodes are sending data to this AI Agent.</p>
+                        <p className="text-xs mt-1">
+                          Connect nodes to the left side of this Agent to provide input data.
+                        </p>
+                      </div>
+                    ) : (
+                      <div className="space-y-2">
+                        {inputNodes.map((node, index) => (
+                          <div key={index} className="p-3 border rounded-md">
+                            <div className="flex justify-between items-center">
+                              <h5 className="font-medium">{node.data.label}</h5>
+                              <div className="text-xs bg-blue-100 text-blue-800 px-2 py-0.5 rounded">
+                                Input
+                              </div>
+                            </div>
+                            {node.data.description && (
+                              <p className="text-sm text-muted-foreground mt-1">{node.data.description}</p>
+                            )}
+                            {/* Show node-specific information */}
+                            {node.data.type && (
+                              <p className="text-xs text-muted-foreground mt-2">Type: {node.data.type}</p>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                  
+                  {/* Output Connections */}
+                  <div className="space-y-3">
+                    <h4 className="text-md font-medium flex items-center">
+                      <div className="h-3 w-3 rounded-full bg-green-500 mr-2"></div>
+                      Outgoing Connections ({outputNodes.length})
+                    </h4>
+                    
+                    {outputNodes.length === 0 ? (
+                      <div className="p-4 border rounded-md text-sm text-muted-foreground bg-muted/30">
+                        <p>This AI Agent is not connected to any output nodes.</p>
+                        <p className="text-xs mt-1">
+                          Connect nodes to the right side of this Agent to process its output.
+                        </p>
+                      </div>
+                    ) : (
+                      <div className="space-y-2">
+                        {outputNodes.map((node, index) => (
+                          <div key={index} className="p-3 border rounded-md">
+                            <div className="flex justify-between items-center">
+                              <h5 className="font-medium">{node.data.label}</h5>
+                              <div className="text-xs bg-green-100 text-green-800 px-2 py-0.5 rounded">
+                                Output
+                              </div>
+                            </div>
+                            {node.data.description && (
+                              <p className="text-sm text-muted-foreground mt-1">{node.data.description}</p>
+                            )}
+                            {/* Show node-specific information */}
+                            {node.data.type && (
+                              <p className="text-xs text-muted-foreground mt-2">Type: {node.data.type}</p>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </div>
+              
+              {/* <div className="p-4 border rounded-md bg-muted/30">
+                <h4 className="font-medium mb-2">Connection Tips</h4>
+                <ul className="text-sm text-muted-foreground space-y-1">
+                  <li>• Connect Chat Triggers to inputs for user-initiated workflows</li>
+                  <li>• Connect Webhook nodes for API-based automation</li>
+                  <li>• Use HTTP Request nodes to fetch external data</li>
+                  <li>• Connect Transform Data nodes to format responses</li>
+                </ul>
+              </div> */}
             </div>
           </TabsContent>
         </Tabs>
