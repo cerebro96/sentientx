@@ -12,6 +12,7 @@ import {
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import {
   Select,
@@ -47,6 +48,15 @@ export function LlmNodeModal({ isOpen, onClose, provider, nodeData, onSave }: Ll
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isLoadingKeys, setIsLoadingKeys] = useState(false);
   
+  // Add state for advanced settings
+  const [advancedSettings, setAdvancedSettings] = useState<Record<string, string>>({
+    temperature: "0.7",
+    "max-tokens": "1024",
+    "system-prompt": "",
+    "max-output-tokens": "1024",
+    "max-length": "1024"
+  });
+  
   // Get provider config
   const providerConfig = llmProviderConfigs[provider];
   
@@ -77,6 +87,17 @@ export function LlmNodeModal({ isOpen, onClose, provider, nodeData, onSave }: Ll
       if (nodeData) {
         setSelectedModel(nodeData.model || providerConfig?.defaultModel || "");
         setOptions(nodeData.options || []);
+        
+        // Extract advanced settings from options
+        const savedAdvancedSettings = {...advancedSettings};
+        if (nodeData.options && nodeData.options.length > 0) {
+          nodeData.options.forEach((option: {key: string, value: string}) => {
+            if (savedAdvancedSettings.hasOwnProperty(option.key)) {
+              savedAdvancedSettings[option.key] = option.value;
+            }
+          });
+        }
+        setAdvancedSettings(savedAdvancedSettings);
       } else {
         setSelectedModel(providerConfig?.defaultModel || "");
         setOptions([]);
@@ -210,19 +231,37 @@ export function LlmNodeModal({ isOpen, onClose, provider, nodeData, onSave }: Ll
       provider,
       apiKeyId: selectedApiKeyId,
       model: selectedModel,
-      optionsCount: options.filter(option => option.key && option.value).length
+      optionsCount: options.filter(option => option.key && option.value).length,
+      advancedSettings
     });
     
     if (!selectedApiKeyId) {
       toast.error(`Please select or add a ${getServiceNameForProvider(provider)} API key to continue.`);
       return;
     }
+
+    // Combine regular options with advanced settings
+    const allOptions = [...options.filter(option => option.key && option.value)];
+    
+    // Add advanced settings to options
+    Object.entries(advancedSettings).forEach(([key, value]) => {
+      if (value) {
+        // Check if this setting already exists in options
+        const existingIndex = allOptions.findIndex(opt => opt.key === key);
+        if (existingIndex >= 0) {
+          // Create a new object instead of modifying the existing one
+          allOptions[existingIndex] = { ...allOptions[existingIndex], value };
+        } else {
+          allOptions.push({ key, value });
+        }
+      }
+    });
     
     const data = {
       provider,
       apiKeyId: selectedApiKeyId,
       model: selectedModel,
-      options: options.filter(option => option.key && option.value)
+      options: allOptions
     };
     
     if (onSave) {
@@ -355,7 +394,7 @@ export function LlmNodeModal({ isOpen, onClose, provider, nodeData, onSave }: Ll
                   {options.length === 0 ? (
                     <div className="text-sm text-muted-foreground py-2">No properties</div>
                   ) : (
-                    <div className="space-y-2">
+                    <div className="space-y-2 h-[120px] overflow-y-auto pr-2 pb-2 border rounded-md p-2">
                       {options.map((option, index) => (
                         <div key={index} className="flex gap-2 items-center">
                           <Input 
@@ -391,43 +430,78 @@ export function LlmNodeModal({ isOpen, onClose, provider, nodeData, onSave }: Ll
                   </Button>
                 </div>
                 
-                <div className="p-3 bg-muted rounded-md border text-sm flex items-start">
+                {/* <div className="p-3 bg-muted rounded-md border text-sm flex items-start">
                   <AlertCircle className="h-5 w-5 mr-2 flex-shrink-0 mt-0.5" />
                   <p className="text-muted-foreground">
                     {providerConfig.helpText}
                   </p>
-                </div>
+                </div> */}
               </div>
             </TabsContent>
             
             <TabsContent value="settings" className="space-y-6">
               <div className="space-y-4">
                 {/* Advanced settings for the LLM */}
-                {providerConfig.advancedSettings?.map((setting, index) => (
-                  <div key={index}>
-                    <Label htmlFor={setting.id} className="mb-2 block">{setting.label}</Label>
-                    {setting.type === 'select' ? (
-                      <Select>
-                        <SelectTrigger className="w-full">
-                          <SelectValue placeholder={`Select ${setting.label.toLowerCase()}`} />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {setting.options?.map((option) => (
-                            <SelectItem key={option.value} value={option.value}>
-                              {option.label}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    ) : (
-                      <Input 
-                        id={setting.id}
-                        type={setting.type} 
-                        placeholder={setting.placeholder}
-                      />
-                    )}
-                  </div>
-                ))}
+                <div className="max-h-[400px] overflow-y-auto pr-2 pb-2">
+                  {providerConfig.advancedSettings?.map((setting, index) => (
+                    <div key={index} className="mb-4">
+                      <Label htmlFor={setting.id} className="mb-2 block">{setting.label}</Label>
+                      {setting.type === 'select' ? (
+                        <Select 
+                          value={advancedSettings[setting.id] || ''}
+                          onValueChange={(value) => {
+                            setAdvancedSettings({
+                              ...advancedSettings,
+                              [setting.id]: value
+                            });
+                          }}
+                        >
+                          <SelectTrigger className="w-full">
+                            <SelectValue placeholder={`Select ${setting.label.toLowerCase()}`} />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {setting.options?.map((option) => (
+                              <SelectItem key={option.value} value={option.value}>
+                                {option.label}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      ) : setting.id === 'system-prompt' ? (
+                        <Textarea 
+                          id={setting.id}
+                          placeholder={setting.placeholder}
+                          value={advancedSettings[setting.id] || ''}
+                          onChange={(e) => {
+                            setAdvancedSettings({
+                              ...advancedSettings,
+                              [setting.id]: e.target.value
+                            });
+                          }}
+                          className="min-h-[120px] resize-y"
+                        />
+                      ) : (
+                        <Input 
+                          id={setting.id}
+                          type={setting.type} 
+                          placeholder={setting.placeholder}
+                          value={advancedSettings[setting.id] || ''}
+                          onChange={(e) => {
+                            setAdvancedSettings({
+                              ...advancedSettings,
+                              [setting.id]: e.target.value
+                            });
+                          }}
+                        />
+                      )}
+                      {setting.id === 'system-prompt' && (
+                        <p className="text-xs text-muted-foreground mt-1">
+                          Instructions that guide the model's behavior
+                        </p>
+                      )}
+                    </div>
+                  ))}
+                </div>
               </div>
             </TabsContent>
             
