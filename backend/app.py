@@ -8,6 +8,7 @@ import json
 import os
 from dotenv import load_dotenv
 from temporalio.client import Client
+from contextlib import asynccontextmanager
 
 # Import workflow definitions
 from temporal.workflows import AIAgentWorkflow
@@ -19,8 +20,38 @@ logger = logging.getLogger(__name__)
 # Load environment variables
 load_dotenv()
 
+# Store for workflow status
+workflow_status = {}
+
+# Initialize Temporal client
+temporal_client = None
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    """Lifespan event handler for startup and shutdown events"""
+    global temporal_client
+    
+    # Connect to Temporal server on startup
+    temporal_server_url = os.getenv("TEMPORAL_SERVER_URL", "localhost:7233")
+    try:
+        logger.info(f"Connecting to Temporal server at {temporal_server_url}")
+        temporal_client = await Client.connect(temporal_server_url)
+        logger.info("Successfully connected to Temporal server")
+    except Exception as e:
+        logger.error(f"Failed to connect to Temporal server: {str(e)}")
+        # We'll continue running and retry connections later
+    
+    yield  # This is where FastAPI runs
+    
+    # Shutdown logic (if needed)
+    # Add any cleanup code here
+
 # Create FastAPI app
-app = FastAPI(title="SentientX Workflow API", description="API for managing and executing AI workflows")
+app = FastAPI(
+    title="SentientX Workflow API", 
+    description="API for managing and executing AI workflows",
+    lifespan=lifespan
+)
 
 # Add CORS middleware
 app.add_middleware(
@@ -45,27 +76,6 @@ class WorkflowResponse(BaseModel):
     execution_id: Optional[str] = None
     message: Optional[str] = None
     error: Optional[str] = None
-
-# Store for workflow status
-workflow_status = {}
-
-# Initialize Temporal client
-temporal_client = None
-
-@app.on_event("startup")
-async def startup_event():
-    """Initialize connections on startup"""
-    global temporal_client
-    
-    # Connect to Temporal server
-    temporal_server_url = os.getenv("TEMPORAL_SERVER_URL", "localhost:7233")
-    try:
-        logger.info(f"Connecting to Temporal server at {temporal_server_url}")
-        temporal_client = await Client.connect(temporal_server_url)
-        logger.info("Successfully connected to Temporal server")
-    except Exception as e:
-        logger.error(f"Failed to connect to Temporal server: {str(e)}")
-        # We'll continue running and retry connections later
 
 @app.post("/api/workflows/start", response_model=WorkflowResponse)
 async def start_workflow(workflow_data: WorkflowInput):
@@ -182,12 +192,12 @@ async def stop_workflow(workflow_id: str):
         await handle.terminate()
         
         # Update status
-        workflow_status[workflow_id] = "canceled"
+        workflow_status[workflow_id] = "terminated"
         
         return WorkflowResponse(
-            status="canceled",
+            status="terminated",
             execution_id=workflow_id,
-            message="Workflow canceled successfully"
+            message="Workflow terminated successfully"
         )
     
     except Exception as e:
