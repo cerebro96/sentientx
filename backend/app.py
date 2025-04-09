@@ -109,8 +109,35 @@ async def start_workflow(workflow_data: WorkflowInput):
             "tags": workflow_data.tags
         }
         
-        # Start the workflow
-        logger.info(f"Starting workflow with ID: {workflow_id}")
+        # Store workflow status immediately
+        workflow_status[workflow_id] = "starting"
+        
+        # Create a response to return quickly
+        response = WorkflowResponse(
+            status="starting", 
+            execution_id=workflow_id,
+            message=f"Workflow '{workflow_data.name}' is being started"
+        )
+        
+        # Start the workflow in the background without waiting for it
+        asyncio.create_task(
+            _start_workflow_background(workflow_id, payload, workflow_data.name)
+        )
+        
+        return response
+        
+    except Exception as e:
+        logger.error(f"Error preparing workflow: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Failed to start workflow: {str(e)}")
+
+async def _start_workflow_background(workflow_id: str, payload: dict, workflow_name: str):
+    """
+    Background task to actually start the workflow
+    """
+    global temporal_client, workflow_status
+    
+    try:
+        logger.info(f"Starting workflow with ID: {workflow_id} in background")
         handle = await temporal_client.start_workflow(
             AIAgentWorkflow.run,
             payload,
@@ -118,18 +145,12 @@ async def start_workflow(workflow_data: WorkflowInput):
             task_queue="ai-workflow-task-queue",
         )
         
-        # Store workflow status
+        # Update workflow status
         workflow_status[workflow_id] = "running"
-        
-        return WorkflowResponse(
-            status="running", 
-            execution_id=workflow_id,
-            message=f"Workflow '{workflow_data.name}' started successfully"
-        )
-        
+        logger.info(f"Workflow {workflow_id} successfully started in background")
     except Exception as e:
-        logger.error(f"Error starting workflow: {str(e)}")
-        raise HTTPException(status_code=500, detail=f"Failed to start workflow: {str(e)}")
+        logger.error(f"Background error starting workflow {workflow_id}: {str(e)}")
+        workflow_status[workflow_id] = "error"
 
 @app.get("/api/workflows/{workflow_id}/status", response_model=WorkflowResponse)
 async def get_workflow_status(workflow_id: str):
