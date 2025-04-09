@@ -471,28 +471,114 @@ export function WorkflowCanvas({ isActive, onClose, workflowId, newWorkflowData 
   }, [reactFlowInstance, triggerAutoSave]);
 
   // Workflow control handlers
-  const handleStartWorkflow = () => {
-    setWorkflowStatus('running');
-    toast.success('Workflow started', {
-      description: 'Your workflow is now running',
-      duration: 3000
-    });
+  const handleStartWorkflow = async () => {
+    try {
+      // Prepare workflow data to send to the backend
+      const workflowData = {
+        nodes: useWorkflowStore.getState().nodes,
+        edges: useWorkflowStore.getState().edges,
+        name: workflowName,
+        workflow_id: workflowId || createdWorkflowId,
+        is_active: isWorkflowActive,
+        tags: tags
+      };
+      
+      // Make API call to start the workflow
+      const response = await fetch('/api/workflows/start', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(workflowData),
+      });
+      
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.detail || 'Failed to start workflow');
+      }
+      
+      const data = await response.json();
+      
+      // Update workflow status
+      setWorkflowStatus('running');
+      
+      toast.success('Workflow started', {
+        description: 'Your workflow is now running',
+        duration: 3000
+      });
+    } catch (error) {
+      console.error('Error starting workflow:', error);
+      toast.error('Failed to start workflow', {
+        description: error instanceof Error ? error.message : 'Unknown error',
+        duration: 5000
+      });
+    }
   };
 
-  const handlePauseWorkflow = () => {
-    setWorkflowStatus('paused');
-    toast.info('Workflow paused', {
-      description: 'Your workflow is now paused',
-      duration: 3000
-    });
+  const handlePauseWorkflow = async () => {
+    try {
+      const workflowIdentifier = workflowId || createdWorkflowId;
+      if (!workflowIdentifier) {
+        throw new Error('No workflow ID available');
+      }
+      
+      // Make API call to pause the workflow
+      const response = await fetch(`/api/workflows/${workflowIdentifier}/pause`, {
+        method: 'POST',
+      });
+      
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.detail || 'Failed to pause workflow');
+      }
+      
+      // Update workflow status
+      setWorkflowStatus('paused');
+      
+      toast.info('Workflow paused', {
+        description: 'Your workflow is now paused',
+        duration: 3000
+      });
+    } catch (error) {
+      console.error('Error pausing workflow:', error);
+      toast.error('Failed to pause workflow', {
+        description: error instanceof Error ? error.message : 'Unknown error',
+        duration: 5000
+      });
+    }
   };
 
-  const handleStopWorkflow = () => {
-    setWorkflowStatus('idle');
-    toast.info('Workflow stopped', {
-      description: 'Your workflow has been stopped',
-      duration: 3000
-    });
+  const handleStopWorkflow = async () => {
+    try {
+      const workflowIdentifier = workflowId || createdWorkflowId;
+      if (!workflowIdentifier) {
+        throw new Error('No workflow ID available');
+      }
+      
+      // Make API call to stop the workflow
+      const response = await fetch(`/api/workflows/${workflowIdentifier}/stop`, {
+        method: 'POST',
+      });
+      
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.detail || 'Failed to stop workflow');
+      }
+      
+      // Update workflow status
+      setWorkflowStatus('idle');
+      
+      toast.info('Workflow stopped', {
+        description: 'Your workflow has been stopped',
+        duration: 3000
+      });
+    } catch (error) {
+      console.error('Error stopping workflow:', error);
+      toast.error('Failed to stop workflow', {
+        description: error instanceof Error ? error.message : 'Unknown error',
+        duration: 5000
+      });
+    }
   };
 
   if (!isReady) {
