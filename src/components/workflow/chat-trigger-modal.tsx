@@ -43,9 +43,15 @@ export function ChatTriggerModal({ isOpen, onClose, nodeId, nodeData, onSave }: 
   const [copied, setCopied] = useState(false);
   const [chatId, setChatId] = useState(() => generateRandomId());
   
-  // Generate a random chat URL
+  // Generate a random chat URL using cryptographically secure random values
   function generateRandomId() {
-    return Math.random().toString(36).substring(2, 10);
+    // Use Web Crypto API for secure random values
+    const crypto = window.crypto || (window as any).msCrypto;
+    const array = new Uint32Array(1);
+    crypto.getRandomValues(array);
+    
+    // Convert to base36 string and take a substring for readability
+    return array[0].toString(36).substring(0, 8);
   }
   
   const chatUrl = `http://localhost:3000/api/chat/${chatId}`;
