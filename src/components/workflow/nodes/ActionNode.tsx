@@ -110,12 +110,17 @@ function ActionNodeComponent({ id, data, selected }: NodeProps<NodeData>) {
   const handleChatButtonClick = (e: React.MouseEvent) => {
     e.stopPropagation();
     
-    // Generate session ID using secure random values
+    // Generate session ID using secure random values (24 characters)
     const generateSessionId = () => {
       const crypto = window.crypto || (window as any).msCrypto;
-      const array = new Uint32Array(1);
+      const array = new Uint32Array(6);  // Increased array size for longer ID
       crypto.getRandomValues(array);
-      return array[0].toString(36).substring(0, 8);
+      
+      // Convert to base36 string and combine for a 24-character ID
+      return Array.from(array)
+        .map(num => num.toString(36).padStart(4, '0'))
+        .join('')
+        .substring(0, 24);
     };
     
     const sessionId = generateSessionId();
