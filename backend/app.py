@@ -166,7 +166,7 @@ async def get_workflow_status(workflow_id: str):
         # Get workflow handle
         handle = temporal_client.get_workflow_handle(workflow_id)
         
-        # Check if the workflow is running
+        # Check if workflow is running
         try:
             result = await handle.query("status")
             return WorkflowResponse(
