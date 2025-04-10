@@ -23,6 +23,30 @@ type LlmProviderConfig = {
   };
 };
 
+// Common advanced settings shared across providers
+const commonAdvancedSettings = {
+  temperature: {
+    id: 'temperature',
+    label: 'Temperature',
+    type: 'number' as const,
+    placeholder: '0-1 (Default: 0.7)'
+  },
+  systemPrompt: {
+    id: 'system-prompt',
+    label: 'System Prompt',
+    type: 'text' as const,
+    placeholder: 'Instructions for the AI assistant'
+  }
+};
+
+// Token length settings with provider-specific naming
+const getTokenSettings = (id: string) => ({
+  id,
+  label: id === 'max-output-tokens' ? 'Max Output Tokens' : 'Max Tokens',
+  type: 'number' as const,
+  placeholder: 'Max response length'
+});
+
 export const llmProviderConfigs: Record<string, LlmProviderConfig> = {
   'openai': {
     displayName: 'OpenAI Chat Model',
@@ -47,28 +71,12 @@ export const llmProviderConfigs: Record<string, LlmProviderConfig> = {
       { label: 'gpt-4o-mini', value: 'gpt-4o-mini-2024-07-18' },
       { label: 'gpt-4o-mini-audio-preview', value: 'gpt-4o-mini-audio-preview-2024-12-17' },
       { label: 'gpt-4o-mini-realtime-preview', value: 'gpt-4o-mini-realtime-preview-2024-12-17' }
-
     ],
     helpText: 'OpenAI models are powerful language models that can be used for a variety of tasks including chat, text completion, and more.',
     advancedSettings: [
-      {
-        id: 'temperature',
-        label: 'Temperature',
-        type: 'number',
-        placeholder: '0-1 (Default: 0.7)'
-      },
-      {
-        id: 'max-tokens',
-        label: 'Max Tokens',
-        type: 'number',
-        placeholder: 'Max response length'
-      },
-      {
-        id: 'system-prompt',
-        label: 'System Prompt',
-        type: 'text',
-        placeholder: 'Instructions for the AI assistant'
-      }
+      commonAdvancedSettings.temperature,
+      getTokenSettings('max-tokens'),
+      commonAdvancedSettings.systemPrompt
     ],
     documentation: {
       description: 'OpenAI offers powerful language models through a simple API. You can use these models for chat completion, text generation, and more.',
@@ -103,24 +111,9 @@ export const llmProviderConfigs: Record<string, LlmProviderConfig> = {
     ],
     helpText: 'Google Gemini models are multimodal models that can understand and process text, code, audio, image and video.',
     advancedSettings: [
-      {
-        id: 'temperature',
-        label: 'Temperature',
-        type: 'number',
-        placeholder: '0-1 (Default: 0.7)'
-      },
-      {
-        id: 'max-output-tokens',
-        label: 'Max Output Tokens',
-        type: 'number',
-        placeholder: 'Max response length'
-      },
-      {
-        id: 'system-prompt',
-        label: 'System Prompt',
-        type: 'text',
-        placeholder: 'Instructions for the AI assistant'
-      }
+      commonAdvancedSettings.temperature,
+      getTokenSettings('max-output-tokens'),
+      commonAdvancedSettings.systemPrompt
     ],
     documentation: {
       description: 'Google Gemini is a family of multimodal AI models that can understand virtually any input, generate virtually any output, and follow instructions with remarkable capabilities.',
@@ -152,24 +145,9 @@ export const llmProviderConfigs: Record<string, LlmProviderConfig> = {
     ],
     helpText: 'Anthropic Claude models are designed to be helpful, harmless, and honest AI assistants.',
     advancedSettings: [
-      {
-        id: 'temperature',
-        label: 'Temperature',
-        type: 'number',
-        placeholder: '0-1 (Default: 0.7)'
-      },
-      {
-        id: 'max-tokens',
-        label: 'Max Tokens',
-        type: 'number',
-        placeholder: 'Max response length'
-      },
-      {
-        id: 'system-prompt',
-        label: 'System Prompt',
-        type: 'text',
-        placeholder: 'Instructions for Claude'
-      }
+      commonAdvancedSettings.temperature,
+      getTokenSettings('max-tokens'),
+      commonAdvancedSettings.systemPrompt
     ],
     documentation: {
       description: 'Claude is a family of AI assistants created by Anthropic designed to be helpful, harmless, and honest.',
@@ -193,28 +171,12 @@ export const llmProviderConfigs: Record<string, LlmProviderConfig> = {
     models: [
       { label: 'Deepseek Reasoner (R1)', value: 'deepseek-reasoner' },
       { label: 'Deepseek Chat (V3)', value: 'deepseek-chat' },
-      // { label: 'Deepseek LLM 67B', value: 'deepseek-llm-67b' }
     ],
     helpText: 'Deepseek models excel at coding tasks and complex problem-solving.',
     advancedSettings: [
-      {
-        id: 'temperature',
-        label: 'Temperature',
-        type: 'number',
-        placeholder: '0-1 (Default: 0.7)'
-      },
-      {
-        id: 'max-length',
-        label: 'Max Length',
-        type: 'number',
-        placeholder: 'Max response length'
-      },
-      {
-        id: 'system-prompt',
-        label: 'System Prompt',
-        type: 'text',
-        placeholder: 'Instructions for the AI assistant'
-      }
+      commonAdvancedSettings.temperature,
+      getTokenSettings('max-length'),
+      commonAdvancedSettings.systemPrompt
     ],
     documentation: {
       description: 'Deepseek models are specialized in coding and development tasks, offering high performance for technical applications.',
