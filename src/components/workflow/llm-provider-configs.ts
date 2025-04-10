@@ -91,7 +91,7 @@ export const llmProviderConfigs: Record<string, LlmProviderConfig> = {
   },
   
   'gemini': {
-    displayName: 'Google Gemini Chat Model',
+    displayName: 'Google Gemini Model',
     defaultCredential: 'gemini-api-key',
     defaultModel: 'gemini-2.0-flash',
     credentials: [
