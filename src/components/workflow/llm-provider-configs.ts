@@ -35,7 +35,7 @@ const commonAdvancedSettings = {
     id: 'system-prompt',
     label: 'System Prompt',
     type: 'text' as const,
-    placeholder: 'Instructions for the AI assistant'
+    placeholder: 'Instructions for the AI Agent'
   }
 };
 
