@@ -156,12 +156,14 @@ export function WorkflowTabs({
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
               {filteredWorkflows.map((workflow) => (
                 <Card key={workflow.id} className="h-full flex flex-col">
-                  <CardHeader>
+                  <CardHeader className="pb-2">
                     <div className="flex justify-between items-start">
-                      <CardTitle className="truncate">{workflow.name}</CardTitle>
+                      <CardTitle className="text-lg truncate max-w-[200px]" title={workflow.name}>
+                        {workflow.name}
+                      </CardTitle>
                       <DropdownMenu>
                         <DropdownMenuTrigger asChild>
-                          <Button variant="ghost" size="icon">
+                          <Button variant="ghost" size="icon" className="h-8 w-8 flex-shrink-0">
                             <MoreHorizontal className="h-4 w-4" />
                           </Button>
                         </DropdownMenuTrigger>
@@ -184,7 +186,7 @@ export function WorkflowTabs({
                         </DropdownMenuContent>
                       </DropdownMenu>
                     </div>
-                    <CardDescription className="line-clamp-2 h-10">
+                    <CardDescription className="line-clamp-2 h-10 mt-2 text-sm text-muted-foreground">
                       {workflow.description || 'No description'}
                     </CardDescription>
                   </CardHeader>

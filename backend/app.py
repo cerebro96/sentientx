@@ -245,8 +245,10 @@ async def get_workflow_status(workflow_id: str):
 @app.post("/api/workflows/{workflow_id}/stop", response_model=WorkflowResponse)
 async def stop_workflow(workflow_id: str):
     """
-    Stop a running workflow
+    Stop a running workflow and clean up all associated resources
     """
+    global initialized_llms, chat_sessions
+    
     if workflow_id not in workflow_status:
         raise HTTPException(status_code=404, detail=f"Workflow {workflow_id} not found")
     
@@ -257,15 +259,59 @@ async def stop_workflow(workflow_id: str):
             message=f"Workflow is already in {workflow_status[workflow_id]} state"
         )
     
+    logger.info(f"Stopping workflow {workflow_id} and cleaning up resources")
+    
+    # Clean up initialized LLMs for this workflow
+    if workflow_id in initialized_llms:
+        llm_count = len(initialized_llms[workflow_id])
+        logger.info(f"Cleaning up {llm_count} initialized LLM instances for workflow {workflow_id}")
+        
+        # For each provider, perform any specific cleanup needed
+        for node_id, llm_data in initialized_llms[workflow_id].items():
+            provider = llm_data.get('provider', 'unknown')
+            model_name = llm_data.get('model_name', 'unknown')
+            
+            try:
+                # Clean up Gemini models
+                if provider == 'gemini' and 'model_data' in llm_data:
+                    # Clear any chat sessions
+                    if 'chat_sessions' in llm_data['model_data']:
+                        session_count = len(llm_data['model_data']['chat_sessions'])
+                        logger.info(f"Clearing {session_count} chat sessions for {provider} model {model_name}")
+                        llm_data['model_data']['chat_sessions'].clear()
+                
+                logger.info(f"Successfully cleaned up {provider} model {model_name} for node {node_id}")
+            except Exception as e:
+                logger.error(f"Error cleaning up LLM for node {node_id}: {str(e)}")
+        
+        # Remove all LLMs for this workflow
+        initialized_llms.pop(workflow_id)
+        logger.info(f"Removed all LLM instances for workflow {workflow_id}")
+    
+    # Clean up chat sessions associated with this workflow
+    session_count = 0
+    sessions_to_remove = []
+    
+    for session_key in chat_sessions.keys():
+        if session_key.startswith(f"{workflow_id}:"):
+            sessions_to_remove.append(session_key)
+            session_count += 1
+    
+    for session_key in sessions_to_remove:
+        chat_sessions.pop(session_key)
+    
+    if session_count > 0:
+        logger.info(f"Removed {session_count} chat sessions for workflow {workflow_id}")
+    
     # Update status
     workflow_status[workflow_id] = "stopped"
     
-    logger.info(f"Workflow {workflow_id} stopped")
+    logger.info(f"Workflow {workflow_id} stopped and all resources cleaned up")
     
     return WorkflowResponse(
         status="stopped",
         execution_id=workflow_id,
-        message="Workflow stopped successfully"
+        message="Workflow stopped successfully and resources cleaned up"
     )
 
 @app.post("/api/workflows/{workflow_id}/pause", response_model=WorkflowResponse)

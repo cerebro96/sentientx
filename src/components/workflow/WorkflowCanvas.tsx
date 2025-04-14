@@ -31,6 +31,7 @@ import { WorkflowFormData } from './WorkflowDialog';
 import { createWorkflow, getWorkflow, updateWorkflow, getWorkflows } from '@/lib/workflows';
 import { nodeCatalog } from './nodeTypes';
 import { getApiKeyWithValue } from "@/lib/api-keys";
+import { supabase } from '@/lib/supabase';
 
 interface WorkflowCanvasProps {
   isActive: boolean;
@@ -66,6 +67,7 @@ export function WorkflowCanvas({ isActive, onClose, workflowId, newWorkflowData 
   const [activeTab, setActiveTab] = useState('canvas');
   const [isPanelVisible, setIsPanelVisible] = useState(true);
   const [workflowStatus, setWorkflowStatus] = useState<'idle' | 'running' | 'paused'>('idle');
+  const [isCreatingWorkflow, setIsCreatingWorkflow] = useState(false);
   
   // Add debounce for auto-saving
   const autoSaveTimeoutRef = useRef<NodeJS.Timeout | null>(null);
@@ -100,6 +102,15 @@ export function WorkflowCanvas({ isActive, onClose, workflowId, newWorkflowData 
         return;
       }
       
+      // Use existing workflowId from props, or the one we created locally
+      const existingId = workflowId || createdWorkflowId;
+      
+      // Prevent duplicate creation if already in progress
+      if (!existingId && isCreatingWorkflow) {
+        console.log('Workflow creation already in progress, skipping save.');
+        return;
+      }
+      
       // Get the current state directly from the store to ensure we have the latest nodes and edges
       const currentNodes = useWorkflowStore.getState().nodes;
       const currentEdges = useWorkflowStore.getState().edges;
@@ -129,79 +140,49 @@ export function WorkflowCanvas({ isActive, onClose, workflowId, newWorkflowData 
         edges: currentEdges
       };
 
-      // Use existing workflowId, or the one we already created
-      const existingId = workflowId || createdWorkflowId;
-
       if (existingId) {
         // Update existing workflow
         await updateWorkflow(existingId, flowData);
-        // Only show notification for manual saves, not auto-saves
         if (!isAutoSave) {
-          toast.success('Workflow saved successfully');
-        }
-      } else if (newWorkflowData) {
-        // We're dealing with a new workflow that's already been created by the WorkflowDialog
-        // Just do the first update - we'll need to fetch its ID first
-        
-        try {
-          // Try to find the workflow by name using the getWorkflows function
-          const workflows = await getWorkflows();
-          const matchingWorkflow = workflows.find((w) => 
-            w.name === newWorkflowData.name && 
-            w.description === newWorkflowData.description
-          );
-          
-          if (matchingWorkflow) {
-            // Update the existing workflow we just found
-            await updateWorkflow(matchingWorkflow.id, flowData);
-            setCreatedWorkflowId(matchingWorkflow.id);
-            
-            if (!isAutoSave) {
-              toast.success('Workflow updated successfully');
-            }
-          } else {
-            // Fallback: create a new workflow if somehow we couldn't find the one that should exist
-            console.warn('Could not find existing workflow, creating a new one');
-            createNewWorkflow();
-          }
-        } catch (error) {
-          console.error('Error finding workflow:', error);
-          // Fallback to creating a new one
-          createNewWorkflow();
+          toast.success('Workflow updated');
+        } else {
+          console.log('Workflow auto-saved');
         }
       } else {
-        // No existing ID and no new workflow data - create a brand new workflow
-        createNewWorkflow();
+        // Create new workflow
+        
+        // Set flag to indicate creation is starting
+        setIsCreatingWorkflow(true);
+        
+        const newWorkflow = await createWorkflow({
+          ...flowData,
+          description: newWorkflowData?.description || undefined, // Add description if available
+        });
+        
+        if (newWorkflow && newWorkflow.id) {
+          // Store the created workflow's ID locally
+          setCreatedWorkflowId(newWorkflow.id);
+          // *** IMPORTANT: Update the Zustand store with the new ID ***
+          useWorkflowStore.setState({ workflowId: newWorkflow.id });
+          
+          if (!isAutoSave) {
+            toast.success('Workflow created and saved');
+          } else {
+            console.log('Workflow auto-created and saved');
+          }
+        } else {
+          throw new Error("Failed to get ID from created workflow");
+        }
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error saving workflow:', error);
-      // Only show error notification for manual saves, not auto-saves
-      if (!isAutoSave) {
-        toast.error('Failed to save workflow');
-      }
+      // Error toast is shown in create/update functions
+    } finally {
+      // Reset creation flag after attempt
+      setIsCreatingWorkflow(false);
     }
   };
   
-  // Helper to create a new workflow
-  const createNewWorkflow = async () => {
-    const newWorkflow = await createWorkflow({
-      name: workflowName,
-      description: newWorkflowData?.description,
-      tags: tags,
-      is_active: isWorkflowActive,
-      nodes: useWorkflowStore.getState().nodes,
-      edges: useWorkflowStore.getState().edges
-    });
-    
-    // Store the created workflow's ID for future saves
-    if (newWorkflow && newWorkflow.id) {
-      setCreatedWorkflowId(newWorkflow.id);
-    }
-    
-    // Always show notification for new workflow creation
-    toast.success('Workflow created and saved');
-  };
-
   // Simple wrapper for manual saves
   const handleSaveWorkflow = () => saveWorkflow(false);
   
@@ -488,7 +469,7 @@ export function WorkflowCanvas({ isActive, onClose, workflowId, newWorkflowData 
       
       // Fetch and decrypt API keys for all LLM nodes
       if (llmNodes.length > 0) {
-        //console.log(`Collecting API keys for ${llmNodes.length} LLM nodes`);
+        console.log(`Collecting API keys for ${llmNodes.length} LLM nodes`);
         
         for (const node of llmNodes) {
           const apiKeyId = node.data?.llmConfig?.apiKeyId;
@@ -500,7 +481,7 @@ export function WorkflowCanvas({ isActive, onClose, workflowId, newWorkflowData 
               
               if (keyData && keyData.decrypted_key) {
                 apiKeys[apiKeyId] = keyData.decrypted_key;
-                //console.log(`Retrieved API key for ${keyData.service}`);
+                console.log(`Retrieved API key for ${keyData.service}`);
               }
             } catch (error) {
               console.error(`Error fetching API key ${apiKeyId}:`, error);
@@ -508,7 +489,7 @@ export function WorkflowCanvas({ isActive, onClose, workflowId, newWorkflowData 
           }
         }
         
-        //console.log(`Successfully collected ${Object.keys(apiKeys).length} API keys`);
+        console.log(`Successfully collected ${Object.keys(apiKeys).length} API keys`);
       }
       
       // Prepare workflow data to send to the backend
@@ -516,12 +497,12 @@ export function WorkflowCanvas({ isActive, onClose, workflowId, newWorkflowData 
         nodes: useWorkflowStore.getState().nodes,
         edges: useWorkflowStore.getState().edges,
         name: workflowName,
-        workflow_id: workflowId,
+        workflow_id: workflowId || createdWorkflowId,
         is_active: isWorkflowActive,
         tags: tags,
         api_keys: Object.keys(apiKeys).length > 0 ? apiKeys : undefined
       };
-      //console.log(apiKeys);
+      
       // Make API call to start the workflow
       const response = await fetch('/api/workflows/start', {
         method: 'POST',
@@ -537,6 +518,37 @@ export function WorkflowCanvas({ isActive, onClose, workflowId, newWorkflowData 
       }
       
       const data = await response.json();
+      
+      // Get the execution ID from the API response
+      const executionId = data.execution_id;
+      
+      // Insert execution record into Supabase - match the table structure exactly
+      try {
+        // Format current timestamp properly
+        const timestamp = new Date().toISOString();
+        
+        // Insert execution data following the exact table structure
+        const { data: executionData, error: executionError } = await supabase
+          .from('executions')
+          .insert({
+            id: executionId,
+            workflow_id: workflowId || createdWorkflowId,
+            workflow_name: workflowName,
+            status: 'running',
+            started_at: timestamp,
+            triggered_by: 'user'
+            // created_at and updated_at will be filled automatically by PostgreSQL
+          });
+        
+        if (executionError) {
+          console.error('Error saving execution to Supabase:', executionError);
+        } else {
+          console.log('Successfully saved workflow execution to Supabase');
+        }
+      } catch (dbError) {
+        console.error('Exception saving execution to Supabase:', dbError);
+        // Continue execution even if DB insert fails
+      }
       
       // Update workflow status
       setWorkflowStatus('running');
