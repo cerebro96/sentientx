@@ -2,16 +2,12 @@ from fastapi import FastAPI, HTTPException, Body
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from typing import Dict, List, Any, Optional
-import asyncio
 import logging
 import json
 import os
 from dotenv import load_dotenv
-from temporalio.client import Client
-from contextlib import asynccontextmanager
-
-# Import workflow definitions
-from temporal.workflows import AIAgentWorkflow
+import uuid
+import google.generativeai as genai  # Add Google GenAI SDK
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -23,34 +19,13 @@ load_dotenv()
 # Store for workflow status
 workflow_status = {}
 
-# Initialize Temporal client
-temporal_client = None
-
-@asynccontextmanager
-async def lifespan(app: FastAPI):
-    """Lifespan event handler for startup and shutdown events"""
-    global temporal_client
-    
-    # Connect to Temporal server on startup
-    temporal_server_url = os.getenv("TEMPORAL_SERVER_URL", "localhost:7233")
-    try:
-        logger.info(f"Connecting to Temporal server at {temporal_server_url}")
-        temporal_client = await Client.connect(temporal_server_url)
-        logger.info("Successfully connected to Temporal server")
-    except Exception as e:
-        logger.error(f"Failed to connect to Temporal server: {str(e)}")
-        # We'll continue running and retry connections later
-    
-    yield  # This is where FastAPI runs
-    
-    # Shutdown logic (if needed)
-    # Add any cleanup code here
+# Store for initialized LLM models - maps workflow_id -> node_id -> model instance
+initialized_llms = {}
 
 # Create FastAPI app
 app = FastAPI(
     title="SentientX Workflow API", 
-    description="API for managing and executing AI workflows",
-    lifespan=lifespan
+    description="API for managing and executing AI workflows"
 )
 
 # Add CORS middleware
@@ -70,6 +45,7 @@ class WorkflowInput(BaseModel):
     workflow_id: Optional[str] = None
     is_active: bool = True
     tags: List[str] = []
+    api_keys: Optional[Dict[str, str]] = None  # Dictionary of decrypted API keys
 
 class WorkflowResponse(BaseModel):
     status: str
@@ -77,213 +53,450 @@ class WorkflowResponse(BaseModel):
     message: Optional[str] = None
     error: Optional[str] = None
 
+class ChatMessageInput(BaseModel):
+    message: str
+    session_id: str
+    workflow_id: str
+    node_id: str
+
+class ChatMessageResponse(BaseModel):
+    status: str
+    response: Optional[str] = None
+    session_id: str
+    error: Optional[str] = None
+    message: Optional[str] = None
+
+# Store for chat sessions
+chat_sessions = {}
+
+def initialize_gemini_model(api_key: str, model_name: str, settings: Dict[str, Any]):
+    """Initialize a Gemini model with the given API key and settings"""
+    try:
+        logger.info(f"Initializing Gemini model: {model_name}")
+        
+        # Configure the Gemini API with the provided API key
+        genai.configure(api_key=api_key)
+        
+        # Extract parameters from settings
+        temperature = float(settings.get("temperature", 0.7))
+        max_output_tokens = int(settings.get("max-output-tokens", 1024))
+        system_prompt = settings.get("system-prompt", "")
+        
+        logger.info(f"Gemini parameters: temp={temperature}, max_tokens={max_output_tokens}")
+        
+        # Create generation config
+        generation_config = {
+            "temperature": temperature,
+            "max_output_tokens": max_output_tokens
+        }
+        
+        # Create and return the configured model
+        model = genai.GenerativeModel(
+            model_name=model_name,
+            generation_config=generation_config,
+            system_instruction=system_prompt
+        )
+        
+        return {
+            "model": model,
+            "chat_sessions": {},
+            "system_prompt": system_prompt
+        }
+    except Exception as e:
+        logger.error(f"Error initializing Gemini model: {str(e)}")
+        raise
+
 @app.post("/api/workflows/start", response_model=WorkflowResponse)
 async def start_workflow(workflow_data: WorkflowInput):
     """
     Start a workflow execution with the provided nodes and edges
     """
-    global temporal_client
-    
-    if not temporal_client:
-        try:
-            # Try to reconnect if client is not available
-            temporal_server_url = os.getenv("TEMPORAL_SERVER_URL", "localhost:7233")
-            temporal_client = await Client.connect(temporal_server_url)
-        except Exception as e:
-            logger.error(f"Failed to connect to Temporal server: {str(e)}")
-            raise HTTPException(status_code=503, detail="Temporal server unavailable")
+    global initialized_llms
     
     logger.info(f"Received request to start workflow: {workflow_data.name}")
     
     try:
         # Use the provided workflow_id or generate a unique ID
-        workflow_id = workflow_data.workflow_id or f"workflow-{workflow_data.name.lower().replace(' ', '-')}-{os.urandom(4).hex()}"
+        workflow_id = workflow_data.workflow_id or f"workflow-{workflow_data.name.lower().replace(' ', '-')}-{uuid.uuid4().hex[:8]}"
         
-        # Prepare the payload
-        payload = {
-            "nodes": workflow_data.nodes,
-            "edges": workflow_data.edges,
-            "workflow_id": workflow_id,
-            "name": workflow_data.name,
-            "is_active": workflow_data.is_active,
-            "tags": workflow_data.tags
-        }
+        # Initialize dictionary for this workflow's LLMs
+        initialized_llms[workflow_id] = {}
         
-        # Store workflow status immediately
-        workflow_status[workflow_id] = "starting"
+        # Check if API keys were provided
+        api_keys = {}
+        if workflow_data.api_keys:
+            logger.info(f"Received {len(workflow_data.api_keys)} API keys for workflow {workflow_id}")
+            api_keys = workflow_data.api_keys
         
-        # Create a response to return quickly
-        response = WorkflowResponse(
-            status="starting", 
-            execution_id=workflow_id,
-            message=f"Workflow '{workflow_data.name}' is being started"
-        )
+        # Check if the workflow contains any chat trigger nodes
+        chat_trigger_nodes = []
+        for node in workflow_data.nodes:
+            # Check if this is a chat trigger node - multiple detection methods
+            if (node.get("data", {}).get("label") == "Chat Trigger" and 
+                  "chatConfig" in node.get("data", {})):
+                chat_trigger_nodes.append(node)
         
-        # Start the workflow in the background without waiting for it
-        asyncio.create_task(
-            _start_workflow_background(workflow_id, payload, workflow_data.name)
-        )
+        # Log information about chat trigger nodes
+        if chat_trigger_nodes:
+            logger.info(f"Found {len(chat_trigger_nodes)} chat trigger nodes in workflow {workflow_id}")
+            for node in chat_trigger_nodes:
+                node_id = node.get("id", "unknown")
+                node_label = node.get("data", {}).get("label", "Unnamed Chat Trigger")
+                # Log chatConfig if available
+                chat_config = node.get("data", {}).get("chatConfig", {})
+                if chat_config:
+                    chat_id = chat_config.get("chatId", "unknown")
+                    chat_mode = chat_config.get("mode", "unknown")
+                    is_public = chat_config.get("isPublic", False)
+                    logger.info(f"Chat trigger node: {node_id} - {node_label} (ChatID: {chat_id}, Mode: {chat_mode}, Public: {is_public})")
+                else:
+                    logger.info(f"Chat trigger node found: {node_id} - {node_label}")
         
-        return response
+        # Check if the workflow contains any LLM nodes
+        llm_nodes = []
+        for node in workflow_data.nodes:
+            # Look for nodes with llmConfig
+            if "llmConfig" in node.get("data", {}):
+                llm_nodes.append(node)
         
-    except Exception as e:
-        logger.error(f"Error preparing workflow: {str(e)}")
-        raise HTTPException(status_code=500, detail=f"Failed to start workflow: {str(e)}")
-
-async def _start_workflow_background(workflow_id: str, payload: dict, workflow_name: str):
-    """
-    Background task to actually start the workflow
-    """
-    global temporal_client, workflow_status
-    
-    try:
-        logger.info(f"Starting workflow with ID: {workflow_id} in background")
-        handle = await temporal_client.start_workflow(
-            AIAgentWorkflow.run,
-            payload,
-            id=workflow_id,
-            task_queue="ai-workflow-task-queue",
-        )
+        # Process and initialize LLM nodes
+        initialized_nodes = []
+        if llm_nodes:
+            logger.info(f"Found {len(llm_nodes)} LLM nodes in workflow {workflow_id}")
+            for node in llm_nodes:
+                node_id = node.get("id", "unknown")
+                node_label = node.get("data", {}).get("label", "Unnamed LLM")
+                llm_config = node.get("data", {}).get("llmConfig", {})
+                
+                # Extract LLM configuration details
+                model = llm_config.get("model", "unknown")
+                provider = llm_config.get("provider", "unknown")
+                api_key_id = llm_config.get("apiKeyId", "none")
+                
+                # Extract options as a dictionary
+                options_dict = {}
+                options = llm_config.get("options", [])
+                if options:
+                    for option in options:
+                        key = option.get("key", "")
+                        value = option.get("value", "")
+                        if key:
+                            options_dict[key] = value
+                
+                # Log basic LLM info
+                logger.info(f"LLM node: {node_id} - {node_label} (Provider: {provider}, Model: {model})")
+                
+                # Initialize the LLM if we have an API key
+                if api_key_id and api_key_id in api_keys:
+                    try:
+                        if provider.lower() == "gemini" or "google" in provider.lower():
+                            # Initialize Gemini model
+                            api_key = api_keys[api_key_id]
+                            model_data = initialize_gemini_model(api_key, model, options_dict)
+                            
+                            # Store the initialized model
+                            initialized_llms[workflow_id][node_id] = {
+                                "provider": "gemini",
+                                "model_name": model,
+                                "model_data": model_data
+                            }
+                            
+                            logger.info(f"Successfully initialized Gemini model for node {node_id}")
+                            initialized_nodes.append(node_id)
+                    except Exception as e:
+                        logger.error(f"Failed to initialize LLM for node {node_id}: {str(e)}")
         
-        # Update workflow status
+        # Store workflow status
         workflow_status[workflow_id] = "running"
-        logger.info(f"Workflow {workflow_id} successfully started in background")
+        
+        logger.info(f"Workflow {workflow_id} successfully started")
+        logger.info(f"Initialized {len(initialized_nodes)} LLM nodes: {', '.join(initialized_nodes)}")
+        
+        # Include chat trigger and LLM information in response message
+        message = f"Workflow '{workflow_data.name}' is now running"
+        if chat_trigger_nodes:
+            message += f" with {len(chat_trigger_nodes)} chat trigger nodes"
+        if initialized_nodes:
+            message += f" and {len(initialized_nodes)} initialized LLM nodes"
+        
+        return WorkflowResponse(
+            status="running", 
+            execution_id=workflow_id,
+            message=message
+        )
+        
     except Exception as e:
-        logger.error(f"Background error starting workflow {workflow_id}: {str(e)}")
-        workflow_status[workflow_id] = "error"
+        logger.error(f"Error starting workflow: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Failed to start workflow: {str(e)}")
 
 @app.get("/api/workflows/{workflow_id}/status", response_model=WorkflowResponse)
 async def get_workflow_status(workflow_id: str):
     """
     Get the status of a running workflow
     """
-    global temporal_client
+    if workflow_id not in workflow_status:
+        raise HTTPException(status_code=404, detail=f"Workflow {workflow_id} not found")
     
-    if not temporal_client:
-        raise HTTPException(status_code=503, detail="Temporal server unavailable")
-    
-    try:
-        # Get workflow handle
-        handle = temporal_client.get_workflow_handle(workflow_id)
-        
-        # Check if workflow is running
-        try:
-            result = await handle.query("status")
-            return WorkflowResponse(
-                status=result,
-                execution_id=workflow_id
-            )
-        except Exception as e:
-            # If we can't query, try to check if it's completed
-            try:
-                # This will raise an error if workflow is still running
-                result = await handle.result()
-                return WorkflowResponse(
-                    status="completed",
-                    execution_id=workflow_id,
-                    message="Workflow completed successfully"
-                )
-            except Exception as inner_e:
-                return WorkflowResponse(
-                    status=workflow_status.get(workflow_id, "unknown"),
-                    execution_id=workflow_id,
-                    error=str(e)
-                )
-    
-    except Exception as e:
-        logger.error(f"Error getting workflow status: {str(e)}")
-        raise HTTPException(status_code=404, detail=f"Workflow not found or error: {str(e)}")
+    return WorkflowResponse(
+        status=workflow_status.get(workflow_id, "unknown"),
+        execution_id=workflow_id
+    )
 
 @app.post("/api/workflows/{workflow_id}/stop", response_model=WorkflowResponse)
 async def stop_workflow(workflow_id: str):
     """
-    Stop a running workflow
+    Stop a running workflow and clean up all associated resources
     """
-    global temporal_client
+    global initialized_llms, chat_sessions
     
-    if not temporal_client:
-        raise HTTPException(status_code=503, detail="Temporal server unavailable")
+    if workflow_id not in workflow_status:
+        raise HTTPException(status_code=404, detail=f"Workflow {workflow_id} not found")
     
-    try:
-        # Get workflow handle
-        handle = temporal_client.get_workflow_handle(workflow_id)
-        
-        # Cancel the workflow
-        # await handle.cancel()
-        await handle.terminate()
-        
-        # Update status
-        workflow_status[workflow_id] = "terminated"
-        
+    if workflow_status[workflow_id] != "running":
         return WorkflowResponse(
-            status="terminated",
+            status=workflow_status[workflow_id],
             execution_id=workflow_id,
-            message="Workflow terminated successfully"
+            message=f"Workflow is already in {workflow_status[workflow_id]} state"
         )
     
-    except Exception as e:
-        logger.error(f"Error canceling workflow: {str(e)}")
-        raise HTTPException(status_code=500, detail=f"Failed to cancel workflow: {str(e)}")
+    logger.info(f"Stopping workflow {workflow_id} and cleaning up resources")
+    
+    # Clean up initialized LLMs for this workflow
+    if workflow_id in initialized_llms:
+        llm_count = len(initialized_llms[workflow_id])
+        logger.info(f"Cleaning up {llm_count} initialized LLM instances for workflow {workflow_id}")
+        
+        # For each provider, perform any specific cleanup needed
+        for node_id, llm_data in initialized_llms[workflow_id].items():
+            provider = llm_data.get('provider', 'unknown')
+            model_name = llm_data.get('model_name', 'unknown')
+            
+            try:
+                # Clean up Gemini models
+                if provider == 'gemini' and 'model_data' in llm_data:
+                    # Clear any chat sessions
+                    if 'chat_sessions' in llm_data['model_data']:
+                        session_count = len(llm_data['model_data']['chat_sessions'])
+                        logger.info(f"Clearing {session_count} chat sessions for {provider} model {model_name}")
+                        llm_data['model_data']['chat_sessions'].clear()
+                
+                logger.info(f"Successfully cleaned up {provider} model {model_name} for node {node_id}")
+            except Exception as e:
+                logger.error(f"Error cleaning up LLM for node {node_id}: {str(e)}")
+        
+        # Remove all LLMs for this workflow
+        initialized_llms.pop(workflow_id)
+        logger.info(f"Removed all LLM instances for workflow {workflow_id}")
+    
+    # Clean up chat sessions associated with this workflow
+    session_count = 0
+    sessions_to_remove = []
+    
+    for session_key in chat_sessions.keys():
+        if session_key.startswith(f"{workflow_id}:"):
+            sessions_to_remove.append(session_key)
+            session_count += 1
+    
+    for session_key in sessions_to_remove:
+        chat_sessions.pop(session_key)
+    
+    if session_count > 0:
+        logger.info(f"Removed {session_count} chat sessions for workflow {workflow_id}")
+    
+    # Update status
+    workflow_status[workflow_id] = "stopped"
+    
+    logger.info(f"Workflow {workflow_id} stopped and all resources cleaned up")
+    
+    return WorkflowResponse(
+        status="stopped",
+        execution_id=workflow_id,
+        message="Workflow stopped successfully and resources cleaned up"
+    )
 
 @app.post("/api/workflows/{workflow_id}/pause", response_model=WorkflowResponse)
 async def pause_workflow(workflow_id: str):
     """
-    Pause a running workflow (using Temporal signals)
+    Pause a running workflow
     """
-    global temporal_client
+    if workflow_id not in workflow_status:
+        raise HTTPException(status_code=404, detail=f"Workflow {workflow_id} not found")
     
-    if not temporal_client:
-        raise HTTPException(status_code=503, detail="Temporal server unavailable")
-    
-    try:
-        # Get workflow handle
-        handle = temporal_client.get_workflow_handle(workflow_id)
-        
-        # Send pause signal to the workflow
-        await handle.signal("pause")
-        
-        # Update status
-        workflow_status[workflow_id] = "paused"
-        
+    if workflow_status[workflow_id] != "running":
         return WorkflowResponse(
-            status="paused",
+            status=workflow_status[workflow_id],
             execution_id=workflow_id,
-            message="Workflow paused successfully"
+            message=f"Workflow is in {workflow_status[workflow_id]} state, cannot pause"
         )
     
-    except Exception as e:
-        logger.error(f"Error pausing workflow: {str(e)}")
-        raise HTTPException(status_code=500, detail=f"Failed to pause workflow: {str(e)}")
+    # Update status
+    workflow_status[workflow_id] = "paused"
+    
+    logger.info(f"Workflow {workflow_id} paused")
+    
+    return WorkflowResponse(
+        status="paused",
+        execution_id=workflow_id,
+        message="Workflow paused successfully"
+    )
 
 @app.post("/api/workflows/{workflow_id}/resume", response_model=WorkflowResponse)
 async def resume_workflow(workflow_id: str):
     """
-    Resume a paused workflow (using Temporal signals)
+    Resume a paused workflow
     """
-    global temporal_client
+    if workflow_id not in workflow_status:
+        raise HTTPException(status_code=404, detail=f"Workflow {workflow_id} not found")
     
-    if not temporal_client:
-        raise HTTPException(status_code=503, detail="Temporal server unavailable")
-    
-    try:
-        # Get workflow handle
-        handle = temporal_client.get_workflow_handle(workflow_id)
-        
-        # Send resume signal to the workflow
-        await handle.signal("resume")
-        
-        # Update status
-        workflow_status[workflow_id] = "running"
-        
+    if workflow_status[workflow_id] != "paused":
         return WorkflowResponse(
-            status="running",
+            status=workflow_status[workflow_id],
             execution_id=workflow_id,
-            message="Workflow resumed successfully"
+            message=f"Workflow is in {workflow_status[workflow_id]} state, cannot resume"
         )
     
-    except Exception as e:
-        logger.error(f"Error resuming workflow: {str(e)}")
-        raise HTTPException(status_code=500, detail=f"Failed to resume workflow: {str(e)}")
+    # Update status
+    workflow_status[workflow_id] = "running"
+    
+    logger.info(f"Workflow {workflow_id} resumed")
+    
+    return WorkflowResponse(
+        status="running",
+        execution_id=workflow_id,
+        message="Workflow resumed successfully"
+    )
+
+@app.post("/api/chat/message", response_model=ChatMessageResponse)
+async def send_chat_message(message_data: ChatMessageInput):
+    """
+    Send a chat message to a running workflow
+    """
+    global initialized_llms, chat_sessions
+    
+    workflow_id = message_data.workflow_id
+    session_id = message_data.session_id
+    message = message_data.message
+    # We'll only use node_id as a preference, not a requirement
+    preferred_node_id = message_data.node_id
+    
+    logger.info(f"Sending chat message to workflow {workflow_id}, session {session_id}")
+    logger.info(f"Message content: {message}")
+    
+    # Check if workflow exists and is running
+    if workflow_id not in workflow_status:
+        logger.error(f"Workflow {workflow_id} not found")
+        raise HTTPException(
+            status_code=404, 
+            detail=f"Workflow {workflow_id} not found"
+        )
+            
+    if workflow_status[workflow_id] != "running":
+        logger.error(f"Workflow {workflow_id} status is {workflow_status[workflow_id]}")
+        raise HTTPException(
+            status_code=400, 
+            detail=f"Workflow {workflow_id} is {workflow_status[workflow_id]}, not running"
+        )
+    
+    # Initialize session if needed
+    session_key = f"{workflow_id}:{session_id}"
+    if session_key not in chat_sessions:
+        chat_sessions[session_key] = {
+            "history": []
+        }
+    
+    # Add user message to history
+    chat_sessions[session_key]["history"].append({
+        "role": "user",
+        "content": message
+    })
+    
+    # First check if there are any LLMs for this workflow
+    if workflow_id not in initialized_llms or not initialized_llms[workflow_id]:
+        logger.warning(f"No LLMs initialized for workflow {workflow_id}")
+        return ChatMessageResponse(
+            status="success",
+            response=f"Echo: {message} (No LLMs initialized for this workflow)",
+            session_id=session_id
+        )
+    
+    # Determine which LLM node to use
+    selected_node_id = None
+    
+    # First try to use the preferred node (if specified and available)
+    if preferred_node_id and preferred_node_id in initialized_llms[workflow_id]:
+        selected_node_id = preferred_node_id
+        logger.info(f"Using preferred node {selected_node_id}")
+    else:
+        # If preferred node not available, use the first available LLM
+        available_nodes = list(initialized_llms[workflow_id].keys())
+        if available_nodes:
+            selected_node_id = available_nodes[0]
+            logger.info(f"Using first available LLM node: {selected_node_id}")
+        else:
+            logger.warning("No LLM nodes available")
+    
+    # If we found a node to use
+    if selected_node_id:
+        llm_data = initialized_llms[workflow_id][selected_node_id]
+        logger.info(f"Using initialized {llm_data['provider']} model for chat")
+        
+        try:
+            # Handle based on provider
+            if llm_data["provider"] == "gemini":
+                model_data = llm_data["model_data"]
+                model = model_data["model"]
+                
+                # Get or create a chat session
+                chat_key = f"{workflow_id}:{selected_node_id}:{session_id}"
+                if chat_key not in model_data["chat_sessions"]:
+                    model_data["chat_sessions"][chat_key] = model.start_chat(
+                        history=[]
+                    )
+                
+                chat = model_data["chat_sessions"][chat_key]
+                response = chat.send_message(message)
+                
+                ai_response = response.text
+                
+                # Add AI response to history
+                chat_sessions[session_key]["history"].append({
+                    "role": "assistant",
+                    "content": ai_response
+                })
+                
+                logger.info(f"Generated response: {ai_response[:50]}...")
+                
+                return ChatMessageResponse(
+                    status="success",
+                    response=ai_response,
+                    session_id=session_id
+                )
+            
+            else:
+                logger.warning(f"Unsupported LLM provider: {llm_data['provider']}")
+                return ChatMessageResponse(
+                    status="error",
+                    response="Unsupported LLM provider",
+                    session_id=session_id,
+                    error=f"LLM provider {llm_data['provider']} is not supported for chat"
+                )
+                
+        except Exception as e:
+            logger.error(f"Error generating chat response: {str(e)}")
+            return ChatMessageResponse(
+                status="error",
+                response=f"Error: {str(e)}",
+                session_id=session_id,
+                error=str(e)
+            )
+    
+    # If we couldn't find a node to use
+    logger.warning(f"No suitable LLM found for chat in workflow {workflow_id}")
+    return ChatMessageResponse(
+        status="success",
+        response=f"Echo: {message} (No suitable LLM found in workflow)",
+        session_id=session_id
+    )
 
 if __name__ == "__main__":
     import uvicorn

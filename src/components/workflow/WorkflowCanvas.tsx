@@ -30,6 +30,10 @@ import { NodeData } from '@/lib/store/workflow';
 import { WorkflowFormData } from './WorkflowDialog';
 import { createWorkflow, getWorkflow, updateWorkflow, getWorkflows } from '@/lib/workflows';
 import { nodeCatalog } from './nodeTypes';
+import { getApiKeyWithValue } from "@/lib/api-keys";
+import { supabase } from '@/lib/supabase';
+import { formatDistanceStrict } from 'date-fns';
+import { v4 as uuidv4 } from 'uuid';
 
 interface WorkflowCanvasProps {
   isActive: boolean;
@@ -65,6 +69,7 @@ export function WorkflowCanvas({ isActive, onClose, workflowId, newWorkflowData 
   const [activeTab, setActiveTab] = useState('canvas');
   const [isPanelVisible, setIsPanelVisible] = useState(true);
   const [workflowStatus, setWorkflowStatus] = useState<'idle' | 'running' | 'paused'>('idle');
+  const [isCreatingWorkflow, setIsCreatingWorkflow] = useState(false);
   
   // Add debounce for auto-saving
   const autoSaveTimeoutRef = useRef<NodeJS.Timeout | null>(null);
@@ -84,6 +89,7 @@ export function WorkflowCanvas({ isActive, onClose, workflowId, newWorkflowData 
     isReady,
     setIsReady,
     updateNodeData,
+    setWorkflowId,
   } = useWorkflowStore();
   
   // Add a ref to track if we need to focus the view
@@ -95,6 +101,15 @@ export function WorkflowCanvas({ isActive, onClose, workflowId, newWorkflowData 
       // Don't save if we're still in initial loading
       if (initialLoadRef.current) {
         console.log('Skipping save during initial load');
+        return;
+      }
+      
+      // Use existing workflowId from props, or the one we created locally
+      const existingId = workflowId || createdWorkflowId;
+      
+      // Prevent duplicate creation if already in progress
+      if (!existingId && isCreatingWorkflow) {
+        console.log('Workflow creation already in progress, skipping save.');
         return;
       }
       
@@ -127,79 +142,49 @@ export function WorkflowCanvas({ isActive, onClose, workflowId, newWorkflowData 
         edges: currentEdges
       };
 
-      // Use existing workflowId, or the one we already created
-      const existingId = workflowId || createdWorkflowId;
-
       if (existingId) {
         // Update existing workflow
         await updateWorkflow(existingId, flowData);
-        // Only show notification for manual saves, not auto-saves
         if (!isAutoSave) {
-          toast.success('Workflow saved successfully');
-        }
-      } else if (newWorkflowData) {
-        // We're dealing with a new workflow that's already been created by the WorkflowDialog
-        // Just do the first update - we'll need to fetch its ID first
-        
-        try {
-          // Try to find the workflow by name using the getWorkflows function
-          const workflows = await getWorkflows();
-          const matchingWorkflow = workflows.find((w) => 
-            w.name === newWorkflowData.name && 
-            w.description === newWorkflowData.description
-          );
-          
-          if (matchingWorkflow) {
-            // Update the existing workflow we just found
-            await updateWorkflow(matchingWorkflow.id, flowData);
-            setCreatedWorkflowId(matchingWorkflow.id);
-            
-            if (!isAutoSave) {
-              toast.success('Workflow updated successfully');
-            }
-          } else {
-            // Fallback: create a new workflow if somehow we couldn't find the one that should exist
-            console.warn('Could not find existing workflow, creating a new one');
-            createNewWorkflow();
-          }
-        } catch (error) {
-          console.error('Error finding workflow:', error);
-          // Fallback to creating a new one
-          createNewWorkflow();
+          toast.success('Workflow updated');
+        } else {
+          console.log('Workflow auto-saved');
         }
       } else {
-        // No existing ID and no new workflow data - create a brand new workflow
-        createNewWorkflow();
+        // Create new workflow
+        
+        // Set flag to indicate creation is starting
+        setIsCreatingWorkflow(true);
+        
+        const newWorkflow = await createWorkflow({
+          ...flowData,
+          description: newWorkflowData?.description || undefined, // Add description if available
+        });
+        
+        if (newWorkflow && newWorkflow.id) {
+          // Store the created workflow's ID locally
+          setCreatedWorkflowId(newWorkflow.id);
+          // *** IMPORTANT: Update the Zustand store with the new ID ***
+          useWorkflowStore.setState({ workflowId: newWorkflow.id });
+          
+          if (!isAutoSave) {
+            toast.success('Workflow created and saved');
+          } else {
+            console.log('Workflow auto-created and saved');
+          }
+        } else {
+          throw new Error("Failed to get ID from created workflow");
+        }
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error saving workflow:', error);
-      // Only show error notification for manual saves, not auto-saves
-      if (!isAutoSave) {
-        toast.error('Failed to save workflow');
-      }
+      // Error toast is shown in create/update functions
+    } finally {
+      // Reset creation flag after attempt
+      setIsCreatingWorkflow(false);
     }
   };
   
-  // Helper to create a new workflow
-  const createNewWorkflow = async () => {
-    const newWorkflow = await createWorkflow({
-      name: workflowName,
-      description: newWorkflowData?.description,
-      tags: tags,
-      is_active: isWorkflowActive,
-      nodes: useWorkflowStore.getState().nodes,
-      edges: useWorkflowStore.getState().edges
-    });
-    
-    // Store the created workflow's ID for future saves
-    if (newWorkflow && newWorkflow.id) {
-      setCreatedWorkflowId(newWorkflow.id);
-    }
-    
-    // Always show notification for new workflow creation
-    toast.success('Workflow created and saved');
-  };
-
   // Simple wrapper for manual saves
   const handleSaveWorkflow = () => saveWorkflow(false);
   
@@ -384,12 +369,16 @@ export function WorkflowCanvas({ isActive, onClose, workflowId, newWorkflowData 
           setIsWorkflowActive(data.is_active);
           setTags(data.tags || []);
           
+          // Store the workflow ID in the global state for components to access
+          setWorkflowId(workflowId);
+          
           // Initialize the flow with the saved nodes and edges
           if (data.nodes && data.edges) {
             setIsReady(false); // Temporarily disable while loading
             useWorkflowStore.setState({
               nodes: data.nodes,
-              edges: data.edges
+              edges: data.edges,
+              workflowId: workflowId  // Also set the workflowId in setState to ensure it's preserved
             });
             setIsReady(true);
             // Immediately flag that we need to center view
@@ -403,7 +392,7 @@ export function WorkflowCanvas({ isActive, onClose, workflowId, newWorkflowData 
     };
 
     loadWorkflow();
-  }, [workflowId, setIsReady]);
+  }, [workflowId, setIsReady, setWorkflowId]);
 
   // Single, fast-acting effect to center the view
   useEffect(() => {
@@ -473,6 +462,38 @@ export function WorkflowCanvas({ isActive, onClose, workflowId, newWorkflowData 
   // Workflow control handlers
   const handleStartWorkflow = async () => {
     try {
+      // Collect all nodes that need API keys
+      const nodes = useWorkflowStore.getState().nodes;
+      const llmNodes = nodes.filter(node => node.data?.llmConfig?.provider);
+      
+      // Store decrypted API keys
+      const apiKeys: Record<string, string> = {};
+      
+      // Fetch and decrypt API keys for all LLM nodes
+      if (llmNodes.length > 0) {
+        console.log(`Collecting API keys for ${llmNodes.length} LLM nodes`);
+        
+        for (const node of llmNodes) {
+          const apiKeyId = node.data?.llmConfig?.apiKeyId;
+          
+          if (apiKeyId && !apiKeys[apiKeyId]) {
+            try {
+              // Only fetch each key once
+              const keyData = await getApiKeyWithValue(apiKeyId);
+              
+              if (keyData && keyData.decrypted_key) {
+                apiKeys[apiKeyId] = keyData.decrypted_key;
+                console.log(`Retrieved API key for ${keyData.service}`);
+              }
+            } catch (error) {
+              console.error(`Error fetching API key ${apiKeyId}:`, error);
+            }
+          }
+        }
+        
+        console.log(`Successfully collected ${Object.keys(apiKeys).length} API keys`);
+      }
+      
       // Prepare workflow data to send to the backend
       const workflowData = {
         nodes: useWorkflowStore.getState().nodes,
@@ -480,7 +501,8 @@ export function WorkflowCanvas({ isActive, onClose, workflowId, newWorkflowData 
         name: workflowName,
         workflow_id: workflowId || createdWorkflowId,
         is_active: isWorkflowActive,
-        tags: tags
+        tags: tags,
+        api_keys: Object.keys(apiKeys).length > 0 ? apiKeys : undefined
       };
       
       // Make API call to start the workflow
@@ -497,7 +519,37 @@ export function WorkflowCanvas({ isActive, onClose, workflowId, newWorkflowData 
         throw new Error(errorData.detail || 'Failed to start workflow');
       }
       
-      const data = await response.json();
+      // Generate execution ID locally
+      const executionId = uuidv4();
+      console.log(`Generated local execution ID: ${executionId}`);
+      
+      // Insert execution record into Supabase - match the table structure exactly
+      try {
+        // Format current timestamp properly
+        const timestamp = new Date().toISOString();
+        
+        // Insert execution data following the exact table structure
+        const { data: executionData, error: executionError } = await supabase
+          .from('executions')
+          .insert({
+            id: executionId, // Use the locally generated ID
+            workflow_id: workflowId || createdWorkflowId,
+            workflow_name: workflowName,
+            status: 'running',
+            started_at: timestamp,
+            triggered_by: 'user'
+            // created_at and updated_at will be filled automatically by PostgreSQL
+          });
+        
+        if (executionError) {
+          console.error('Error saving execution to Supabase:', executionError);
+        } else {
+          console.log('Successfully saved workflow execution to Supabase');
+        }
+      } catch (dbError) {
+        console.error('Exception saving execution to Supabase:', dbError);
+        // Continue execution even if DB insert fails
+      }
       
       // Update workflow status
       setWorkflowStatus('running');
@@ -549,12 +601,13 @@ export function WorkflowCanvas({ isActive, onClose, workflowId, newWorkflowData 
   };
 
   const handleStopWorkflow = async () => {
+    const workflowIdentifier = workflowId || createdWorkflowId;
+    if (!workflowIdentifier) {
+      toast.error('Cannot stop workflow without an ID');
+      return;
+    }
+
     try {
-      const workflowIdentifier = workflowId || createdWorkflowId;
-      if (!workflowIdentifier) {
-        throw new Error('No workflow ID available');
-      }
-      
       // Make API call to stop the workflow
       const response = await fetch(`/api/workflows/${workflowIdentifier}/stop`, {
         method: 'POST',
@@ -565,13 +618,56 @@ export function WorkflowCanvas({ isActive, onClose, workflowId, newWorkflowData 
         throw new Error(errorData.detail || 'Failed to stop workflow');
       }
       
-      // Update workflow status
+      // Update workflow status in the UI
       setWorkflowStatus('idle');
       
       toast.info('Workflow stopped', {
         description: 'Your workflow has been stopped',
         duration: 3000
       });
+      
+      // Update the execution record in Supabase
+      try {
+        // Fetch the execution record to get started_at time
+        const { data: executionData, error: fetchError } = await supabase
+          .from('executions')
+          .select('started_at')
+          .eq('workflow_id', workflowIdentifier)
+          .eq('status', 'running')
+          .single();
+        
+        if (fetchError) {
+          console.error('Error fetching execution record for update:', fetchError);
+          // Don't block UI for this error
+        } else if (executionData && executionData.started_at) {
+          const stoppedAt = new Date();
+          const startedAt = new Date(executionData.started_at);
+          
+          // Calculate run time
+          const runTime = formatDistanceStrict(stoppedAt, startedAt);
+          
+          // Update the record
+          const { error: updateError } = await supabase
+            .from('executions')
+            .update({ 
+              status: 'stopped',
+              run_time: runTime
+            })
+            .eq('workflow_id', workflowIdentifier)
+            .eq('status', 'running');
+            
+          if (updateError) {
+            console.error('Error updating execution record in Supabase:', updateError);
+          } else {
+            console.log(`Successfully updated execution ${workflowIdentifier} status to stopped with run time: ${runTime}`);
+          }
+        } else {
+          console.warn(`Execution record ${workflowIdentifier} not found or missing started_at time.`);
+        }
+      } catch (dbError) {
+        console.error('Exception updating execution in Supabase:', dbError);
+      }
+
     } catch (error) {
       console.error('Error stopping workflow:', error);
       toast.error('Failed to stop workflow', {

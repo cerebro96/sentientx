@@ -172,6 +172,12 @@ function ExecutionsTable({
                           Pending
                         </Badge>
                       )}
+                      {execution.status === 'stopped' && (
+                        <Badge className="bg-gray-100 text-gray-800 hover:bg-gray-100 hover:text-gray-800">
+                          <div className="mr-1 h-2 w-2 rounded-full bg-gray-500" />
+                          Stopped
+                        </Badge>
+                      )}
                     </div>
                   </td>
                   <td className="p-4">{new Date(execution.started_at).toLocaleString()}</td>
@@ -272,7 +278,7 @@ function ExecutionFilters({ searchQuery, onSearchChange, statusFilter, onStatusF
             <div className="p-2">
               <div className="font-medium mb-2">Status</div>
               <div className="space-y-2">
-                {['success', 'failed', 'running', 'pending'].map((status) => (
+                {['success', 'failed', 'running', 'pending', 'stopped'].map((status) => (
                   <div key={status} className="flex items-center space-x-2">
                     <Checkbox
                       id={`status-${status}`}
@@ -284,6 +290,7 @@ function ExecutionFilters({ searchQuery, onSearchChange, statusFilter, onStatusF
                       {status === 'failed' && <X className="mr-1.5 h-3.5 w-3.5 text-red-500" />}
                       {status === 'running' && <div className="mr-1.5 h-2.5 w-2.5 rounded-full bg-blue-500" />}
                       {status === 'pending' && <div className="mr-1.5 h-2.5 w-2.5 rounded-full bg-yellow-500" />}
+                      {status === 'stopped' && <div className="mr-1.5 h-2.5 w-2.5 rounded-full bg-gray-500" />}
                       {status.charAt(0).toUpperCase() + status.slice(1)}
                     </Label>
                   </div>
@@ -467,7 +474,7 @@ export default function ExecutionsPage() {
                         <div className="p-2">
                           <div className="font-medium mb-2">Status</div>
                           <div className="space-y-2">
-                            {['success', 'failed', 'running', 'pending'].map((status) => (
+                            {['success', 'failed', 'running', 'pending', 'stopped'].map((status) => (
                               <div key={status} className="flex items-center space-x-2">
                                 <Checkbox
                                   id={`status-${status}`}
@@ -479,6 +486,7 @@ export default function ExecutionsPage() {
                                   {status === 'failed' && <X className="mr-1.5 h-3.5 w-3.5 text-red-500" />}
                                   {status === 'running' && <div className="mr-1.5 h-2.5 w-2.5 rounded-full bg-blue-500" />}
                                   {status === 'pending' && <div className="mr-1.5 h-2.5 w-2.5 rounded-full bg-yellow-500" />}
+                                  {status === 'stopped' && <div className="mr-1.5 h-2.5 w-2.5 rounded-full bg-gray-500" />}
                                   {status.charAt(0).toUpperCase() + status.slice(1)}
                                 </Label>
                               </div>

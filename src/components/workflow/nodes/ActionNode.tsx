@@ -12,6 +12,22 @@ import { LlmNodeModal } from '../llm-node-modal';
 import { RedisMemoryModal } from '../redis-memory-modal';
 import { AiAgentModal } from '../ai-agent-modal';
 import { useWorkflowStore } from '@/lib/store/workflow';
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter
+} from "@/components/ui/dialog";
+import { Textarea } from '@/components/ui/textarea';
+import { Input } from '@/components/ui/input';
+
+// Simple chat message interface
+interface ChatMessage {
+  role: 'user' | 'assistant';
+  content: string;
+  timestamp: Date;
+}
 
 function ActionNodeComponent({ id, data, selected }: NodeProps<NodeData>) {
   const [isChatModalOpen, setIsChatModalOpen] = useState(false);
@@ -19,6 +35,12 @@ function ActionNodeComponent({ id, data, selected }: NodeProps<NodeData>) {
   const [isMemoryModalOpen, setIsMemoryModalOpen] = useState(false);
   const [isAiAgentModalOpen, setIsAiAgentModalOpen] = useState(false);
   const [llmProvider, setLlmProvider] = useState<string>('');
+  
+  // Chat session state
+  const [isChatSessionOpen, setIsChatSessionOpen] = useState(false);
+  const [chatSessionId, setChatSessionId] = useState('');
+  const [chatMessages, setChatMessages] = useState<ChatMessage[]>([]);
+  const [currentMessage, setCurrentMessage] = useState('');
   
   // Check node types
   const isAIAgent = data.label === 'AI Agent';
@@ -87,10 +109,126 @@ function ActionNodeComponent({ id, data, selected }: NodeProps<NodeData>) {
   
   const handleChatButtonClick = (e: React.MouseEvent) => {
     e.stopPropagation();
-    toast.success('Chat interface opened', {
-      description: 'Users can now interact with your chat',
+    
+    // Generate session ID using secure random values (24 characters)
+    const generateSessionId = () => {
+      const crypto = window.crypto || (window as any).msCrypto;
+      const array = new Uint32Array(6);  // Increased array size for longer ID
+      crypto.getRandomValues(array);
+      
+      // Convert to base36 string and combine for a 24-character ID
+      return Array.from(array)
+        .map(num => num.toString(36).padStart(4, '0'))
+        .join('')
+        .substring(0, 24);
+    };
+    
+    const sessionId = generateSessionId();
+    setChatSessionId(sessionId);
+    
+    // Initialize chat with welcome message if available
+    const initialMessage = data.chatConfig?.initialMessage || "Hello! How can I assist you today?";
+    setChatMessages([{
+      role: 'assistant',
+      content: initialMessage,
+      timestamp: new Date()
+    }]);
+    
+    // Open chat session modal
+    setIsChatSessionOpen(true);
+    
+    toast.success('Chat session opened', {
+      description: `Session ID: ${sessionId}`,
       duration: 3000
     });
+  };
+  
+  const handleSendMessage = async () => {
+    if (!currentMessage.trim()) return;
+    
+    // Add user message to chat
+    const userMessage = {
+      role: 'user' as const,
+      content: currentMessage,
+      timestamp: new Date()
+    };
+    
+    setChatMessages(prev => [...prev, userMessage]);
+    setCurrentMessage('');
+    
+    try {
+      // Get the workflow ID directly from the store
+      const workflowState = useWorkflowStore.getState();
+      let workflowId = workflowState.workflowId;
+      
+      // Fallback if no workflow ID is set in the store
+      if (!workflowId) {
+        console.warn("No workflow ID found in state");
+        const nodeId = id.substring(0, 8);
+        workflowId = `workflow-${nodeId}`;
+      }
+      
+      console.log("Using workflow ID:", workflowId);
+      
+      // Prepare API request data
+      const requestData = {
+        message: currentMessage,
+        session_id: chatSessionId,
+        workflow_id: workflowId,
+        node_id: id
+      };
+      
+      console.log("Sending API request:", JSON.stringify(requestData));
+      
+      const response = await fetch('/api/chat/message', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(requestData),
+      });
+      
+      // Check for non-JSON responses first (like HTML error pages)
+      const contentType = response.headers.get('content-type');
+      let errorMessage = "Failed to get response from AI";
+      let jsonData;
+      
+      if (contentType && contentType.includes('application/json')) {
+        jsonData = await response.json();
+      } else {
+        // Handle non-JSON response (likely HTML error page)
+        const text = await response.text();
+        console.error("Received non-JSON response:", text.substring(0, 200) + "...");
+        throw new Error("Server returned a non-JSON response. The backend may be unavailable.");
+      }
+      
+      if (!response.ok) {
+        throw new Error(jsonData?.error || errorMessage);
+      }
+      
+      // Add assistant response to chat
+      const assistantMessage = {
+        role: 'assistant' as const,
+        content: jsonData.response || "No response received from server",
+        timestamp: new Date()
+      };
+      
+      setChatMessages(prev => [...prev, assistantMessage]);
+    } catch (error) {
+      console.error("Error sending message:", error);
+      
+      // Add error message to chat
+      const errorMessage = {
+        role: 'assistant' as const,
+        content: `Error: ${error instanceof Error ? error.message : "Failed to get response"}`,
+        timestamp: new Date()
+      };
+      
+      setChatMessages(prev => [...prev, errorMessage]);
+      toast.error("Failed to get AI response", {
+        description: error instanceof Error ? error.message : "Unknown error"
+      });
+    }
   };
   
   const handleLlmConfigSave = (configData: any) => {
@@ -403,8 +541,55 @@ function ActionNodeComponent({ id, data, selected }: NodeProps<NodeData>) {
           nodeId={id}
         />
       )}
+      
+      {/* Chat Session Modal */}
+      <Dialog open={isChatSessionOpen} onOpenChange={(open) => !open && setIsChatSessionOpen(false)}>
+        <DialogContent className="sm:max-w-[600px] max-h-[80vh] overflow-hidden flex flex-col">
+          <DialogHeader>
+            <DialogTitle className="text-xl font-bold flex items-center">
+              <MessageSquare className="h-5 w-5 mr-2" />
+              Chat Session (ID: {chatSessionId})
+            </DialogTitle>
+          </DialogHeader>
+          
+          <div className="flex-1 overflow-y-auto p-4 space-y-4 mb-4 max-h-[50vh]">
+            {chatMessages.map((msg, idx) => (
+              <div 
+                key={idx} 
+                className={cn(
+                  "flex flex-col p-3 rounded-lg max-w-[80%]",
+                  msg.role === 'user' 
+                    ? "ml-auto bg-blue-600 text-white" 
+                    : "mr-auto bg-slate-700 text-slate-100"
+                )}
+              >
+                <div className="text-sm">{msg.content}</div>
+                <div className="text-xs opacity-70 mt-1">
+                  {msg.timestamp.toLocaleTimeString()}
+                </div>
+              </div>
+            ))}
+          </div>
+          
+          <div className="flex gap-2 pt-2 border-t">
+            <Textarea
+              value={currentMessage}
+              onChange={(e) => setCurrentMessage(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' && !e.shiftKey) {
+                  e.preventDefault();
+                  handleSendMessage();
+                }
+              }}
+              placeholder="Type your message..."
+              className="flex-1 min-h-[60px] resize-none"
+            />
+            <Button onClick={handleSendMessage} className="self-end">Send</Button>
+          </div>
+        </DialogContent>
+      </Dialog>
     </>
   );
 }
 
-export const ActionNode = memo(ActionNodeComponent); 
+export const ActionNode = memo(ActionNodeComponent);
