@@ -41,3 +41,11 @@ ON "public"."executions"
 FOR SELECT
 TO authenticated
 USING (true);
+
+-- If you need update access too
+CREATE POLICY "Allow authenticated updates on executions"
+ON "public"."executions"
+FOR UPDATE
+TO authenticated
+USING (true)
+WITH CHECK (true);

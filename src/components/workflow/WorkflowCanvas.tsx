@@ -32,6 +32,8 @@ import { createWorkflow, getWorkflow, updateWorkflow, getWorkflows } from '@/lib
 import { nodeCatalog } from './nodeTypes';
 import { getApiKeyWithValue } from "@/lib/api-keys";
 import { supabase } from '@/lib/supabase';
+import { formatDistanceStrict } from 'date-fns';
+import { v4 as uuidv4 } from 'uuid';
 
 interface WorkflowCanvasProps {
   isActive: boolean;
@@ -517,10 +519,9 @@ export function WorkflowCanvas({ isActive, onClose, workflowId, newWorkflowData 
         throw new Error(errorData.detail || 'Failed to start workflow');
       }
       
-      const data = await response.json();
-      
-      // Get the execution ID from the API response
-      const executionId = data.execution_id;
+      // Generate execution ID locally
+      const executionId = uuidv4();
+      console.log(`Generated local execution ID: ${executionId}`);
       
       // Insert execution record into Supabase - match the table structure exactly
       try {
@@ -531,7 +532,7 @@ export function WorkflowCanvas({ isActive, onClose, workflowId, newWorkflowData 
         const { data: executionData, error: executionError } = await supabase
           .from('executions')
           .insert({
-            id: executionId,
+            id: executionId, // Use the locally generated ID
             workflow_id: workflowId || createdWorkflowId,
             workflow_name: workflowName,
             status: 'running',
@@ -600,12 +601,13 @@ export function WorkflowCanvas({ isActive, onClose, workflowId, newWorkflowData 
   };
 
   const handleStopWorkflow = async () => {
+    const workflowIdentifier = workflowId || createdWorkflowId;
+    if (!workflowIdentifier) {
+      toast.error('Cannot stop workflow without an ID');
+      return;
+    }
+
     try {
-      const workflowIdentifier = workflowId || createdWorkflowId;
-      if (!workflowIdentifier) {
-        throw new Error('No workflow ID available');
-      }
-      
       // Make API call to stop the workflow
       const response = await fetch(`/api/workflows/${workflowIdentifier}/stop`, {
         method: 'POST',
@@ -616,13 +618,56 @@ export function WorkflowCanvas({ isActive, onClose, workflowId, newWorkflowData 
         throw new Error(errorData.detail || 'Failed to stop workflow');
       }
       
-      // Update workflow status
+      // Update workflow status in the UI
       setWorkflowStatus('idle');
       
       toast.info('Workflow stopped', {
         description: 'Your workflow has been stopped',
         duration: 3000
       });
+      
+      // Update the execution record in Supabase
+      try {
+        // Fetch the execution record to get started_at time
+        const { data: executionData, error: fetchError } = await supabase
+          .from('executions')
+          .select('started_at')
+          .eq('workflow_id', workflowIdentifier)
+          .eq('status', 'running')
+          .single();
+        
+        if (fetchError) {
+          console.error('Error fetching execution record for update:', fetchError);
+          // Don't block UI for this error
+        } else if (executionData && executionData.started_at) {
+          const stoppedAt = new Date();
+          const startedAt = new Date(executionData.started_at);
+          
+          // Calculate run time
+          const runTime = formatDistanceStrict(stoppedAt, startedAt);
+          
+          // Update the record
+          const { error: updateError } = await supabase
+            .from('executions')
+            .update({ 
+              status: 'stopped',
+              run_time: runTime
+            })
+            .eq('workflow_id', workflowIdentifier)
+            .eq('status', 'running');
+            
+          if (updateError) {
+            console.error('Error updating execution record in Supabase:', updateError);
+          } else {
+            console.log(`Successfully updated execution ${workflowIdentifier} status to stopped with run time: ${runTime}`);
+          }
+        } else {
+          console.warn(`Execution record ${workflowIdentifier} not found or missing started_at time.`);
+        }
+      } catch (dbError) {
+        console.error('Exception updating execution in Supabase:', dbError);
+      }
+
     } catch (error) {
       console.error('Error stopping workflow:', error);
       toast.error('Failed to stop workflow', {
