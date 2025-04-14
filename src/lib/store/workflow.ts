@@ -53,6 +53,7 @@ export type RFState = {
   edges: Edge[];
   selectedNode: Node<NodeData> | null;
   isReady: boolean;
+  workflowId: string | null;
   onNodesChange: (changes: NodeChange[]) => void;
   onEdgesChange: (changes: EdgeChange[]) => void;
   onConnect: (connection: Connection) => void;
@@ -63,6 +64,7 @@ export type RFState = {
   setWorkflow: (nodes: Node<NodeData>[], edges: Edge[]) => void;
   resetWorkflow: () => void;
   setIsReady: (isReady: boolean) => void;
+  setWorkflowId: (id: string | null) => void;
 };
 
 // Create the store with the immer middleware
@@ -72,6 +74,7 @@ export const useWorkflowStore = create<RFState>()(
     edges: initialEdges,
     selectedNode: null,
     isReady: false,
+    workflowId: null,
 
     onNodesChange: (changes) => {
       set((state) => {
@@ -147,12 +150,19 @@ export const useWorkflowStore = create<RFState>()(
         state.nodes = initialNodes;
         state.edges = initialEdges;
         state.selectedNode = null;
+        state.workflowId = null;
       });
     },
 
     setIsReady: (isReady) => {
       set((state) => {
         state.isReady = isReady;
+      });
+    },
+    
+    setWorkflowId: (id) => {
+      set((state) => {
+        state.workflowId = id;
       });
     },
   }))

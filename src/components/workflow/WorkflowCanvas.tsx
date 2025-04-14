@@ -30,6 +30,7 @@ import { NodeData } from '@/lib/store/workflow';
 import { WorkflowFormData } from './WorkflowDialog';
 import { createWorkflow, getWorkflow, updateWorkflow, getWorkflows } from '@/lib/workflows';
 import { nodeCatalog } from './nodeTypes';
+import { getApiKeyWithValue } from "@/lib/api-keys";
 
 interface WorkflowCanvasProps {
   isActive: boolean;
@@ -84,6 +85,7 @@ export function WorkflowCanvas({ isActive, onClose, workflowId, newWorkflowData 
     isReady,
     setIsReady,
     updateNodeData,
+    setWorkflowId,
   } = useWorkflowStore();
   
   // Add a ref to track if we need to focus the view
@@ -384,12 +386,16 @@ export function WorkflowCanvas({ isActive, onClose, workflowId, newWorkflowData 
           setIsWorkflowActive(data.is_active);
           setTags(data.tags || []);
           
+          // Store the workflow ID in the global state for components to access
+          setWorkflowId(workflowId);
+          
           // Initialize the flow with the saved nodes and edges
           if (data.nodes && data.edges) {
             setIsReady(false); // Temporarily disable while loading
             useWorkflowStore.setState({
               nodes: data.nodes,
-              edges: data.edges
+              edges: data.edges,
+              workflowId: workflowId  // Also set the workflowId in setState to ensure it's preserved
             });
             setIsReady(true);
             // Immediately flag that we need to center view
@@ -403,7 +409,7 @@ export function WorkflowCanvas({ isActive, onClose, workflowId, newWorkflowData 
     };
 
     loadWorkflow();
-  }, [workflowId, setIsReady]);
+  }, [workflowId, setIsReady, setWorkflowId]);
 
   // Single, fast-acting effect to center the view
   useEffect(() => {
@@ -473,16 +479,49 @@ export function WorkflowCanvas({ isActive, onClose, workflowId, newWorkflowData 
   // Workflow control handlers
   const handleStartWorkflow = async () => {
     try {
+      // Collect all nodes that need API keys
+      const nodes = useWorkflowStore.getState().nodes;
+      const llmNodes = nodes.filter(node => node.data?.llmConfig?.provider);
+      
+      // Store decrypted API keys
+      const apiKeys: Record<string, string> = {};
+      
+      // Fetch and decrypt API keys for all LLM nodes
+      if (llmNodes.length > 0) {
+        //console.log(`Collecting API keys for ${llmNodes.length} LLM nodes`);
+        
+        for (const node of llmNodes) {
+          const apiKeyId = node.data?.llmConfig?.apiKeyId;
+          
+          if (apiKeyId && !apiKeys[apiKeyId]) {
+            try {
+              // Only fetch each key once
+              const keyData = await getApiKeyWithValue(apiKeyId);
+              
+              if (keyData && keyData.decrypted_key) {
+                apiKeys[apiKeyId] = keyData.decrypted_key;
+                //console.log(`Retrieved API key for ${keyData.service}`);
+              }
+            } catch (error) {
+              console.error(`Error fetching API key ${apiKeyId}:`, error);
+            }
+          }
+        }
+        
+        //console.log(`Successfully collected ${Object.keys(apiKeys).length} API keys`);
+      }
+      
       // Prepare workflow data to send to the backend
       const workflowData = {
         nodes: useWorkflowStore.getState().nodes,
         edges: useWorkflowStore.getState().edges,
         name: workflowName,
-        workflow_id: workflowId || createdWorkflowId,
+        workflow_id: workflowId,
         is_active: isWorkflowActive,
-        tags: tags
+        tags: tags,
+        api_keys: Object.keys(apiKeys).length > 0 ? apiKeys : undefined
       };
-      
+      //console.log(apiKeys);
       // Make API call to start the workflow
       const response = await fetch('/api/workflows/start', {
         method: 'POST',

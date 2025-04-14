@@ -156,20 +156,79 @@ function ActionNodeComponent({ id, data, selected }: NodeProps<NodeData>) {
     setChatMessages(prev => [...prev, userMessage]);
     setCurrentMessage('');
     
-    // TODO: Replace with actual API call to backend
-    // Simulate AI response after a short delay
-    setTimeout(() => {
+    try {
+      // Get the workflow ID directly from the store
+      const workflowState = useWorkflowStore.getState();
+      let workflowId = workflowState.workflowId;
+      
+      // Fallback if no workflow ID is set in the store
+      if (!workflowId) {
+        console.warn("No workflow ID found in state");
+        const nodeId = id.substring(0, 8);
+        workflowId = `workflow-${nodeId}`;
+      }
+      
+      console.log("Using workflow ID:", workflowId);
+      
+      // Prepare API request data
+      const requestData = {
+        message: currentMessage,
+        session_id: chatSessionId,
+        workflow_id: workflowId,
+        node_id: id
+      };
+      
+      console.log("Sending API request:", JSON.stringify(requestData));
+      
+      const response = await fetch('/api/chat/message', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(requestData),
+      });
+      
+      // Check for non-JSON responses first (like HTML error pages)
+      const contentType = response.headers.get('content-type');
+      let errorMessage = "Failed to get response from AI";
+      let jsonData;
+      
+      if (contentType && contentType.includes('application/json')) {
+        jsonData = await response.json();
+      } else {
+        // Handle non-JSON response (likely HTML error page)
+        const text = await response.text();
+        console.error("Received non-JSON response:", text.substring(0, 200) + "...");
+        throw new Error("Server returned a non-JSON response. The backend may be unavailable.");
+      }
+      
+      if (!response.ok) {
+        throw new Error(jsonData?.error || errorMessage);
+      }
+      
+      // Add assistant response to chat
       const assistantMessage = {
         role: 'assistant' as const,
-        content: `This is a simulated response to: "${currentMessage}"`,
+        content: jsonData.response || "No response received from server",
         timestamp: new Date()
       };
+      
       setChatMessages(prev => [...prev, assistantMessage]);
-    }, 1000);
-    
-    // For actual implementation:
-    // 1. Call your backend API with the workflow ID, node ID, session ID, and message
-    // 2. Update the chat messages with the AI's response
+    } catch (error) {
+      console.error("Error sending message:", error);
+      
+      // Add error message to chat
+      const errorMessage = {
+        role: 'assistant' as const,
+        content: `Error: ${error instanceof Error ? error.message : "Failed to get response"}`,
+        timestamp: new Date()
+      };
+      
+      setChatMessages(prev => [...prev, errorMessage]);
+      toast.error("Failed to get AI response", {
+        description: error instanceof Error ? error.message : "Unknown error"
+      });
+    }
   };
   
   const handleLlmConfigSave = (configData: any) => {
