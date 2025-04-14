@@ -5,7 +5,7 @@ export interface Execution {
   id: string
   workflow_id: string
   workflow_name: string
-  status: 'success' | 'failed' | 'running' | 'pending'
+  status: 'success' | 'failed' | 'running' | 'pending' | 'stopped'
   started_at: string
   run_time: string
   triggered_by: string
