@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -9,14 +9,24 @@ import { Textarea } from "@/components/ui/textarea";
 import { Switch } from "@/components/ui/switch";
 import { toast } from 'sonner';
 import { createWorkflow } from '@/lib/workflows';
-import { Tag, X, Plus, Send, MessageSquare } from 'lucide-react';
+import { Tag, X, Plus, Send, MessageSquare, Bot } from 'lucide-react';
 import { Separator } from '@/components/ui/separator';
+import { ScrollArea } from "@/components/ui/scroll-area";
+import { v4 as uuidv4 } from 'uuid';
 
 export interface WorkflowFormData {
   name: string;
   description: string;
   isActive: boolean;
   tags: string[];
+  systemPrompt?: string;
+  model?: string;
+  apiKeyId?: string;
+}
+
+interface ChatMessage {
+  role: 'user' | 'assistant';
+  content: string;
 }
 
 interface WorkflowDialogProps {
@@ -33,6 +43,29 @@ export function WorkflowDialog({ isOpen, onClose, onWorkflowCreated }: WorkflowD
   const [tagInput, setTagInput] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [chatMessage, setChatMessage] = useState('');
+  const [chatHistory, setChatHistory] = useState<ChatMessage[]>([]);
+  const [isChatLoading, setIsChatLoading] = useState(false);
+  const [builderSessionId, setBuilderSessionId] = useState('');
+  const [isReadyToCreate, setIsReadyToCreate] = useState(false);
+  const [finalWorkflowData, setFinalWorkflowData] = useState<any>(null);
+  const scrollAreaRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (isOpen) {
+      const newSessionId = uuidv4();
+      setBuilderSessionId(newSessionId);
+      sendBuilderMessage('Start', newSessionId);
+      setChatHistory([]);
+      setIsReadyToCreate(false);
+      setFinalWorkflowData(null);
+    }
+  }, [isOpen]);
+  
+  useEffect(() => {
+    if (scrollAreaRef.current) {
+      scrollAreaRef.current.scrollTo({ top: scrollAreaRef.current.scrollHeight, behavior: 'smooth' });
+    }
+  }, [chatHistory]);
 
   const handleTagInputKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === 'Enter' && tagInput.trim()) {
@@ -52,53 +85,100 @@ export function WorkflowDialog({ isOpen, onClose, onWorkflowCreated }: WorkflowD
     setTags(tags.filter(tag => tag !== tagToRemove));
   };
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    
-    if (!name.trim()) {
-      toast.error("Workflow name is required");
+  const createWorkflowFromChat = () => {
+    if (!finalWorkflowData) {
+      toast.error("Workflow data not ready from AI builder.");
       return;
     }
-
-    setIsLoading(true);
-
-    try {
+    
+    console.log("Populating form with AI data:", finalWorkflowData);
+    
+    setName(finalWorkflowData.name || '');
+    setDescription(finalWorkflowData.description || '');
+    setTags(finalWorkflowData.tags || []);
+    
+    onWorkflowCreated({
+      name: finalWorkflowData.name || '',
+      description: finalWorkflowData.description || '',
+      isActive,
+      tags: finalWorkflowData.tags || [],
+      systemPrompt: finalWorkflowData.system_prompt,
+      model: finalWorkflowData.model,
+      apiKeyId: finalWorkflowData.apiKeyId
+    });
+    
+    toast.info("Form populated with AI suggestions. Review and click 'Create Workflow'.");
+  };
+  
+  const handleManualSubmit = (e: React.FormEvent) => {
+     e.preventDefault();
+     if (!name.trim()) {
+       toast.error("Workflow name is required");
+       return;
+     }
       onWorkflowCreated({
         name: name.trim(),
         description: description.trim(),
         isActive,
         tags
       });
+   };
+
+  const sendBuilderMessage = async (messageToSend: string, currentSessionId: string) => {
+    if (!messageToSend.trim() || !currentSessionId) return;
+
+    setChatHistory(prev => [...prev, { role: 'user', content: messageToSend }]);
+    setIsChatLoading(true);
+    setChatMessage('');
+
+    try {
+      const response = await fetch('/api/builder/chat', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ message: messageToSend, session_id: currentSessionId }),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.detail || 'Failed to get response from AI builder');
+      }
+
+      const data = await response.json();
+
+      setChatHistory(prev => [...prev, { role: 'assistant', content: data.response }]);
       
-      // Reset form
-      setName('');
-      setDescription('');
-      setIsActive(true);
-      setTags([]);
+      if (data.state) {
+         setIsReadyToCreate(data.state.ready_to_create || false);
+         if (data.state.ready_to_create && data.state.workflow_data) {
+            setFinalWorkflowData(data.state.workflow_data);
+         }
+      }
       
     } catch (error: any) {
-      console.error("Failed to handle workflow creation:", error);
-      toast.error("An error occurred while creating the workflow");
+      console.error("Error communicating with AI builder:", error);
+      toast.error("Error getting response from AI builder");
+      setChatHistory(prev => [...prev, { role: 'assistant', content: `Error: ${error.message}` }]);
     } finally {
-      setIsLoading(false);
+      setIsChatLoading(false);
     }
   };
 
   const handleSendChatMessage = () => {
-    console.log("Sending chat message:", chatMessage);
-    setChatMessage('');
+      if (chatMessage.trim() && builderSessionId) {
+          sendBuilderMessage(chatMessage, builderSessionId);
+      }
   };
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="sm:max-w-[800px] p-0 flex flex-col h-[70vh]">
+      <DialogContent className="sm:max-w-4xl p-0 flex flex-col h-[70vh]">
         <div className="flex flex-1 overflow-hidden">
           <div className="w-1/2 p-6 border-r overflow-y-auto flex flex-col">
-            <form onSubmit={handleSubmit} className="flex flex-col h-full">
+            <form onSubmit={handleManualSubmit} className="flex flex-col h-full">
               <DialogHeader className="flex-shrink-0">
                 <DialogTitle>Create New Workflow</DialogTitle>
                 <DialogDescription>
-                  Create a new AI workflow. Give it a name and description to get started.
+                  Fill in the details manually or use the AI builder on the right.
                 </DialogDescription>
               </DialogHeader>
               <div className="grid gap-4 py-4 flex-grow">
@@ -175,7 +255,7 @@ export function WorkflowDialog({ isOpen, onClose, onWorkflowCreated }: WorkflowD
                   Cancel
                 </Button>
                 <Button type="submit" disabled={isLoading || !name.trim()}>
-                  {isLoading ? "Creating..." : "Create Workflow"}
+                  {isLoading ? "Saving..." : "Create Workflow"}
                 </Button>
               </DialogFooter>
             </form>
@@ -187,23 +267,52 @@ export function WorkflowDialog({ isOpen, onClose, onWorkflowCreated }: WorkflowD
               <h3 className="text-lg font-semibold">AI Workflow Builder</h3>
             </div>
             
-            <div className="flex-grow border rounded-md p-4 mb-4 bg-background overflow-y-auto">
-              <p className="text-sm text-muted-foreground">
-                Chat with the AI to help build your workflow. Start by describing what you want to achieve.
-                (Chat functionality not implemented yet)
-              </p>
-            </div>
+            <ScrollArea className="flex-grow border rounded-md p-4 mb-4 bg-background" ref={scrollAreaRef}>
+              {chatHistory.map((msg, index) => (
+                <div key={index} className={`flex mb-3 ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
+                  <div 
+                    className={`max-w-[80%] p-2 rounded-lg text-sm ${ 
+                      msg.role === 'user' 
+                      ? 'bg-primary text-primary-foreground' 
+                      : 'bg-secondary text-secondary-foreground'
+                    }`}
+                  >
+                    {msg.content}
+                  </div>
+                </div>
+              ))}
+              {isChatLoading && (
+                 <div className="flex justify-start mb-3">
+                   <div className="bg-secondary text-secondary-foreground p-2 rounded-lg text-sm animate-pulse">
+                     Thinking...
+                   </div>
+                 </div>
+              )}
+              {isReadyToCreate && (
+                 <div className="mt-4 text-center">
+                    <Button onClick={createWorkflowFromChat} size="sm">
+                       <Bot className="mr-2 h-4 w-4" />
+                       Create Workflow from Chat
+                    </Button>
+                 </div>
+              )}
+            </ScrollArea>
             
-            <div className="flex gap-2 items-center">
+            <div className="flex gap-2 items-center flex-shrink-0">
               <Input
                 value={chatMessage}
                 onChange={(e) => setChatMessage(e.target.value)}
                 placeholder="Describe your workflow goal..."
                 className="flex-1"
-                onKeyDown={(e) => e.key === 'Enter' && handleSendChatMessage()}
+                onKeyDown={(e) => e.key === 'Enter' && !isChatLoading && handleSendChatMessage()}
+                disabled={isChatLoading}
               />
-              <Button onClick={handleSendChatMessage} size="icon">
-                <Send className="h-4 w-4" />
+              <Button onClick={handleSendChatMessage} size="icon" disabled={isChatLoading || !chatMessage.trim()}>
+                {isChatLoading ? (
+                   <div className="h-4 w-4 border-2 border-background border-t-primary rounded-full animate-spin"></div>
+                 ) : (
+                   <Send className="h-4 w-4" />
+                 )}
               </Button>
             </div>
           </div>
