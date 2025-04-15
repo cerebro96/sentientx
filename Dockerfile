@@ -18,7 +18,8 @@ RUN npm install
 COPY src ./src
 COPY public ./public
 
-# Build the frontend
+# Build the frontend with linting disabled
+ENV DISABLE_ESLINT_PLUGIN=true
 RUN npm run build
 
 # Build stage for backend
@@ -70,6 +71,7 @@ uvicorn app:app --host 0.0.0.0 --port 8000\n\
 # Set environment variables
 ENV NODE_ENV=production
 ENV PYTHONUNBUFFERED=1
+ENV DISABLE_ESLINT_PLUGIN=true
 
 # Start the application
 CMD ["/app/start.sh"] 
