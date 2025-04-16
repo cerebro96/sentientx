@@ -3,9 +3,9 @@ import { NextRequest, NextResponse } from 'next/server';
 // Add a simple GET handler to verify the route is reachable
 export async function GET(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  context: { params: { id: string } }
 ) {
-  const webhookId = params.id;
+  const webhookId = context.params.id;
   console.log("GET request received for webhook:", webhookId);
   
   return NextResponse.json({
@@ -17,9 +17,9 @@ export async function GET(
 
 export async function POST(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  context: { params: { id: string } }
 ) {
-  const webhookId = params.id;
+  const webhookId = context.params.id;
   console.log("POST request received for webhook:", webhookId);
   
   try {
