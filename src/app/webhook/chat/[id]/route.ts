@@ -17,9 +17,9 @@ export async function GET(
 
 export async function POST(
   request: NextRequest,
-  context: { params: { id: string } }
+  context: { params: Promise<{ id: string }> }
 ) {
-  const webhookId = context.params.id;
+  const webhookId = (await context.params).id;
   console.log("POST request received for webhook:", webhookId);
   
   try {
