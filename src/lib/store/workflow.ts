@@ -40,6 +40,12 @@ export type NodeData = {
     auth?: string;
     chatId?: string;
   };
+  webhookConfig?: {
+    webhookUrl?: string;
+    isOneoff?: boolean;
+    webhookId?: string;
+    apiEnabled?: boolean;
+  };
 };
 
 // Define initial nodes with proper types
