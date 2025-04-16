@@ -350,7 +350,13 @@ function ActionNodeComponent({ id, data, selected }: NodeProps<NodeData>) {
       // Get current workflow ID from the store
       const workflowId = useWorkflowStore.getState().workflowId;
       
-      console.log('Saving Webhook Response configuration:', configData);
+      console.log('Saving Webhook Response configuration:', {
+        webhookUrl: configData.webhookUrl,
+        isOneoff: configData.isOneoff,
+        webhookId: configData.webhookId,
+        apiEnabled: configData.apiEnabled,
+        workflowId
+      });
       
       // Update the node data
       updateNodeData(id, {
@@ -364,7 +370,7 @@ function ActionNodeComponent({ id, data, selected }: NodeProps<NodeData>) {
       });
       
       toast.success('Webhook configuration updated', {
-        description: `Webhook URL: ${configData.webhookUrl || 'Not set'}`,
+        description: `API ${configData.apiEnabled ? 'enabled' : 'disabled'}`,
         duration: 3000
       });
     }

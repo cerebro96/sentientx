@@ -1,0 +1,97 @@
+import { NextRequest, NextResponse } from 'next/server';
+
+// Add a simple GET handler to verify the route is reachable
+export async function GET(
+  request: NextRequest,
+  { params }: { params: { id: string } }
+) {
+  const webhookId = params.id;
+  console.log("GET request received for webhook:", webhookId);
+  
+  return NextResponse.json({
+    status: 'success',
+    message: 'Webhook endpoint is working',
+    webhook_id: webhookId
+  });
+}
+
+export async function POST(
+  request: NextRequest,
+  { params }: { params: { id: string } }
+) {
+  const webhookId = params.id;
+  console.log("POST request received for webhook:", webhookId);
+  
+  try {
+    console.log("Request headers:", Object.fromEntries(request.headers.entries()));
+    
+    // Get the request body
+    const body = await request.json();
+    console.log("Request body:", JSON.stringify(body));
+    
+    const { message, workflow_id } = body;
+    
+    // Validate required fields
+    if (!message) {
+      console.log("Error: Message is required");
+      return NextResponse.json({ error: 'Message is required' }, { status: 400 });
+    }
+    
+    if (!workflow_id) {
+      console.log("Error: workflow_id is required");
+      return NextResponse.json({ error: 'workflow_id is required' }, { status: 400 });
+    }
+    
+    console.log("workflow_id", workflow_id);
+    
+    // Generate a session ID if not provided
+    const finalSessionId = webhookId;
+    console.log("Using session ID:", finalSessionId);
+    
+    // Forward the message to the chat message API
+    console.log("Forwarding to backend API...");
+    
+    // Get backend URL from environment or use default
+    const backendUrl = process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:8000';
+    const apiUrl = `${backendUrl}/api/chat/message`;
+    console.log("API URL:", apiUrl);
+    
+    const payload = {
+      message,
+      session_id: finalSessionId,
+      workflow_id,
+      node_id: webhookId // Use webhookId as node_id if specific node is needed
+    };
+    console.log("Payload:", JSON.stringify(payload));
+    
+    const chatApiResponse = await fetch(apiUrl, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(payload),
+    });
+    
+    console.log("Backend response status:", chatApiResponse.status);
+    
+    if (!chatApiResponse.ok) {
+      const errorText = await chatApiResponse.text();
+      console.error('Error from chat API:', errorText);
+      return NextResponse.json({ error: 'Error processing request' }, { status: 500 });
+    }
+    
+    // Return the response directly
+    const chatResponse = await chatApiResponse.json();
+    console.log("Response received:", JSON.stringify(chatResponse));
+    
+    return NextResponse.json({
+      status: 'success',
+      response: chatResponse.response,
+      session_id: finalSessionId
+    });
+    
+  } catch (error) {
+    console.error('Error processing webhook request:', error);
+    return NextResponse.json({ error: 'Internal server error', details: String(error) }, { status: 500 });
+  }
+} 

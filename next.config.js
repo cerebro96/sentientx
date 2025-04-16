@@ -5,12 +5,13 @@ const nextConfig = {
   eslint: {
     ignoreDuringBuilds: true,
   },
-  // Add rewrites to proxy API requests to the backend
+  // Configure rewrites to handle both local and backend API routes
   async rewrites() {
     return [
+      // Then, send all /api/* routes to the backend
       {
         source: '/api/:path*',
-        destination: `${process.env.NEXT_PUBLIC_BACKEND_URL}/api/:path*`,
+        destination: `${process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:8000'}/api/:path*`,
       },
     ];
   },
