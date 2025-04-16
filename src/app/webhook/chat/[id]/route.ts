@@ -3,9 +3,9 @@ import { NextRequest, NextResponse } from 'next/server';
 // Add a simple GET handler to verify the route is reachable
 export async function GET(
   request: NextRequest,
-  context: { params: { id: string } }
+  context: { params: Promise<{ id: string }> }
 ) {
-  const webhookId = context.params.id;
+  const webhookId = (await context.params).id;
   console.log("GET request received for webhook:", webhookId);
   
   return NextResponse.json({
