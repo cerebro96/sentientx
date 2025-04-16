@@ -12,11 +12,11 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Checkbox } from "@/components/ui/checkbox";
 import { Switch } from "@/components/ui/switch";
-import { Copy, Check, ExternalLink } from "lucide-react";
+import { Copy, Check, AlertCircle } from "lucide-react";
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
+import { useWorkflowStore } from '@/lib/store/workflow';
 
 interface WebhookResponseModalProps {
   isOpen: boolean;
@@ -31,8 +31,10 @@ export function WebhookResponseModal({ isOpen, onClose, nodeId, nodeData, onSave
   const [isOneoff, setIsOneoff] = useState(false);
   const [webhookId, setWebhookId] = useState(() => generateRandomId());
   const [copied, setCopied] = useState(false);
-  const [apiEnabled, setApiEnabled] = useState(true);
-
+  const [apiEnabled, setApiEnabled] = useState(false);
+  const [isWorkflowRunning, setIsWorkflowRunning] = useState(false);
+  const [hasInteracted, setHasInteracted] = useState(false);
+  
   // Generate a random webhook ID using cryptographically secure random values
   function generateRandomId() {
     // Use Web Crypto API for secure random values
@@ -50,21 +52,64 @@ export function WebhookResponseModal({ isOpen, onClose, nodeId, nodeData, onSave
   // Load existing data when modal opens
   useEffect(() => {
     if (isOpen) {
-      console.log('Webhook Response modal opened with nodeData:', nodeData);
+      // Reset workflow running state
+      setIsWorkflowRunning(false);
       
-      // Only update state if we have actual data
+      // Reset interaction flag when modal opens
+      if (!hasInteracted) {
+        // Always start with API off on first interaction
+        setApiEnabled(false);
+      }
+      
+      // Load stored settings
       if (nodeData && Object.keys(nodeData).length > 0) {
         setWebhookUrl(nodeData.webhookUrl || '');
         setIsOneoff(nodeData.isOneoff || false);
-        setApiEnabled(nodeData.apiEnabled !== undefined ? nodeData.apiEnabled : true);
         
         // Only set webhookId if it exists, otherwise keep the generated one
         if (nodeData.webhookId) {
           setWebhookId(nodeData.webhookId);
         }
+        
+        // If user has interacted with the modal before, respect saved API state
+        if (hasInteracted && nodeData.apiEnabled) {
+          // Check workflow status
+          const workflowId = useWorkflowStore.getState().workflowId;
+          if (workflowId) {
+            fetch(`/api/workflows/${workflowId}/status`)
+              .then(response => response.json())
+              .then(data => {
+                const isRunning = data.status === 'running';
+                setIsWorkflowRunning(isRunning);
+                
+                // Only enable API if workflow is running AND API was saved as enabled
+                if (isRunning && nodeData.apiEnabled) {
+                  setApiEnabled(true);
+                }
+              })
+              .catch(error => {
+                console.error("Error checking workflow status:", error);
+                setIsWorkflowRunning(false);
+              });
+          }
+        } else {
+          // Still check workflow status even if not loading API state
+          const workflowId = useWorkflowStore.getState().workflowId;
+          if (workflowId) {
+            fetch(`/api/workflows/${workflowId}/status`)
+              .then(response => response.json())
+              .then(data => {
+                setIsWorkflowRunning(data.status === 'running');
+              })
+              .catch(error => {
+                console.error("Error checking workflow status:", error);
+                setIsWorkflowRunning(false);
+              });
+          }
+        }
       }
     }
-  }, [isOpen, nodeData]);
+  }, [isOpen, nodeData, hasInteracted]);
 
   const handleCopyUrl = () => {
     navigator.clipboard.writeText(apiUrl);
@@ -73,16 +118,41 @@ export function WebhookResponseModal({ isOpen, onClose, nodeId, nodeData, onSave
     toast.success("API URL copied to clipboard");
   };
 
+  const handleApiToggle = (value: boolean) => {
+    if (value && !isWorkflowRunning) {
+      toast.error("Cannot enable API", {
+        description: "Workflow must be running to enable the API endpoint."
+      });
+      return;
+    }
+    setApiEnabled(value);
+    setHasInteracted(true); // Mark as interacted when user toggles API
+  };
+
   const handleSave = () => {
+    // Mark as interacted when user saves
+    setHasInteracted(true);
+    
+    // Always respect user's choice when workflow is running
+    // If workflow is not running, API must be disabled
+    const finalApiState = isWorkflowRunning ? apiEnabled : false;
+    
     const webhookResponseConfig = {
       webhookUrl,
       isOneoff,
       webhookId,
-      apiEnabled
+      apiEnabled: finalApiState
     };
     
     if (onSave) {
       onSave(webhookResponseConfig);
+      
+      // Show a toast if API couldn't be enabled due to workflow not running
+      if (apiEnabled && !isWorkflowRunning) {
+        toast.warning("API endpoint saved as disabled", {
+          description: "Workflow must be running for the API endpoint to be enabled."
+        });
+      }
     }
     
     onClose();
@@ -99,18 +169,34 @@ export function WebhookResponseModal({ isOpen, onClose, nodeId, nodeData, onSave
         </DialogHeader>
 
         <div className="grid gap-5 py-4">
-          <div className="flex items-center justify-between">
-            <Label htmlFor="api-enabled" className="font-medium">
-              API Endpoint Enabled
-            </Label>
-            <Switch
-              id="api-enabled"
-              checked={apiEnabled}
-              onCheckedChange={setApiEnabled}
-            />
+          <div className="space-y-1">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <Label htmlFor="api-enabled" className="font-medium">
+                  API Endpoint Enabled
+                </Label>
+                {!isWorkflowRunning && (
+                  <div className="text-amber-500 flex items-center text-xs" title="Workflow must be running to enable API">
+                    <AlertCircle className="h-3 w-3 mr-1" />
+                    Workflow not running
+                  </div>
+                )}
+              </div>
+              <Switch
+                id="api-enabled"
+                checked={apiEnabled}
+                onCheckedChange={handleApiToggle}
+                disabled={!isWorkflowRunning}
+              />
+            </div>
+            {!isWorkflowRunning && (
+              <p className="text-xs text-muted-foreground">
+                Start the workflow to enable the API endpoint
+              </p>
+            )}
           </div>
 
-          {apiEnabled && (
+          {apiEnabled && isWorkflowRunning && (
             <div className="space-y-2">
               <Label htmlFor="api-url" className="font-medium">
                 API Endpoint

@@ -45,6 +45,7 @@ export type NodeData = {
     isOneoff?: boolean;
     webhookId?: string;
     apiEnabled?: boolean;
+    workflowId?: string | null;
   };
 };
 

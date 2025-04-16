@@ -347,6 +347,9 @@ function ActionNodeComponent({ id, data, selected }: NodeProps<NodeData>) {
       // Access updateNodeData from the workflow store
       const updateNodeData = useWorkflowStore.getState().updateNodeData;
       
+      // Get current workflow ID from the store
+      const workflowId = useWorkflowStore.getState().workflowId;
+      
       console.log('Saving Webhook Response configuration:', configData);
       
       // Update the node data
@@ -355,7 +358,8 @@ function ActionNodeComponent({ id, data, selected }: NodeProps<NodeData>) {
           webhookUrl: configData.webhookUrl,
           isOneoff: configData.isOneoff,
           webhookId: configData.webhookId,
-          apiEnabled: configData.apiEnabled
+          apiEnabled: configData.apiEnabled,
+          workflowId: workflowId  // Include current workflow ID
         }
       });
       
