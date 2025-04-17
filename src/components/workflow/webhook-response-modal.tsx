@@ -61,7 +61,7 @@ export function WebhookResponseModal({ isOpen, onClose, nodeId, nodeData, onSave
   }
 
   // Format webhook API URL - use chat endpoint format
-  const apiUrl = `http://localhost:3000/webhook/chat/${webhookId}`;
+  const apiUrl = `${process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'}/webhook/chat/${webhookId}`;
 
   // Load existing data when modal opens
   useEffect(() => {
