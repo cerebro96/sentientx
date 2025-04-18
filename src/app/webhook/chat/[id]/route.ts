@@ -44,6 +44,30 @@ export async function POST(
     
     console.log("workflow_id", workflow_id);
     
+    // Check if workflow is running using the API endpoint
+    console.log("Checking if workflow is running...");
+    const statusResponse = await fetch(`${request.nextUrl.origin}/api/workflows/${workflow_id}/status`);
+    
+    if (!statusResponse.ok) {
+      console.error("Failed to get workflow status:", statusResponse.statusText);
+      // If status endpoint returns 500, it likely means no workflow is running
+      // Treat this as a "not running" status and return 403 Forbidden
+      return NextResponse.json({ 
+        error: 'Workflow is not running. Please start the workflow to use this webhook.' 
+      }, { status: 403 });
+    }
+    
+    const statusData = await statusResponse.json();
+    console.log("Workflow status:", statusData);
+    
+    // Only proceed if workflow is running
+    if (statusData.status !== 'running') {
+      console.log("Workflow is not running:", statusData.status);
+      return NextResponse.json({ 
+        error: 'Workflow is not running. Please start the workflow to use this webhook.' 
+      }, { status: 403 });
+    }
+    
     // Generate a session ID if not provided
     const finalSessionId = webhookId;
     console.log("Using session ID:", finalSessionId);

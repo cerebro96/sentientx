@@ -38,7 +38,7 @@ export function WebhookResponseModal({ isOpen, onClose, nodeId, nodeData, onSave
   const [activeTab, setActiveTab] = useState("settings");
   
   // Get workflow ID from the store
-  const workflowId = useWorkflowStore(state => state.workflowId);
+  const currentWorkflowId = useWorkflowStore(state => state.workflowId);
   const workflowName = useWorkflowStore(state => {
     const nodes = state.nodes || [];
     for (const node of nodes) {
@@ -66,60 +66,79 @@ export function WebhookResponseModal({ isOpen, onClose, nodeId, nodeData, onSave
   // Load existing data when modal opens
   useEffect(() => {
     if (isOpen) {
-      console.log("[WebhookResponseModal] Modal opened, nodeData:", nodeData);
+      console.log("[WebhookResponseModal] Modal opened for workflow:", currentWorkflowId, "nodeData:", nodeData);
       
-      // Reset workflow running state
+      // Determine if this is the initial setup (no existing webhook config)
+      const isInitialSetup = !nodeData?.webhookId;
+      console.log("[WebhookResponseModal] Is initial setup?", isInitialSetup);
+
+      // Reset initial states for this render
       setIsWorkflowRunning(false);
+      setApiEnabled(false); // Default to disabled
       
-      // Load stored settings
-      if (nodeData && Object.keys(nodeData).length > 0) {
-        // Load saved values
-        setWebhookUrl(nodeData.webhookUrl || '');
-        setIsOneoff(nodeData.isOneoff || false);
-        
-        // Only set webhookId if it exists, otherwise keep the generated one
-        if (nodeData.webhookId) {
-          setWebhookId(nodeData.webhookId);
-        }
-        
-        console.log("[WebhookResponseModal] Saved API state:", nodeData.apiEnabled);
-        
-        // Check workflow status and set API enabled state accordingly
-        const workflowId = useWorkflowStore.getState().workflowId;
-        if (workflowId) {
-          fetch(`/api/workflows/${workflowId}/status`)
-            .then(response => response.json())
-            .then(data => {
-              const isRunning = data.status === 'running';
-              console.log("[WebhookResponseModal] Workflow running state:", isRunning);
-              setIsWorkflowRunning(isRunning);
-              
-              // If workflow is running and API was previously enabled, keep it enabled
-              if (isRunning && nodeData.apiEnabled === true) {
-                console.log("[WebhookResponseModal] Restoring API enabled state:", nodeData.apiEnabled);
-                setApiEnabled(true);
-              } else {
-                // Otherwise, ensure API is disabled
-                console.log("[WebhookResponseModal] Setting API disabled (workflow not running or not previously enabled)");
-                setApiEnabled(false);
-              }
-            })
-            .catch(error => {
-              console.error("[WebhookResponseModal] Error checking workflow status:", error);
-              setIsWorkflowRunning(false);
+      // Load basic settings if nodeData exists, or use defaults
+      setWebhookUrl(nodeData?.webhookUrl || '');
+      setIsOneoff(nodeData?.isOneoff || false);
+      
+      // Use existing webhookId or keep the generated one
+      const currentWebhookId = nodeData?.webhookId || webhookId; // webhookId holds the generated one
+      if (nodeData?.webhookId) {
+        setWebhookId(nodeData.webhookId);
+      }
+
+      // --- Initial Save Logic --- 
+      if (isInitialSetup && onSave) {
+        console.log("[WebhookResponseModal] Performing initial save with generated ID:", currentWebhookId);
+        const initialConfig = {
+          webhookUrl: '',       // Initial default
+          isOneoff: false,     // Initial default
+          webhookId: currentWebhookId, // Use the generated or existing ID
+          apiEnabled: false,   // Always start disabled
+          workflowId: currentWorkflowId
+        };
+        onSave(initialConfig);
+        // Note: This onSave call will update the nodeData prop for the *next* render,
+        // but the rest of this effect execution will still use the initially passed nodeData.
+      }
+      // ------------------------
+      
+      // Check workflow status to determine running state and API enablement
+      if (currentWorkflowId) {
+        console.log(`[WebhookResponseModal] Checking status for workflow: ${currentWorkflowId}`);
+        fetch(`/api/workflows/${currentWorkflowId}/status`)
+          .then(response => response.json())
+          .then(data => {
+            const isRunning = data.status === 'running';
+            console.log("[WebhookResponseModal] Workflow running state:", isRunning);
+            setIsWorkflowRunning(isRunning);
+            
+            // Use the potentially updated nodeData (from initial save) if available, otherwise the original nodeData
+            const relevantNodeData = isInitialSetup ? {} : nodeData; // Use empty object if initial setup happened
+            
+            // Only set API enabled if the workflow IS running AND it was previously saved as enabled
+            if (isRunning && relevantNodeData?.apiEnabled === true) {
+              console.log("[WebhookResponseModal] Workflow running and API was saved as enabled. Restoring state.");
+              setApiEnabled(true);
+            } else {
+              // Otherwise, ensure it's disabled (either workflow not running, or wasn't saved as enabled)
+              console.log("[WebhookResponseModal] Workflow not running OR API was not saved as enabled. Setting API disabled.");
               setApiEnabled(false);
-            });
-        } else {
-          // If no workflow ID, ensure workflow is marked as not running
-          console.log("[WebhookResponseModal] No workflow ID found");
-          setIsWorkflowRunning(false);
-          setApiEnabled(false);
-        }
+            }
+          })
+          .catch(error => {
+            console.error("[WebhookResponseModal] Error checking workflow status:", error);
+            // Ensure states are reset on error
+            setIsWorkflowRunning(false);
+            setApiEnabled(false);
+          });
       } else {
-        console.log("[WebhookResponseModal] No saved webhook data found");
+        // No workflow ID, assume not running and disabled
+        console.log("[WebhookResponseModal] No current workflow ID found in store");
+        setIsWorkflowRunning(false);
+        setApiEnabled(false);
       }
     }
-  }, [isOpen, nodeData]);
+  }, [isOpen, nodeData, currentWorkflowId, onSave]); // Add onSave to dependencies
 
   // Track API toggle changes
   useEffect(() => {
@@ -150,7 +169,7 @@ export function WebhookResponseModal({ isOpen, onClose, nodeId, nodeData, onSave
       isOneoff,
       webhookId,
       apiEnabled: finalApiState,
-      workflowId
+      workflowId: currentWorkflowId
     };
     
     if (onSave) {
@@ -174,7 +193,7 @@ export function WebhookResponseModal({ isOpen, onClose, nodeId, nodeData, onSave
   // Example curl command
   const curlExample = `curl -X POST "${apiUrl}" \\
   -H "Content-Type: application/json" \\
-  -d '{"message": "Hello from the webhook!", "workflow_id": "${workflowId || 'your-workflow-id'}"}'`;
+  -d '{"message": "Hello from the webhook!", "workflow_id": "${currentWorkflowId || 'your-workflow-id'}"}'`;
   
   // Example fetch code
   const fetchExample = `fetch("${apiUrl}", {
@@ -184,7 +203,7 @@ export function WebhookResponseModal({ isOpen, onClose, nodeId, nodeData, onSave
   },
   body: JSON.stringify({
     message: "Hello from the webhook!",
-    workflow_id: "${workflowId || 'your-workflow-id'}"
+    workflow_id: "${currentWorkflowId || 'your-workflow-id'}"
   })
 })
 .then(response => response.json())
@@ -238,7 +257,20 @@ export function WebhookResponseModal({ isOpen, onClose, nodeId, nodeData, onSave
                         });
                         return;
                       }
+                      // Update local state immediately
                       setApiEnabled(value);
+                      
+                      // Immediately prepare and save the updated config
+                      const updatedConfig = {
+                        webhookUrl,
+                        isOneoff,
+                        webhookId,
+                        apiEnabled: value, // Use the new value
+                        workflowId: currentWorkflowId
+                      };
+                      if (onSave) {
+                        onSave(updatedConfig);
+                      }
                     }}
                     disabled={!isWorkflowRunning}
                   />
@@ -294,7 +326,7 @@ export function WebhookResponseModal({ isOpen, onClose, nodeId, nodeData, onSave
                   </div>
                   <div>
                     <p className="text-muted-foreground">Workflow ID:</p>
-                    <p className="font-medium">{workflowId || "Not linked"}</p>
+                    <p className="font-medium">{currentWorkflowId || "Not linked"}</p>
                   </div>
                   <div>
                     <p className="text-muted-foreground">Status:</p>
