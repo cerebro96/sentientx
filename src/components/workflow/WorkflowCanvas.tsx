@@ -270,7 +270,40 @@ export function WorkflowCanvas({ isActive, onClose, workflowId, newWorkflowData 
     }
   }, [isReady]);
 
-  // Clean up timeout on unmount
+  // Add a new useEffect to check workflow status on mount or when ID changes
+  useEffect(() => {
+    const checkWorkflowStatus = async () => {
+      const workflowIdentifier = workflowId || createdWorkflowId;
+      if (!workflowIdentifier) return;
+
+      try {
+        // Fetch the current workflow status from the API
+        const response = await fetch(`/api/workflows/${workflowIdentifier}/status`);
+        
+        if (response.ok) {
+          const data = await response.json();
+          console.log('Fetched workflow status:', data);
+          
+          // Update the local state with the fetched status
+          if (data.status === 'running' || data.status === 'paused' || data.status === 'idle') {
+            setWorkflowStatus(data.status);
+          }
+        } 
+        // else {
+        //   console.error('Error fetching workflow status:', response.statusText);
+        // }
+      } catch (error) {
+        console.error('Exception checking workflow status:', error);
+      }
+    };
+
+    // Check status when component mounts or workflowId changes
+    if (isReady) {
+      checkWorkflowStatus();
+    }
+  }, [workflowId, createdWorkflowId, isReady]);
+
+  // Existing useEffect for clean up timeout on unmount
   useEffect(() => {
     return () => {
       if (autoSaveTimeoutRef.current) {
