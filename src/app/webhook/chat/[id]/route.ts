@@ -69,7 +69,7 @@ export async function POST(
     }
     
     // Generate a session ID if not provided
-    const finalSessionId = webhookId;
+    const finalSessionId = `chat-${webhookId}-${Date.now()}`;
     console.log("Using session ID:", finalSessionId);
     
     // Forward the message to the chat message API
