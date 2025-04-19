@@ -405,6 +405,35 @@ export function WebhookResponseModal({ isOpen, onClose, nodeId, nodeData, onSave
                 </div>
               </div>
               
+              {/* Chatbot Client Instructions */}
+              <div className="space-y-2 pt-4 border-t border-border/40">
+                <Label className="font-medium text-base flex items-center gap-1.5">
+                  <Info className="h-4 w-4" />
+                  Building a Chatbot Client
+                </Label>
+                <div className="text-xs text-muted-foreground space-y-1.5 bg-muted/30 p-3 rounded-md">
+                  <p>
+                    <strong className='text-foreground'>Important:</strong> Each POST request to this specific Webhook Endpoint URL starts a <strong className='text-foreground'>new, isolated conversation</strong>.
+                    The <code>session_id</code> returned in the response is unique to that single request-response cycle.
+                  </p>
+                  <p>
+                    This endpoint is ideal for stateless triggers or single interactions.
+                  </p>
+                  <p>
+                    For a <strong className='text-foreground'>stateful chatbot</strong> (that remembers conversation history), your client application would need to:
+                  </p>
+                  <ul className="list-disc pl-5 space-y-1">
+                    <li>Make the initial request (like the examples above).</li>
+                    <li>Store the <code>session_id</code> received in the first response.</li>
+                    <li>For follow-up messages in the same conversation, send requests directly to the backend's primary chat endpoint (e.g., <code>/api/chat/message</code>) including the stored <code>session_id</code>, <code>message</code>, and <code>workflow_id</code> in the request body.</li>
+                  </ul>
+                  <p>
+                     Consult the backend API documentation for details on the primary chat endpoint if you need conversational context.
+                  </p>
+                </div>
+              </div>
+              {/* End Chatbot Client Instructions */}
+              
               <div className="flex items-center p-3 border border-amber-200 bg-amber-50 dark:bg-amber-950/20 dark:border-amber-900/50 rounded-md">
                 <Info className="text-amber-500 h-5 w-5 mr-2 flex-shrink-0" />
                 <p className="text-xs text-amber-800 dark:text-amber-300">
