@@ -270,7 +270,40 @@ export function WorkflowCanvas({ isActive, onClose, workflowId, newWorkflowData 
     }
   }, [isReady]);
 
-  // Clean up timeout on unmount
+  // Add a new useEffect to check workflow status on mount or when ID changes
+  useEffect(() => {
+    const checkWorkflowStatus = async () => {
+      const workflowIdentifier = workflowId || createdWorkflowId;
+      if (!workflowIdentifier) return;
+
+      try {
+        // Fetch the current workflow status from the API
+        const response = await fetch(`/api/workflows/${workflowIdentifier}/status`);
+        
+        if (response.ok) {
+          const data = await response.json();
+          console.log('Fetched workflow status:', data);
+          
+          // Update the local state with the fetched status
+          if (data.status === 'running' || data.status === 'paused' || data.status === 'idle') {
+            setWorkflowStatus(data.status);
+          }
+        } 
+        // else {
+        //   console.error('Error fetching workflow status:', response.statusText);
+        // }
+      } catch (error) {
+        console.error('Exception checking workflow status:', error);
+      }
+    };
+
+    // Check status when component mounts or workflowId changes
+    if (isReady) {
+      checkWorkflowStatus();
+    }
+  }, [workflowId, createdWorkflowId, isReady]);
+
+  // Existing useEffect for clean up timeout on unmount
   useEffect(() => {
     return () => {
       if (autoSaveTimeoutRef.current) {
@@ -459,6 +492,23 @@ export function WorkflowCanvas({ isActive, onClose, workflowId, newWorkflowData 
     };
   }, [reactFlowInstance, triggerAutoSave]);
 
+  // Add useEffect to trigger save when webhook API enabled state changes
+  useEffect(() => {
+    // Find webhook nodes
+    const webhookNodes = nodes.filter(node => node.data?.label === 'Respond to Webhook');
+    
+    // If any webhook node's apiEnabled state has changed (requires tracking previous state or a more sophisticated check)
+    // For simplicity, we trigger save whenever nodes potentially change, relying on debouncing.
+    // A more robust solution might involve comparing previous/current node data for the specific field.
+    if (!initialLoadRef.current && webhookNodes.length > 0) {
+      // Check if any webhook node's apiEnabled has actually changed - requires comparison logic
+      // Simple trigger for now:
+      console.log("Detected potential webhook config change, triggering auto-save.");
+      triggerAutoSave();
+    }
+    // Note: Add nodes as a dependency, but be mindful of performance. Deep comparison might be needed.
+  }, [nodes, triggerAutoSave]);
+
   // Workflow control handlers
   const handleStartWorkflow = async () => {
     try {
@@ -620,6 +670,31 @@ export function WorkflowCanvas({ isActive, onClose, workflowId, newWorkflowData 
       
       // Update workflow status in the UI
       setWorkflowStatus('idle');
+      
+      // ---- Automatically disable API for webhook nodes ----
+      console.log("Workflow stopped. Disabling API for webhook nodes.");
+      const { nodes, updateNodeData } = useWorkflowStore.getState();
+      const webhookNodes = nodes.filter(node => node.data?.label === 'Respond to Webhook');
+      
+      webhookNodes.forEach(node => {
+        // Check if webhookConfig exists and apiEnabled is true before updating
+        if (node.data?.webhookConfig?.apiEnabled === true) {
+          console.log(`Disabling API for webhook node: ${node.id}`);
+          updateNodeData(node.id, {
+            webhookConfig: {
+              ...node.data.webhookConfig,
+              apiEnabled: false
+            }
+          });
+        }
+      });
+      
+      // Trigger save if any webhook node was updated
+      if (webhookNodes.some(node => node.data?.webhookConfig?.apiEnabled === true)) {
+          console.log("Triggering save after disabling webhook APIs.");
+          triggerAutoSave();
+      }
+      // ----------------------------------------------------
       
       toast.info('Workflow stopped', {
         description: 'Your workflow has been stopped',

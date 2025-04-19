@@ -109,7 +109,7 @@ export const nodeCatalog = [
   {
     type: 'action',
     label: 'Respond to Webhook',
-    description: 'Stores a customizable length of chat history',
+    description: 'Works similar to API Server',
     icon: Webhook,
     category: 'Webhook',
   },

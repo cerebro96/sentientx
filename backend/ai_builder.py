@@ -69,14 +69,12 @@ async def generate_builder_response(session_id: str, user_message: str) -> Dict[
             "history": [],
             "step": "start",
             "workflow_data": {},
-            "user_provided_prompt": None # To store the original prompt
         }
     
     session_state = builder_sessions[session_id]
     history = session_state["history"]
     step = session_state["step"]
     workflow_data = session_state["workflow_data"]
-    user_provided_prompt = session_state.get("user_provided_prompt") # Get original prompt if exists
 
     # Add user message to history (for context)
     # Use a format compatible with Gemini API history
@@ -92,7 +90,7 @@ async def generate_builder_response(session_id: str, user_message: str) -> Dict[
         # Start a chat session using the history
         chat = ai_builder_model.start_chat(history=history[:-1]) # Use history BEFORE the current user message
         
-        # --- NEW Conversation Logic --- 
+        # --- Simplified Conversation Logic --- 
         if step == "start":
             # Ask what kind of workflow
             system_instruction = "You are SentientX AI Workflow Builder. Greet the user and ask what kind of workflow they want to build. Only AI Agent Chatbot workflows are supported currently."
@@ -100,11 +98,11 @@ async def generate_builder_response(session_id: str, user_message: str) -> Dict[
             ai_response_text = response.text
             # Check if user response indicates chatbot
             if "chatbot" in user_message.lower() or "agent" in user_message.lower():
-                # User wants chatbot, ask for type/purpose next
-                system_instruction_next = "Great! What specific type of AI Agent Chatbot would you like to build? (e.g., sales assistant, customer support bot, appointment scheduler)"
+                # User wants chatbot, ask for function description next
+                system_instruction_next = "Great! Please describe the function of this AI chatbot in detail. I'll use this as the system prompt for the chatbot."
                 response_next = await chat.send_message_async(system_instruction_next)
                 ai_response_text = response_next.text
-                next_step = "get_chatbot_type"
+                next_step = "get_function_description"
             elif user_message.lower() == 'start': # Handle initial call from frontend
                  # Just return the initial greeting/question
                  pass # ai_response_text already set
@@ -114,106 +112,29 @@ async def generate_builder_response(session_id: str, user_message: str) -> Dict[
                 # The initial response likely already covers this based on the system instruction
                 next_step = "start"
                  
-        elif step == "get_chatbot_type":
-            # User described the type of chatbot
-            chatbot_type_description = user_message.strip()
-            updated_workflow_data['chatbot_type_description'] = chatbot_type_description
-            # Now ask for the system prompt
-            system_instruction = f"Okay, you want to build a '{chatbot_type_description}'. Now, please provide the **System Prompt** you want this chatbot to use. This tells the AI its role, personality, and instructions."
-            response = await chat.send_message_async(system_instruction) 
-            ai_response_text = response.text
-            next_step = "receive_system_prompt"
-
-        elif step == "receive_system_prompt":
-            # User has provided the system prompt
-            received_prompt = user_message.strip()
-            if len(received_prompt) < 10: # Basic check for actual prompt content
-                system_instruction = "That doesn't seem like a full system prompt. Please provide the detailed instructions for your chatbot."
+        elif step == "get_function_description":
+            # User described the function - use this directly as system prompt
+            function_description = user_message.strip()
+            if len(function_description) < 10: # Basic check for actual content
+                system_instruction = "That doesn't seem like a detailed enough description. Please provide more information about what you want your chatbot to do."
                 response = await chat.send_message_async(system_instruction)
                 ai_response_text = response.text
-                next_step = "receive_system_prompt" # Stay here
+                next_step = "get_function_description" # Stay here
             else:
-                session_state["user_provided_prompt"] = received_prompt # Store original
-                updated_workflow_data['system_prompt'] = received_prompt # Store tentatively
-                # Use triple quotes for the multi-line f-string
-                system_instruction = f"""Got it. Here is the system prompt you provided:
-
-```
-{received_prompt}
-```
-
-Would you like me to try and improve or refine this prompt for you? (yes/no)"""
-                response = await chat.send_message_async(system_instruction)
-                ai_response_text = response.text
-                next_step = "offer_refinement_decision"
-
-        elif step == "offer_refinement_decision":
-            # Ask the AI to decide based on user response to refinement offer
-            system_instruction = f"User was asked if they want help improving the prompt. Their response was '{user_message}'. If 'yes', acknowledge and proceed to refine. If 'no', confirm saving the original prompt and move to model confirmation. Otherwise, ask for 'yes' or 'no'."
-            response = await chat.send_message_async(system_instruction)
-            ai_response_text = response.text
-            if user_message.lower().strip() == 'yes':
-                next_step = "refine_prompt"
-            elif user_message.lower().strip() == 'no':
-                updated_workflow_data['system_prompt'] = user_provided_prompt # Ensure original is saved
-                next_step = "confirm_model" # Skip refinement
-            else:
-                next_step = "offer_refinement_decision" # Ask again
-
-        elif step == "refine_prompt":
-            # This step generates the refined prompt and asks for confirmation
-            if not user_provided_prompt:
-                 ai_response_text = "Error: Cannot refine without the original prompt. Let's go back. Please provide the system prompt."
-                 next_step = "receive_system_prompt"
-            else:
-                system_instruction_for_refinement = f"Improve this system prompt for an AI Agent Chatbot, making it clear, concise, and effective: ```{user_provided_prompt}```. Output ONLY the improved prompt text."
-                refinement_response = await ai_builder_model.generate_content_async(system_instruction_for_refinement)
-                refined_prompt = refinement_response.text.strip()
-                updated_workflow_data['system_prompt_refined'] = refined_prompt 
+                # Save the function description as the system prompt directly
+                updated_workflow_data['system_prompt'] = function_description
                 
-                # Use triple quotes for the multi-line f-string
-                system_instruction_for_confirmation = f"""Here is a suggested refinement:
+                # Acknowledge and move to model confirmation
+                system_instruction = f"""I've saved your description as the system prompt for your chatbot:
 
 ```
-{refined_prompt}
+{function_description}
 ```
 
-Would you like to use this improved version? (yes/no)"""
-                response = await chat.send_message_async(system_instruction_for_confirmation)
+We'll use Gemini 1.5 Flash for this chatbot. Is that alright? (yes/no)"""
+                response = await chat.send_message_async(system_instruction)
                 ai_response_text = response.text
-                next_step = "confirm_refined_prompt"
-
-        elif step == "confirm_refined_prompt":
-            # Ask AI to decide based on user response to the *refined* prompt offer
-            refined_prompt = updated_workflow_data.get('system_prompt_refined')
-            system_instruction = f"User was shown the refined prompt: ```{refined_prompt}```. Their response was '{user_message}'. If 'yes', confirm saving refined prompt and move to model confirmation. If 'no', ask if they want to use their *original* prompt instead (yes/no). Otherwise, ask for 'yes' or 'no' regarding the refined prompt."
-            response = await chat.send_message_async(system_instruction)
-            ai_response_text = response.text
-            
-            if user_message.lower().strip() == 'yes':
-                updated_workflow_data['system_prompt'] = refined_prompt # Save refined version
                 next_step = "confirm_model"
-            elif user_message.lower().strip() == 'no':
-                next_step = "confirm_original_after_refine" # Ask about original
-            else:
-                next_step = "confirm_refined_prompt" # Ask again about refined
-
-        elif step == "confirm_original_after_refine":
-            # Ask AI to decide based on user response about using original after rejecting refined
-            system_instruction = f"User rejected the refined prompt. They were asked if they want to use their original prompt: ```{user_provided_prompt}```. Their response was '{user_message}'. If 'yes', confirm saving original and move to model confirmation. If 'no', ask them to provide a new prompt. Otherwise, ask for 'yes' or 'no' regarding the original prompt."
-            response = await chat.send_message_async(system_instruction)
-            ai_response_text = response.text
-            if user_message.lower().strip() == 'yes':
-                updated_workflow_data['system_prompt'] = user_provided_prompt # Save original
-                next_step = "confirm_model"
-            elif user_message.lower().strip() == 'no':
-                 # Clear stored prompts and go back
-                 session_state["user_provided_prompt"] = None
-                 updated_workflow_data.pop('system_prompt', None)
-                 updated_workflow_data.pop('system_prompt_refined', None)
-                 next_step = "receive_system_prompt"
-            else:
-                 next_step = "confirm_original_after_refine" # Ask again
 
         # --- Steps after prompt confirmation (confirm_model onwards) --- 
         elif step == "confirm_model":
@@ -300,7 +221,6 @@ Would you like to use this improved version? (yes/no)"""
             ai_response_text = response.text
             next_step = "start"
             updated_workflow_data = {}
-            session_state["user_provided_prompt"] = None
             builder_sessions[session_id]["history"] = [] 
 
     except Exception as e:

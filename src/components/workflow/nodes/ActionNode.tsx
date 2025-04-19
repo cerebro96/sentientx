@@ -11,6 +11,7 @@ import { ChatTriggerModal } from '../chat-trigger-modal';
 import { LlmNodeModal } from '../llm-node-modal';
 import { RedisMemoryModal } from '../redis-memory-modal';
 import { AiAgentModal } from '../ai-agent-modal';
+import { WebhookResponseModal } from '../webhook-response-modal';
 import { useWorkflowStore } from '@/lib/store/workflow';
 import {
   Dialog,
@@ -29,11 +30,23 @@ interface ChatMessage {
   timestamp: Date;
 }
 
+// Ensure NodeData includes webhookConfig
+// declare module '@/lib/store/workflow' {
+//   interface NodeData {
+//     webhookConfig?: {
+//       webhookUrl?: string;
+//       isOneoff?: boolean;
+//       webhookId?: string;
+//     };
+//   }
+// }
+
 function ActionNodeComponent({ id, data, selected }: NodeProps<NodeData>) {
   const [isChatModalOpen, setIsChatModalOpen] = useState(false);
   const [isLlmModalOpen, setIsLlmModalOpen] = useState(false);
   const [isMemoryModalOpen, setIsMemoryModalOpen] = useState(false);
   const [isAiAgentModalOpen, setIsAiAgentModalOpen] = useState(false);
+  const [isWebhookResponseModalOpen, setIsWebhookResponseModalOpen] = useState(false);
   const [llmProvider, setLlmProvider] = useState<string>('');
   
   // Chat session state
@@ -105,6 +118,11 @@ function ActionNodeComponent({ id, data, selected }: NodeProps<NodeData>) {
   
   const handleOpenAiAgentConfig = () => {
     setIsAiAgentModalOpen(true);
+  };
+  
+  const handleOpenWebhookResponse = () => {
+    console.log('Opening Webhook Response Modal with data:', id, data.webhookConfig);
+    setIsWebhookResponseModalOpen(true);
   };
   
   const handleChatButtonClick = (e: React.MouseEvent) => {
@@ -324,6 +342,40 @@ function ActionNodeComponent({ id, data, selected }: NodeProps<NodeData>) {
     }
   };
   
+  const handleWebhookConfigSave = (configData: any) => {
+    if (id) {
+      // Access updateNodeData from the workflow store
+      const updateNodeData = useWorkflowStore.getState().updateNodeData;
+      
+      // Get current workflow ID from the store
+      const workflowId = useWorkflowStore.getState().workflowId;
+      
+      console.log('Saving Webhook Response configuration:', {
+        webhookUrl: configData.webhookUrl,
+        isOneoff: configData.isOneoff,
+        webhookId: configData.webhookId,
+        apiEnabled: configData.apiEnabled,
+        workflowId
+      });
+      
+      // Update the node data
+      updateNodeData(id, {
+        webhookConfig: {
+          webhookUrl: configData.webhookUrl,
+          isOneoff: configData.isOneoff,
+          webhookId: configData.webhookId,
+          apiEnabled: configData.apiEnabled,
+          workflowId: workflowId  // Include current workflow ID
+        }
+      });
+      
+      toast.success('Webhook configuration updated', {
+        description: `API ${configData.apiEnabled ? 'enabled' : 'disabled'}`,
+        duration: 3000
+      });
+    }
+  };
+  
   // If it's a button style node, render a button
   if (isButtonNode) {
     return (
@@ -360,9 +412,11 @@ function ActionNodeComponent({ id, data, selected }: NodeProps<NodeData>) {
                 ? handleOpenMemoryConfig
                 : isAIAgent
                   ? handleOpenAiAgentConfig
-                  : undefined
+                  : isWebhookResponse
+                    ? handleOpenWebhookResponse
+                    : undefined
         }
-        style={(isChatTrigger || isLLMNode || isMemoryNode || isAIAgent) ? { cursor: 'pointer' } : undefined}
+        style={(isChatTrigger || isLLMNode || isMemoryNode || isAIAgent || isWebhookResponse) ? { cursor: 'pointer' } : undefined}
       >
         {/* Gradient glow effect */}
         <div className={cn(
@@ -539,6 +593,17 @@ function ActionNodeComponent({ id, data, selected }: NodeProps<NodeData>) {
           isOpen={isAiAgentModalOpen}
           onClose={() => setIsAiAgentModalOpen(false)}
           nodeId={id}
+        />
+      )}
+      
+      {/* Webhook Response Modal */}
+      {isWebhookResponse && (
+        <WebhookResponseModal 
+          isOpen={isWebhookResponseModalOpen} 
+          onClose={() => setIsWebhookResponseModalOpen(false)}
+          nodeId={id}
+          nodeData={(data && data.webhookConfig) ? data.webhookConfig : {}}
+          onSave={handleWebhookConfigSave}
         />
       )}
       

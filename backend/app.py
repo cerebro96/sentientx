@@ -241,7 +241,7 @@ async def send_chat_message(message_data: ChatMessageInput):
                 current_session_history = chat_sessions.get(session_key, {}).get("history", [])
                 # Format history for Gemini API (excluding last user message which is the current input)
                 gemini_history = [
-                    {"role": msg["role"], "parts": [msg["content"]]}
+                    {"role": "user" if msg["role"] == "user" else "model", "parts": [msg["content"]]}
                     for msg in current_session_history[:-1]
                 ]
                 
