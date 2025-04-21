@@ -40,13 +40,13 @@ def initialize_ai_builder_model():
         logger.error("AI_CHATBOT_BUILDER_API key not found in environment variables. Builder disabled.")
         return
     try:
-        logger.info("Initializing AI Builder Gemini model (gemini-1.5-flash)")
+        logger.info("Initializing AI Builder Gemini model (gemini-2.0-flash)")
         # Use a separate configuration for the builder if possible, or ensure the global one is set
         genai.configure(api_key=api_key)
         # Simple config for the builder bot
         generation_config = {"temperature": 0.6, "max_output_tokens": 1000}
         ai_builder_model = genai.GenerativeModel(
-            model_name='gemini-1.5-flash',
+            model_name='gemini-2.0-flash',
             generation_config=generation_config
         )
         logger.info("AI Builder model initialized successfully.")
