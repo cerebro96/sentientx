@@ -95,7 +95,27 @@ export function WorkflowTabs({
   };
 
   const handleDuplicateWorkflow = async (workflow: Workflow) => {
-    toast.info('Duplicating workflow...');
+    try {
+      const duplicatedWorkflowData: Partial<Workflow> & Pick<Workflow, 'name' | 'nodes' | 'edges' | 'tags'> = { 
+          ...workflow 
+      };
+      
+      delete duplicatedWorkflowData.id; 
+      delete duplicatedWorkflowData.created_at;
+      delete duplicatedWorkflowData.updated_at;
+      delete duplicatedWorkflowData.user_id;
+
+      duplicatedWorkflowData.name = `${workflow.name} (Copy)`;
+      duplicatedWorkflowData.is_active = false;
+      duplicatedWorkflowData.description = workflow.description || undefined;
+
+      const newWorkflow = await createWorkflow(duplicatedWorkflowData as any);
+      toast.success(`Workflow "${workflow.name}" duplicated successfully!`);
+      loadWorkflows();
+    } catch (error) {
+      toast.error(`Failed to duplicate workflow "${workflow.name}".`);
+      console.error("Error duplicating workflow:", error);
+    }
   };
 
   const handleDeleteConfirm = async () => {
