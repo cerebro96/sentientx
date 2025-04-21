@@ -18,18 +18,11 @@ export function NodePanel({ onToggle }: NodePanelProps) {
   const [collapsedCategories, setCollapsedCategories] = useState<Record<string, boolean>>({});
   const addNode = useWorkflowStore((state) => state.addNode);
 
-  // Filter nodeCatalog to only include AI nodes
-  const aiNodes = nodeCatalog.filter(node => 
-    node.category === 'AI' || 
-    node.category === 'Basic' || 
-    node.category === 'Triggers' ||
-    node.category === 'Actions' ||
-    node.category === 'LLM APIs' ||
-    node.category === 'Webhook' 
-  );
-  
-  // Get unique categories
-  const categories = [...new Set(aiNodes.map(node => node.category))];
+  // Filter nodeCatalog to only include non-hidden nodes
+  const availableNodes = nodeCatalog.filter(node => !node.hidden);
+
+  // Get unique categories from available nodes
+  const categories = [...new Set(availableNodes.map(node => node.category))];
   
   // Initialize all categories as collapsed on first render
   useEffect(() => {
@@ -41,13 +34,13 @@ export function NodePanel({ onToggle }: NodePanelProps) {
     setCollapsedCategories(initialCollapsedState);
   }, []);
 
-  // Filter nodes based on search query
+  // Filter nodes based on search query from the *available* nodes
   const filteredNodes = searchQuery.trim() 
-    ? aiNodes.filter(node => 
+    ? availableNodes.filter(node => 
         node.label.toLowerCase().includes(searchQuery.toLowerCase()) ||
         node.description.toLowerCase().includes(searchQuery.toLowerCase())
       )
-    : aiNodes;
+    : availableNodes;
 
   // Group nodes by category
   const nodesByCategory = categories.reduce((acc, category) => {
@@ -63,20 +56,16 @@ export function NodePanel({ onToggle }: NodePanelProps) {
   };
 
   const onDragStart = (event: React.DragEvent, node: any) => {
-    // Set the drag data
     event.dataTransfer.setData('application/reactflow', JSON.stringify(node));
     event.dataTransfer.effectAllowed = 'move';
   };
 
   const handleAddNode = (nodeType: any) => {
-    // Generate a unique ID
     const id = `${nodeType.type}-${Date.now()}`;
-    
-    // Create the node
     const newNode = {
       id,
       type: nodeType.type,
-      position: { x: 100, y: 100 },
+      position: { x: 100, y: 100 }, 
       data: {
         label: nodeType.label,
         description: nodeType.description,
@@ -86,8 +75,6 @@ export function NodePanel({ onToggle }: NodePanelProps) {
         childNodes: nodeType.childNodes
       }
     };
-    
-    // Add the node to the store
     addNode(newNode);
   };
 
@@ -111,7 +98,7 @@ export function NodePanel({ onToggle }: NodePanelProps) {
             const categoryNodes = nodesByCategory[category] || [];
             const isCollapsed = !!collapsedCategories[category];
             
-            if (categoryNodes.length === 0) return null;
+            if (categoryNodes.length === 0 && !searchQuery.trim()) return null; // Hide empty categories unless searching
             
             return (
               <div key={category} className="mb-4">
@@ -125,32 +112,39 @@ export function NodePanel({ onToggle }: NodePanelProps) {
                 
                 {!isCollapsed && (
                   <div className="space-y-1 pl-2">
-                    {categoryNodes.map((node) => (
-                      <div
-                        key={`${node.type}-${node.label}`}
-                        className="flex items-center p-2 rounded-md border border-border hover:bg-accent cursor-grab bg-card"
-                        draggable
-                        onDragStart={(event) => onDragStart(event, node)}
-                        onClick={() => handleAddNode(node)}
-                      >
-                        <div className={cn(
-                          "mr-2 p-1 rounded-full",
-                          node.type === 'trigger' ? "bg-blue-500" :
-                          node.type === 'output' ? "bg-green-500" : "bg-amber-500"
-                        )}>
-                          <node.icon size={16} />
+                    {categoryNodes.length > 0 ? (
+                      categoryNodes.map((node) => (
+                        <div
+                          key={`${node.type}-${node.label}`}
+                          className="flex items-center p-2 rounded-md border border-border hover:bg-accent cursor-grab bg-card"
+                          draggable
+                          onDragStart={(event) => onDragStart(event, node)}
+                          onClick={() => handleAddNode(node)}
+                        >
+                          <div className={cn(
+                            "mr-2 p-1 rounded-full",
+                            node.type === 'trigger' ? "bg-blue-500" :
+                            node.type === 'output' ? "bg-green-500" : "bg-amber-500"
+                          )}>
+                            <node.icon size={16} />
+                          </div>
+                          <div>
+                            <div className="text-sm font-medium">{node.label}</div>
+                            <div className="text-xs text-muted-foreground">{node.description}</div>
+                          </div>
                         </div>
-                        <div>
-                          <div className="text-sm font-medium">{node.label}</div>
-                          <div className="text-xs text-muted-foreground">{node.description}</div>
-                        </div>
-                      </div>
-                    ))}
+                      ))
+                    ) : (
+                      searchQuery.trim() && <p className="text-xs text-muted-foreground p-2">No matching nodes in this category.</p>
+                    )}
                   </div>
                 )}
               </div>
             );
           })}
+          {filteredNodes.length === 0 && searchQuery.trim() && (
+             <p className="text-center text-sm text-muted-foreground p-4">No nodes found matching your search.</p>
+          )}
         </div>
       </ScrollArea>
     </div>

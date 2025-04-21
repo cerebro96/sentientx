@@ -720,13 +720,13 @@ export function WorkflowCanvas({ isActive, onClose, workflowId, newWorkflowData 
           
           // Calculate run time
           const runTime = formatDistanceStrict(stoppedAt, startedAt);
-          
+          // need fix for get the actual runtime of workflow for now just display the stopped time
           // Update the record
           const { error: updateError } = await supabase
             .from('executions')
             .update({ 
               status: 'stopped',
-              run_time: runTime
+              run_time: stoppedAt
             })
             .eq('workflow_id', workflowIdentifier)
             .eq('status', 'running');

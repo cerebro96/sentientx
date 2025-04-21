@@ -103,7 +103,7 @@ function ExecutionsTable({
                 onClick={() => onSort('run_time')}
               >
                 <div className="flex items-center">
-                  Run Time
+                  Stopped
                   {sortConfig.key === 'run_time' && (
                     sortConfig.direction === 'ascending' ? <ArrowUp className="ml-1 h-4 w-4" /> : <ArrowDown className="ml-1 h-4 w-4" />
                   )}

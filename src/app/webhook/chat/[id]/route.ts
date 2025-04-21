@@ -25,11 +25,11 @@ export async function POST(
   try {
     console.log("Request headers:", Object.fromEntries(request.headers.entries()));
     
-    // Get the request body
+    // Get the request body - include session_id if provided
     const body = await request.json();
     console.log("Request body:", JSON.stringify(body));
     
-    const { message, workflow_id } = body;
+    const { message, workflow_id, session_id } = body;
     
     // Validate required fields
     if (!message) {
@@ -68,8 +68,8 @@ export async function POST(
       }, { status: 403 });
     }
     
-    // Generate a session ID if not provided
-    const finalSessionId = `chat-${webhookId}-${Date.now()}`;
+    // Use provided session_id OR generate a new unique one
+    const finalSessionId = session_id || `chat-${webhookId}-${Date.now()}`;
     console.log("Using session ID:", finalSessionId);
     
     // Forward the message to the chat message API
