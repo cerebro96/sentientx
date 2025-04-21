@@ -35,6 +35,7 @@ export const nodeCatalog = [
     description: 'Make an HTTP request',
     icon: Globe,
     category: 'Actions',
+    hidden: true,
   },
   {
     type: 'action',
@@ -42,6 +43,7 @@ export const nodeCatalog = [
     description: 'Transform data using JavaScript',
     icon: FileJson,
     category: 'Actions',
+    hidden: true,
   },
   {
     type: 'action',
@@ -49,6 +51,7 @@ export const nodeCatalog = [
     description: 'OpenAI Chat Model',
     icon: BrainCircuit,
     category: 'LLM APIs',
+    hidden: true,
   },
   {
     type: 'action',
@@ -56,6 +59,7 @@ export const nodeCatalog = [
     description: 'Gemini Set of Model',
     icon: BrainCircuit,
     category: 'LLM APIs',
+    hidden: false,
   },
   {
     type: 'action',
@@ -63,6 +67,7 @@ export const nodeCatalog = [
     description: 'Claude Set Of Model',
     icon: BrainCircuit,
     category: 'LLM APIs',
+    hidden: true,
   },
   {
     type: 'action',
@@ -70,6 +75,7 @@ export const nodeCatalog = [
     description: 'Deepseek Set Of Model',
     icon: BrainCircuit,
     category: 'LLM APIs',
+    hidden: true,
   },
   // {
   //   type: 'action',
@@ -84,6 +90,7 @@ export const nodeCatalog = [
     description: 'Trigger the chat',
     icon: MessageCircle,
     category: 'Triggers',
+    hidden: false,
   },
   {
     type: 'action',
@@ -91,20 +98,21 @@ export const nodeCatalog = [
     description: 'AI-Powered Automation',
     icon: Bot,
     category: 'AI',
-    // hasError: true,
     childNodes: [
       { label: 'LLM', type: 'connection' },
       { label: 'Memory', type: 'connection' },
       { label: 'Tool', type: 'connection' },
       { label: 'Parser', type: 'connection' }
-    ]
+    ],
+    hidden: false,
   },
   {
-  type: 'action',
-  label: 'Redis Memory',
-  description: 'Stores a customizable length of chat history',
-  icon: DatabaseZap,
-  category: 'AI',
+    type: 'action',
+    label: 'Redis Memory',
+    description: 'Stores a customizable length of chat history',
+    icon: DatabaseZap,
+    category: 'AI',
+    hidden: true,
   },
   {
     type: 'action',
@@ -112,6 +120,7 @@ export const nodeCatalog = [
     description: 'Works similar to API Server',
     icon: Webhook,
     category: 'Webhook',
+    hidden: false,
   },
   {
     type: 'action',
@@ -119,5 +128,6 @@ export const nodeCatalog = [
     description: 'Start the workflow when a webhook is called',
     icon: Webhook,
     category: 'Webhook',
+    hidden: true,
   }
 ]; 
