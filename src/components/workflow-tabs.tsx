@@ -220,10 +220,10 @@ export function WorkflowTabs({
                         <PenSquare className="h-4 w-4 mr-1" />
                         Edit
                       </Button>
-                      <Button size="sm" variant="default">
+                      {/* <Button size="sm" variant="default">
                         <Play className="h-4 w-4 mr-1" />
                         Run
-                      </Button>
+                      </Button> */}
                     </div>
                   </CardFooter>
                 </Card>
