@@ -29,6 +29,18 @@ import {
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
 
+// Use crypto.randomUUID for more robust ID generation, then truncate
+function generateRandomId() {
+  if (typeof window !== 'undefined' && window.crypto && window.crypto.randomUUID) {
+    // Generate full UUID, remove hyphens, take first 7 characters
+    return window.crypto.randomUUID().replace(/-/g, '').substring(0, 7);
+  } else {
+    // Fallback: Generate a 7-character random string using Math.random
+    console.warn("crypto.randomUUID not available, using Math.random fallback for 7-char ID.");
+    return Math.random().toString(36).substring(2, 9); // substring(2, 9) gives 7 chars
+  }
+}
+
 interface WorkflowTabsProps {
   onEditorStateChange: (isActive: boolean) => void;
   onCreateWorkflow: (formData: WorkflowFormData) => void;
@@ -95,7 +107,44 @@ export function WorkflowTabs({
   };
 
   const handleDuplicateWorkflow = async (workflow: Workflow) => {
-    toast.info('Duplicating workflow...');
+    try {
+      // Deep copy nodes and edges to avoid modifying the original workflow object
+      const nodesCopy = JSON.parse(JSON.stringify(workflow.nodes || []));
+      const edgesCopy = JSON.parse(JSON.stringify(workflow.edges || []));
+      
+      // Regenerate webhookIds for Respond to Webhook nodes
+      nodesCopy.forEach((node: any) => {
+        if (node.data?.label === 'Respond to Webhook') {
+          const newWebhookId = generateRandomId();
+          console.log(`Generating new webhook ID for duplicated node ${node.id}: ${newWebhookId}`);
+          // Ensure webhookConfig exists before modifying
+          if (!node.data.webhookConfig) {
+            node.data.webhookConfig = {}; 
+          }
+          node.data.webhookConfig.webhookId = newWebhookId;
+          node.data.webhookConfig.apiEnabled = false; // Ensure copied webhook starts disabled
+        }
+      });
+      
+      // Prepare the rest of the duplicated data
+      const duplicatedWorkflowData: Partial<Workflow> & Pick<Workflow, 'name' | 'nodes' | 'edges' | 'tags'> = {
+        name: `${workflow.name} (Copy)`,
+        description: workflow.description || undefined,
+        is_active: false, // Start inactive
+        tags: workflow.tags || [],
+        nodes: nodesCopy, // Use the modified nodes
+        edges: edgesCopy,
+      };
+      
+      // No need to delete properties like id, user_id etc. as createWorkflow handles it
+
+      const newWorkflow = await createWorkflow(duplicatedWorkflowData as any);
+      toast.success(`Workflow "${workflow.name}" duplicated successfully!`);
+      loadWorkflows();
+    } catch (error) {
+      toast.error(`Failed to duplicate workflow "${workflow.name}".`);
+      console.error("Error duplicating workflow:", error);
+    }
   };
 
   const handleDeleteConfirm = async () => {
@@ -220,10 +269,10 @@ export function WorkflowTabs({
                         <PenSquare className="h-4 w-4 mr-1" />
                         Edit
                       </Button>
-                      <Button size="sm" variant="default">
+                      {/* <Button size="sm" variant="default">
                         <Play className="h-4 w-4 mr-1" />
                         Run
-                      </Button>
+                      </Button> */}
                     </div>
                   </CardFooter>
                 </Card>

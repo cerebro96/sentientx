@@ -511,6 +511,16 @@ export function WorkflowCanvas({ isActive, onClose, workflowId, newWorkflowData 
 
   // Workflow control handlers
   const handleStartWorkflow = async () => {
+    // --- Add Check for Active Status --- 
+    if (!isWorkflowActive) {
+      toast.error('Workflow is not active', {
+        description: 'Please activate the workflow (using the toggle in the header) before starting.',
+        duration: 5000
+      });
+      return; // Stop execution if not active
+    }
+    // -----------------------------------
+    
     try {
       // Collect all nodes that need API keys
       const nodes = useWorkflowStore.getState().nodes;

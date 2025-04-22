@@ -19,6 +19,7 @@ import { ExecutionLayout } from "@/components/layout/execution-layout"
 import { useExecutions } from "@/hooks/use-executions"
 import type { Execution } from "@/lib/data-fetching"
 import Loading from "./loading"
+import { WorkflowCanvas } from "@/components/workflow/WorkflowCanvas"
 
 interface SortConfig {
   key: keyof Execution | null
@@ -34,6 +35,7 @@ interface ExecutionsTableProps {
   searchQuery?: string
   statusFilter: string[]
   onClearFilters: () => void
+  onViewWorkflow: (workflowId: string) => void
 }
 
 function ExecutionsTable({ 
@@ -44,7 +46,8 @@ function ExecutionsTable({
   onSort,
   searchQuery,
   statusFilter,
-  onClearFilters 
+  onClearFilters,
+  onViewWorkflow
 }: ExecutionsTableProps) {
   return (
     <div className="rounded-md border">
@@ -181,7 +184,7 @@ function ExecutionsTable({
                     </div>
                   </td>
                   <td className="p-4">{new Date(execution.started_at).toLocaleString()}</td>
-                  <td className="p-4">{execution.run_time}</td>
+                  <td className="p-4">{new Date(execution.run_time).toLocaleString()}</td>
                   <td className="p-4">
                     <code className="rounded bg-muted px-1 py-0.5 font-mono text-sm">
                       {execution.id.substring(0, 8)}
@@ -197,9 +200,11 @@ function ExecutionsTable({
                         </Button>
                       </DropdownMenuTrigger>
                       <DropdownMenuContent align="end">
+                        <DropdownMenuItem onClick={() => onViewWorkflow(execution.workflow_id)}>
+                          View Workflow
+                        </DropdownMenuItem>
                         <DropdownMenuItem>View Details</DropdownMenuItem>
-                        <DropdownMenuItem>Rerun Execution</DropdownMenuItem>
-                        <DropdownMenuItem>View Workflow</DropdownMenuItem>
+                        {/* <DropdownMenuItem>Rerun Execution</DropdownMenuItem> */}  
                       </DropdownMenuContent>
                     </DropdownMenu>
                   </td>
@@ -336,6 +341,8 @@ export default function ExecutionsPage() {
     key: null,
     direction: 'descending'
   })
+  const [isEditorOpen, setIsEditorOpen] = useState(false);
+  const [editingWorkflowId, setEditingWorkflowId] = useState<string | null>(null);
 
   useEffect(() => {
     let intervalId: NodeJS.Timeout | null = null
@@ -390,6 +397,16 @@ export default function ExecutionsPage() {
     setStatusFilter([])
   }
 
+  const handleViewWorkflow = (workflowId: string) => {
+    if (!workflowId) {
+      console.error("Cannot view workflow: workflowId is missing from execution data.");
+      return;
+    }
+    console.log("Opening editor for workflow:", workflowId);
+    setEditingWorkflowId(workflowId);
+    setIsEditorOpen(true);
+  };
+
   const filteredAndSortedExecutions = useMemo(() => {
     let result = [...executions]
 
@@ -422,6 +439,22 @@ export default function ExecutionsPage() {
 
     return result
   }, [executions, searchQuery, statusFilter, sortConfig])
+
+  if (isEditorOpen && editingWorkflowId) {
+    return (
+      <div className="h-screen w-full">
+        <WorkflowCanvas 
+          isActive={true}
+          onClose={() => {
+             setIsEditorOpen(false);
+             setEditingWorkflowId(null);
+             refresh(); 
+          }} 
+          workflowId={editingWorkflowId}
+        />
+      </div>
+    );
+  }
 
   return (
     <ProtectedRoute>
@@ -527,6 +560,7 @@ export default function ExecutionsPage() {
                   searchQuery={searchQuery}
                   statusFilter={statusFilter}
                   onClearFilters={clearFilters}
+                  onViewWorkflow={handleViewWorkflow}
                 />
               </>
             )}
