@@ -184,7 +184,7 @@ function ExecutionsTable({
                     </div>
                   </td>
                   <td className="p-4">{new Date(execution.started_at).toLocaleString()}</td>
-                  <td className="p-4">{new Date(execution.run_time).toLocaleString()}</td>
+                  <td className="p-4">{execution.run_time || ''}</td>
                   <td className="p-4">
                     <code className="rounded bg-muted px-1 py-0.5 font-mono text-sm">
                       {execution.id.substring(0, 8)}
