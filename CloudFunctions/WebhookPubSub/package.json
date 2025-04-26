@@ -1,0 +1,13 @@
+{
+    "name": "supabase-pubsub-inserter",
+    "version": "1.0.0",
+    "description": "Cloud Function to insert Pub/Sub messages into Supabase",
+    "main": "index.js",
+    "dependencies": {
+      "@google-cloud/functions-framework": "^3.0.0",
+      "@supabase/supabase-js": "^2.0.0" 
+    },
+    "engines": {
+      "node": "20"
+    }
+  }
