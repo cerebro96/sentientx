@@ -61,7 +61,7 @@ functions.cloudEvent('pubSubWebhookHandler', async (cloudEvent) => {
       console.error('Parsed payload is missing required fields:', pubSubPayload);
       return; // Acknowledge message, invalid data
   }
-
+  const validTimestamp = pubSubPayload.timestamp.replace('+00:00Z', 'Z');
   // Prepare data for Supabase insertion (match column names)
   const dataToInsert = {
     event_type: pubSubPayload.eventType || 'webhook_interaction', // Use default if missing
@@ -70,7 +70,7 @@ functions.cloudEvent('pubSubWebhookHandler', async (cloudEvent) => {
     session_id: pubSubPayload.sessionId,
     request_body: pubSubPayload.requestBody || null, // Ensure JSONB can handle null
     response_body: pubSubPayload.responseBody || null, // Ensure JSONB can handle null
-    timestamp: pubSubPayload.timestamp, // Assuming it's a valid ISO 8601 string
+    timestamp: validTimestamp, // Assuming it's a valid ISO 8601 string
   };
 
   console.log('Attempting to insert data into Supabase:', dataToInsert);
