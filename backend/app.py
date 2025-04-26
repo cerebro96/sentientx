@@ -9,6 +9,9 @@ from dotenv import load_dotenv
 import uuid
 import google.generativeai as genai
 from contextlib import asynccontextmanager
+from google.cloud import pubsub_v1
+from google.oauth2 import service_account
+from datetime import datetime, timezone
 
 # Import the AI Builder functionality
 from ai_builder import initialize_ai_builder_model, generate_builder_response, BuilderChatInput, BuilderChatResponse
@@ -27,6 +30,13 @@ workflow_status = {}
 initialized_llms = {}
 # Store for chat sessions for *running* workflows
 chat_sessions = {}
+
+# --- Pub/Sub Globals ---
+publisher: Optional[pubsub_v1.PublisherClient] = None
+topic_path: Optional[str] = None
+
+# --- ADK Globals (for Builder) ---
+# ... llm_agent, session_service, runner, etc. ...
 
 # --- Helper Functions --- 
 
@@ -51,14 +61,63 @@ def initialize_gemini_model(api_key: str, model_name: str, settings: Dict[str, A
         logger.error(f"Error initializing Gemini model for workflow: {str(e)}")
         raise
 
+def initialize_pubsub():
+    """Initializes the Pub/Sub client using credentials from env var JSON string."""
+    logger.info("Attempting to initialize Pub/Sub client...")
+    local_publisher = None
+    local_topic_path = None
+    
+    credentials_json_str = os.getenv("GOOGLE_CREDENTIALS_JSON")
+    project_id = os.getenv("GOOGLE_CLOUD_PROJECT")
+    topic_id = os.getenv("PUBSUB_TOPIC_ID")
+
+    if credentials_json_str and project_id and topic_id:
+        try:
+            # Load credentials directly from the JSON string in the env var
+            credentials_info = json.loads(credentials_json_str)
+            credentials = service_account.Credentials.from_service_account_info(credentials_info)
+            
+            # Initialize publisher with the credentials object
+            local_publisher = pubsub_v1.PublisherClient(credentials=credentials)
+            local_topic_path = local_publisher.topic_path(project_id, topic_id)
+            logger.info(f"Pub/Sub Publisher initialized successfully for topic: {local_topic_path}")
+            
+        except json.JSONDecodeError:
+            logger.error("Failed to parse JSON from GOOGLE_CREDENTIALS_JSON environment variable. Ensure it contains valid JSON.")
+        except Exception as e:
+            logger.error(f"Failed to initialize Pub/Sub Publisher from credentials JSON: {e}", exc_info=True)
+            local_publisher = None # Ensure reset on error
+            local_topic_path = None
+    else:
+        # Log which specific variables are missing
+        missing_vars = []
+        if not credentials_json_str: missing_vars.append("GOOGLE_CREDENTIALS_JSON (as string)")
+        if not project_id: missing_vars.append("GOOGLE_CLOUD_PROJECT")
+        if not topic_id: missing_vars.append("PUBSUB_TOPIC_ID")
+        logger.warning(f"Required environment variables missing for Pub/Sub ({', '.join(missing_vars)}). Pub/Sub publishing disabled.")
+        
+    return local_publisher, local_topic_path
+
 # --- FastAPI App Setup --- 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    global llm_agent, session_service, runner, publisher, topic_path # Add publisher/topic_path
+    logger.info("Starting main FastAPI application...")
+
     """Initialize AI Builder model on startup."""
     initialize_ai_builder_model()
+    
+    # --- Initialize Pub/Sub ---
+    pubsub_publisher, pubsub_topic_path = initialize_pubsub()
+    # Assign to globals if initialization was successful
+    if pubsub_publisher and pubsub_topic_path:
+        publisher = pubsub_publisher
+        topic_path = pubsub_topic_path
+    # -------------------------------------------
+
     yield
-    # Cleanup if needed on shutdown
     logger.info("Shutting down FastAPI application")
+    # Optional: Add Pub/Sub client cleanup if needed, though often not required
 
 app = FastAPI(
     title="SentientX Workflow API", 
@@ -251,6 +310,34 @@ async def send_chat_message(message_data: ChatMessageInput):
                 response = await chat.send_message_async(message) # Send only the current message
                 ai_response = response.text
                 chat_sessions[session_key]["history"].append({"role": "assistant", "content": ai_response})
+                # --- Publish to Pub/Sub --- 
+                if publisher and topic_path:
+                    try:
+                        # timestamp_utc = datetime.now(timezone.utc).isoformat(timespec='microseconds') + "Z"
+                        timestamp_utc = datetime.now(timezone.utc)
+                        formatted_timestamp = timestamp_utc.isoformat(timespec='microseconds')
+                        message_payload = {
+                            "eventType": "webhook_interaction",
+                            "workflowId": workflow_id,
+                            "webhookId": preferred_node_id, # Assuming node_id is the webhook ID
+                            "sessionId": session_id,
+                            "requestBody": {"message": message}, # Original user request 
+                            "responseBody": {"response": ai_response}, # AI response
+                            "timestamp": formatted_timestamp
+                        }
+                        message_data_bytes = json.dumps(message_payload, ensure_ascii=False).encode('utf-8')
+                        publish_future = publisher.publish(topic_path, data=message_data_bytes)
+                        
+                        def pubsub_callback(future):
+                            try: future.result()
+                            except Exception as e: logger.error(f"Failed to publish Pub/Sub message for session {session_id}: {e}", exc_info=True)
+                        
+                        publish_future.add_done_callback(pubsub_callback)
+                        logger.info(f"Pub/Sub message queued for session {session_id}.")
+                    except Exception as pubsub_error:
+                        logger.error(f"Error preparing/publishing Pub/Sub message for session {session_id}: {pubsub_error}", exc_info=True)
+                # --- End Pub/Sub Publish ---
+                
                 return ChatMessageResponse(status="success", response=ai_response, session_id=session_id)
             else:
                 provider = llm_data.get('provider', 'unknown')
