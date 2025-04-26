@@ -1,26 +1,4 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { PubSub } from '@google-cloud/pubsub';
-
-// --- Pub/Sub Configuration ---
-let pubSubClient: PubSub;
-const topicId = process.env.PUBSUB_TOPIC_ID;
-const gcpCredentialsJson = process.env.GOOGLE_CREDENTIALS_JSON;
-
-// Initialize PubSub client based on environment
-if (gcpCredentialsJson) {
-  try {
-    const credentials = JSON.parse(gcpCredentialsJson);
-    pubSubClient = new PubSub({ credentials });
-    console.log("Initialized Pub/Sub client with credentials from GOOGLE_CREDENTIALS_JSON env var.");
-  } catch (e) {
-    console.error("Failed to parse GOOGLE_CREDENTIALS_JSON, falling back to Application Default Credentials:", e);
-    pubSubClient = new PubSub(); // Fallback to ADC
-  }
-} else {
-  console.log("GOOGLE_CREDENTIALS_JSON not set, attempting to use Application Default Credentials for Pub/Sub.");
-  pubSubClient = new PubSub(); // Default: Use Application Default Credentials
-}
-// ---------------------------
 
 // Add a simple GET handler to verify the route is reachable
 export async function GET(
@@ -44,20 +22,14 @@ export async function POST(
   const webhookId = (await context.params).id;
   console.log("POST request received for webhook:", webhookId);
   
-  let responsePayload: any = null;
-  let requestBody: any = null;
-  let workflowIdForPubSub: string | null = null;
-  let finalSessionIdForPubSub: string | null = null;
-
   try {
     console.log("Request headers:", Object.fromEntries(request.headers.entries()));
     
     // Get the request body - include session_id if provided
-    requestBody = await request.json();
-    console.log("Request body:", JSON.stringify(requestBody));
+    const body = await request.json();
+    console.log("Request body:", JSON.stringify(body));
     
-    const { message, workflow_id, session_id } = requestBody;
-    workflowIdForPubSub = workflow_id;
+    const { message, workflow_id, session_id } = body;
     
     // Validate required fields
     if (!message) {
@@ -98,7 +70,6 @@ export async function POST(
     
     // Use provided session_id OR generate a new unique one
     const finalSessionId = session_id || `chat-${webhookId}-${Date.now()}`;
-    finalSessionIdForPubSub = finalSessionId;
     console.log("Using session ID:", finalSessionId);
     
     // Forward the message to the chat message API
@@ -130,54 +101,21 @@ export async function POST(
     if (!chatApiResponse.ok) {
       const errorText = await chatApiResponse.text();
       console.error('Error from chat API:', errorText);
-      throw new Error('Error processing request downstream');
+      return NextResponse.json({ error: 'Error processing request' }, { status: 500 });
     }
     
     // Return the response directly
     const chatResponse = await chatApiResponse.json();
     console.log("Response received:", JSON.stringify(chatResponse));
     
-    // Prepare final response payload
-    responsePayload = {
+    return NextResponse.json({
       status: 'success',
       response: chatResponse.response,
       session_id: finalSessionId
-    };
-    
-    // Return the response
-    return NextResponse.json(responsePayload);
+    });
     
   } catch (error) {
     console.error('Error processing webhook request:', error);
-    // Prepare error response payload
-    responsePayload = { error: 'Internal server error', details: String(error) };
-    return NextResponse.json(responsePayload, { status: 500 });
-
-  } finally {
-    // --- Publish to Pub/Sub (uses the initialized pubSubClient) ---
-    if (topicId && workflowIdForPubSub && requestBody && responsePayload && pubSubClient) { // Check pubSubClient exists
-      try {
-        const pubSubPayload = {
-          eventType: "webhook_interaction",
-          workflowId: workflowIdForPubSub,
-          webhookId: webhookId,
-          sessionId: finalSessionIdForPubSub,
-          requestBody: requestBody,
-          responseBody: responsePayload, 
-          timestamp: new Date().toISOString(),
-        };
-        const dataBuffer = Buffer.from(JSON.stringify(pubSubPayload));
-        
-        console.log(`Attempting to publish message to Pub/Sub topic: ${topicId}`);
-        // Use the potentially configured pubSubClient
-        const messageId = await pubSubClient.topic(topicId).publishMessage({ data: dataBuffer }); 
-        console.log(`Message ${messageId} published to Pub/Sub.`);
-      } catch (pubSubError) {
-        console.error(`Failed to publish message to Pub/Sub:`, pubSubError);
-      }
-    } else {
-        console.warn("Skipping Pub/Sub publish: Missing topicId, workflowId, requestBody, responsePayload, or pubSubClient.");
-    }
-    // ----------------------------------------------------------------------
+    return NextResponse.json({ error: 'Internal server error', details: String(error) }, { status: 500 });
   }
 } 
