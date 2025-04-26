@@ -315,27 +315,31 @@ async def send_chat_message(message_data: ChatMessageInput):
                     try:
                         # timestamp_utc = datetime.now(timezone.utc).isoformat(timespec='microseconds') + "Z"
                         timestamp_utc = datetime.now(timezone.utc)
-                        formatted_timestamp = timestamp_utc.isoformat(timespec='microseconds')
+                        formatted_timestamp = timestamp_utc.isoformat(timespec='microseconds') # Keep Z implicit with timezone
+                         
                         message_payload = {
                             "eventType": "webhook_interaction",
                             "workflowId": workflow_id,
-                            "webhookId": preferred_node_id, # Assuming node_id is the webhook ID
+                            "webhookId": preferred_node_id, 
                             "sessionId": session_id,
-                            "requestBody": {"message": message}, # Original user request 
-                            "responseBody": {"response": ai_response}, # AI response
+                            "requestBody": {"message": message}, 
+                            "responseBody": {"response": ai_response}, 
                             "timestamp": formatted_timestamp
                         }
                         message_data_bytes = json.dumps(message_payload, ensure_ascii=False).encode('utf-8')
+                        
+                        # --- Synchronous Publish --- 
+                        logger.info(f"Attempting synchronous Pub/Sub publish for session {session_id}...")
                         publish_future = publisher.publish(topic_path, data=message_data_bytes)
+                        # Block and wait for the result. Raises exception on failure.
+                        message_id = publish_future.result(timeout=30) 
+                        logger.info(f"Successfully published Pub/Sub message {message_id} for session {session_id}.")
+                        # ---------------------------
                         
-                        def pubsub_callback(future):
-                            try: future.result()
-                            except Exception as e: logger.error(f"Failed to publish Pub/Sub message for session {session_id}: {e}", exc_info=True)
-                        
-                        publish_future.add_done_callback(pubsub_callback)
-                        logger.info(f"Pub/Sub message queued for session {session_id}.")
                     except Exception as pubsub_error:
-                        logger.error(f"Error preparing/publishing Pub/Sub message for session {session_id}: {pubsub_error}", exc_info=True)
+                        # Log error but don't fail the main API request (unless desired)
+                        # If you *want* the API call to fail if Pub/Sub fails, re-raise the exception here.
+                        logger.error(f"Error during synchronous Pub/Sub publish for session {session_id}: {pubsub_error}", exc_info=True)
                 # --- End Pub/Sub Publish ---
                 
                 return ChatMessageResponse(status="success", response=ai_response, session_id=session_id)

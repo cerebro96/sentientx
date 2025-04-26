@@ -22,7 +22,12 @@ TO authenticated
 USING (TRUE);
 
 -- Policy: Allow authenticated users to INSERT new rows (this is crucial for the Cloud Function)
-CREATE POLICY "Enable insert access for authenticated users"
+-- CREATE POLICY "Enable insert access for authenticated users"
+-- ON webhook_interactions FOR INSERT
+-- TO authenticated
+-- WITH CHECK (TRUE);
+
+CREATE POLICY "Allow anyone to insert"
 ON webhook_interactions FOR INSERT
-TO authenticated
+TO PUBLIC
 WITH CHECK (TRUE);
