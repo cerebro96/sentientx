@@ -88,6 +88,16 @@ export function AuthForm({ mode, onSubmit, isLoading, error: propError }: AuthFo
           
           <div className="space-y-2">
             <Label htmlFor="password">Password</Label>
+            {mode === 'login' && (
+                <div className="text-right">
+                    <Link 
+                        href="/auth/forgot-password" 
+                        className="text-sm font-medium text-primary hover:underline"
+                    >
+                        Forgot password?
+                    </Link>
+                </div>
+            )}
             <Input 
               id="password"
               type="password"
