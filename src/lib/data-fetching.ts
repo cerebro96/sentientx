@@ -13,6 +13,18 @@ export interface Execution {
   updated_at: string
 }
 
+export interface WebhookInteraction {
+  id: string
+  event_type: string
+  workflow_id: string
+  session_id: string
+  webhook_id: string
+  request_body: any
+  response_body: any
+  timestamp: string
+  created_at: string
+}
+
 export const fetchUserData = cache(async () => {
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return null
@@ -122,6 +134,59 @@ export const fetchWorkflowExecutions = cache(async (workflowId: string) => {
     throw error;
   }
 })
+
+export const fetchWebhookInteractions = async (
+  workflowId: string,
+  page: number = 1,
+  pageSize: number = 10,
+  searchTerm: string = ''
+): Promise<{ data: WebhookInteraction[]; count: number | null }> => {
+  if (!workflowId) {
+    console.log("fetchWebhookInteractions: No workflowId provided");
+    return { data: [], count: 0 };
+  }
+  
+  console.log(`Fetching webhook interactions for workflow: ${workflowId}, page: ${page}, pageSize: ${pageSize}, search: '${searchTerm}'`);
+  
+  const offset = (page - 1) * pageSize;
+
+  try {
+    // Base query
+    let query = supabase
+      .from('webhook_interactions')
+      .select('*', { count: 'exact' })
+      .eq('workflow_id', workflowId);
+
+    // Apply search filter if searchTerm is provided
+    if (searchTerm) {
+      const searchQuery = `%${searchTerm}%`; // Prepare pattern for ILIKE
+      query = query.or(
+        `event_type.ilike.${searchQuery},` +
+        `session_id.ilike.${searchQuery},` +
+        `webhook_id.ilike.${searchQuery}`
+      );
+    }
+
+    // Add ordering and pagination
+    query = query
+      .order('timestamp', { ascending: false })
+      .range(offset, offset + pageSize - 1);
+
+    // Execute the query
+    const { data, error, count } = await query;
+
+    if (error) {
+      console.error("Error fetching webhook interactions:", error);
+      throw error;
+    }
+
+    console.log(`Fetched ${data?.length || 0} interactions. Total count (matching search): ${count}`);
+    return { data: (data as WebhookInteraction[]) || [], count };
+  } catch (error) {
+    console.error("Exception during fetchWebhookInteractions:", error);
+    return { data: [], count: 0 };
+  }
+};
 
 export async function revalidateData(path: string) {
   try {

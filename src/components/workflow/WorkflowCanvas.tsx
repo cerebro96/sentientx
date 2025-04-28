@@ -34,6 +34,7 @@ import { getApiKeyWithValue } from "@/lib/api-keys";
 import { supabase } from '@/lib/supabase';
 import { formatDistanceStrict } from 'date-fns';
 import { v4 as uuidv4 } from 'uuid';
+import { ExecutionDetailsView } from './ExecutionDetailsView';
 
 interface WorkflowCanvasProps {
   isActive: boolean;
@@ -509,6 +510,21 @@ export function WorkflowCanvas({ isActive, onClose, workflowId, newWorkflowData 
     // Note: Add nodes as a dependency, but be mindful of performance. Deep comparison might be needed.
   }, [nodes, triggerAutoSave]);
 
+  // --- New useEffect to fitView on tab change --- 
+  useEffect(() => {
+    if (activeTab === 'canvas' && reactFlowInstance) {
+      // Use a short delay to ensure the canvas is visible and ready
+      const timer = setTimeout(() => {
+        reactFlowInstance.fitView({
+          padding: 0.5,
+          duration: 200 // Use a moderate duration for smooth transition
+        });
+      }, 50); // 50ms delay
+
+      return () => clearTimeout(timer); // Cleanup the timer
+    }
+  }, [activeTab, reactFlowInstance]);
+
   // Workflow control handlers
   const handleStartWorkflow = async () => {
     // --- Add Check for Active Status --- 
@@ -762,6 +778,9 @@ export function WorkflowCanvas({ isActive, onClose, workflowId, newWorkflowData 
     }
   };
 
+  // --- Determine the current workflow ID to use --- 
+  const currentWorkflowIdentifier = workflowId || createdWorkflowId;
+
   if (!isReady) {
     return (
       <div className="h-full flex items-center justify-center bg-background">
@@ -818,7 +837,7 @@ export function WorkflowCanvas({ isActive, onClose, workflowId, newWorkflowData 
           <Tabs value={activeTab} onValueChange={setActiveTab} className="w-[400px]">
             <TabsList className="grid w-full grid-cols-2">
               <TabsTrigger value="canvas">Editor</TabsTrigger>
-              <TabsTrigger value="code">Executions</TabsTrigger>
+              <TabsTrigger value="executions">Executions</TabsTrigger>
             </TabsList>
           </Tabs>
         </div>
@@ -832,135 +851,144 @@ export function WorkflowCanvas({ isActive, onClose, workflowId, newWorkflowData 
         onBack={onClose}
         tags={tags}
         onTagsChange={setTags}
-        workflowId={workflowId}
+        workflowId={currentWorkflowIdentifier}
         onStartWorkflow={handleStartWorkflow}
         onPauseWorkflow={handlePauseWorkflow}
         onStopWorkflow={handleStopWorkflow}
         workflowStatus={workflowStatus}
       />
       
-      <div className="flex-1 flex">
-        {/* Node Panel with toggle button */}
-        <div className={`h-full transition-all duration-300 ${isPanelVisible ? 'w-64' : 'w-0'} relative overflow-hidden`}>
-          {isPanelVisible && (
-            <NodePanel onToggle={() => setIsPanelVisible(false)} />
-          )}
-          <Button 
-            variant="ghost" 
-            size="icon" 
-            className="absolute -right-10 top-2 z-10 bg-background rounded-full shadow-md hidden md:flex"
-            onClick={() => setIsPanelVisible(!isPanelVisible)}
-            title={isPanelVisible ? "Hide node panel" : "Show node panel"}
-          >
-            <ChevronLeft className={`h-5 w-5 transform transition-transform duration-300 ${isPanelVisible ? '' : 'rotate-180'}`} />
-          </Button>
-        </div>
+      <div className="flex-1 flex overflow-hidden">
+        {activeTab === 'canvas' ? (
+          <>
+            <div className={`h-full transition-all duration-300 ${isPanelVisible ? 'w-64' : 'w-0'} relative overflow-hidden flex-shrink-0`}>
+              {isPanelVisible && (
+                <NodePanel onToggle={() => setIsPanelVisible(false)} />
+              )}
+              <Button 
+                variant="ghost" 
+                size="icon" 
+                className="absolute -right-10 top-2 z-10 bg-background rounded-full shadow-md hidden md:flex"
+                onClick={() => setIsPanelVisible(!isPanelVisible)}
+                title={isPanelVisible ? "Hide node panel" : "Show node panel"}
+              >
+                <ChevronLeft className={`h-5 w-5 transform transition-transform duration-300 ${isPanelVisible ? '' : 'rotate-180'}`} />
+              </Button>
+            </div>
 
-        {/* Mobile toggle button - only visible when panel is hidden */}
-        {!isPanelVisible && (
-          <Button
-            variant="outline"
-            size="sm"
-            className="absolute left-2 top-[72px] z-10 md:hidden"
-            onClick={() => setIsPanelVisible(true)}
-          >
-            <Search className="h-4 w-4 mr-2" />
-            Nodes
-          </Button>
-        )}
+            {!isPanelVisible && (
+              <Button
+                variant="outline"
+                size="sm"
+                className="absolute left-2 top-[72px] z-10 md:hidden"
+                onClick={() => setIsPanelVisible(true)}
+              >
+                <Search className="h-4 w-4 mr-2" />
+                Nodes
+              </Button>
+            )}
 
-        {/* ReactFlow Canvas */}
-        <ReactFlowProvider>
-          <div ref={reactFlowWrapper} className="flex-1 h-full">
-            <ReactFlow
-              nodes={nodes}
-              edges={edges}
-              onNodesChange={onNodesChange}
-              onEdgesChange={onEdgesChange}
-              onConnect={onConnect}
-              onInit={setReactFlowInstance}
-              onDrop={onDrop}
-              onDragOver={onDragOver}
-              nodeTypes={nodeTypes}
-              deleteKeyCode={['Backspace', 'Delete']}
-              fitView
-              fitViewOptions={{ padding: 0.5, maxZoom: 0.8 }}
-              defaultViewport={{ x: 0, y: 0, zoom: 0.6 }}
-              minZoom={0.2}
-              maxZoom={1.5}
-              defaultEdgeOptions={edgeOptions}
-              connectionLineType={ConnectionLineType.SmoothStep}
-              connectionLineStyle={{ stroke: '#3b82f6', strokeWidth: 2, opacity: 0.8 }}
-              className="bg-background"
-            >
-              <svg style={{ position: 'absolute', width: 0, height: 0 }}>
-                <defs>
-                  <linearGradient id="edge-gradient" x1="0%" y1="0%" x2="100%" y2="0%">
-                    <stop offset="0%" stopColor="#1d4ed8" />
-                    <stop offset="100%" stopColor="#3b82f6" />
-                  </linearGradient>
-                </defs>
-              </svg>
-              <Background color="#f1f5f9" gap={16} variant={BackgroundVariant.Dots} />
-              <Controls className="bg-white border border-gray-200 rounded-md shadow-sm" />
-              <MiniMap 
-                nodeStrokeColor={(n) => {
-                  if (n.type === 'action') return '#ec4899';
-                  if (n.type === 'trigger') return '#3b82f6';
-                  return '#94a3b8';
-                }}
-                nodeColor={(n) => {
-                  if (n.type === 'action') return '#4c1d95';
-                  if (n.type === 'trigger') return '#1e3a8a';
-                  return '#1e293b';
-                }}
-                maskColor="rgba(15, 23, 42, 0.6)"
-                style={{ background: '#0f172a' }}
-              />
-              <Panel position="top-left" className="ml-2 mt-2">
-                <Button 
-                  size="sm" 
-                  variant="outline" 
-                  onClick={() => setIsPanelVisible(!isPanelVisible)}
+            <ReactFlowProvider>
+              <div ref={reactFlowWrapper} className="flex-1 h-full">
+                <ReactFlow
+                  nodes={nodes}
+                  edges={edges}
+                  onNodesChange={onNodesChange}
+                  onEdgesChange={onEdgesChange}
+                  onConnect={onConnect}
+                  onInit={setReactFlowInstance}
+                  onDrop={onDrop}
+                  onDragOver={onDragOver}
+                  nodeTypes={nodeTypes}
+                  deleteKeyCode={['Backspace', 'Delete']}
+                  fitView
+                  fitViewOptions={{ padding: 0.5, maxZoom: 0.8 }}
+                  defaultViewport={{ x: 0, y: 0, zoom: 0.6 }}
+                  minZoom={0.2}
+                  maxZoom={1.5}
+                  defaultEdgeOptions={edgeOptions}
+                  connectionLineType={ConnectionLineType.SmoothStep}
+                  connectionLineStyle={{ stroke: '#3b82f6', strokeWidth: 2, opacity: 0.8 }}
+                  className="bg-background"
                 >
-                  {isPanelVisible ? (
-                    <>
-                      <PanelLeftClose className="h-4 w-4 mr-2" />
-                      Hide Panel
-                    </>
-                  ) : (
-                    <>
-                      <Search className="h-4 w-4 mr-2" />
-                      Show Panel
-                    </>
-                  )}
-                </Button>
-              </Panel>
-              <Panel position="top-right" className="flex gap-2">
-                <Button size="sm" variant="outline" onClick={() => {
-                  if (reactFlowInstance) {
-                    reactFlowInstance.fitView({
-                      padding: 0.4,
-                      includeHiddenNodes: true,
-                      duration: 800
-                    });
-                  }
-                }}>
-                  <Maximize className="h-4 w-4 mr-1" />
-                  Center View
-                </Button>
-                <Button size="sm" variant="outline" onClick={resetWorkflow}>
-                  <Trash2 className="h-4 w-4 mr-1" />
-                  Clear
-                </Button>
-                <Button size="sm" onClick={handleSaveWorkflow}>
-                  <Save className="h-4 w-4 mr-1" />
-                  Save
-                </Button>
-              </Panel>
-            </ReactFlow>
+                  <svg style={{ position: 'absolute', width: 0, height: 0 }}>
+                    <defs>
+                      <linearGradient id="edge-gradient" x1="0%" y1="0%" x2="100%" y2="0%">
+                        <stop offset="0%" stopColor="#1d4ed8" />
+                        <stop offset="100%" stopColor="#3b82f6" />
+                      </linearGradient>
+                    </defs>
+                  </svg>
+                  <Background color="#f1f5f9" gap={16} variant={BackgroundVariant.Dots} />
+                  <Controls className="bg-white border border-gray-200 rounded-md shadow-sm" />
+                  <MiniMap 
+                    nodeStrokeColor={(n) => {
+                      if (n.type === 'action') return '#ec4899';
+                      if (n.type === 'trigger') return '#3b82f6';
+                      return '#94a3b8';
+                    }}
+                    nodeColor={(n) => {
+                      if (n.type === 'action') return '#4c1d95';
+                      if (n.type === 'trigger') return '#1e3a8a';
+                      return '#1e293b';
+                    }}
+                    maskColor="rgba(15, 23, 42, 0.6)"
+                    style={{ background: '#0f172a' }}
+                  />
+                  <Panel position="top-left" className="ml-2 mt-2">
+                    <Button 
+                      size="sm" 
+                      variant="outline" 
+                      onClick={() => setIsPanelVisible(!isPanelVisible)}
+                    >
+                      {isPanelVisible ? (
+                        <>
+                          <PanelLeftClose className="h-4 w-4 mr-2" />
+                          Hide Panel
+                        </>
+                      ) : (
+                        <>
+                          <Search className="h-4 w-4 mr-2" />
+                          Show Panel
+                        </>
+                      )}
+                    </Button>
+                  </Panel>
+                  <Panel position="top-right" className="flex gap-2">
+                    <Button size="sm" variant="outline" onClick={() => {
+                      if (reactFlowInstance) {
+                        reactFlowInstance.fitView({
+                          padding: 0.4,
+                          includeHiddenNodes: true,
+                          duration: 800
+                        });
+                      }
+                    }}>
+                      <Maximize className="h-4 w-4 mr-1" />
+                      Center View
+                    </Button>
+                    <Button size="sm" variant="outline" onClick={resetWorkflow}>
+                      <Trash2 className="h-4 w-4 mr-1" />
+                      Clear
+                    </Button>
+                    <Button size="sm" onClick={handleSaveWorkflow}>
+                      <Save className="h-4 w-4 mr-1" />
+                      Save
+                    </Button>
+                  </Panel>
+                </ReactFlow>
+              </div>
+            </ReactFlowProvider>
+          </>
+        ) : (
+          <div className="flex-1 h-full overflow-y-auto">
+            {currentWorkflowIdentifier ? (
+              <ExecutionDetailsView workflowId={currentWorkflowIdentifier} />
+            ) : (
+              <div className="p-4 text-center text-muted-foreground">Select or create a workflow first.</div>
+            )}
           </div>
-        </ReactFlowProvider>
+        )}
       </div>
     </div>
   );
