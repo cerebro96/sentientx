@@ -1,12 +1,14 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, FormEvent } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { OAuthButtons } from './OAuthButtons';
 import Link from 'next/link';
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { AlertCircle, Loader2 } from 'lucide-react';
 
 interface AuthFormProps {
   mode: 'login' | 'register';
@@ -15,20 +17,26 @@ interface AuthFormProps {
   error: string | null;
 }
 
-export function AuthForm({ mode, onSubmit, isLoading, error }: AuthFormProps) {
+export function AuthForm({ mode, onSubmit, isLoading, error: propError }: AuthFormProps) {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
   const [fullName, setFullName] = useState('');
+  const [formError, setFormError] = useState<string | null>(null);
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
-    
-    if (mode === 'register') {
-      await onSubmit(email, password, fullName);
-    } else {
-      await onSubmit(email, password);
+    setFormError(null);
+
+    if (mode === 'register' && password !== confirmPassword) {
+      setFormError("Passwords do not match.");
+      return;
     }
+
+    await onSubmit(email, password, mode === 'register' ? fullName : undefined);
   };
+
+  const displayError = formError || propError;
 
   return (
     <Card className="w-full max-w-md">
@@ -41,15 +49,26 @@ export function AuthForm({ mode, onSubmit, isLoading, error }: AuthFormProps) {
         </CardDescription>
       </CardHeader>
       <CardContent>
-        <form onSubmit={handleSubmit} className="space-y-4">
+        <form onSubmit={handleSubmit} className="space-y-6">
+          {displayError && (
+            <Alert variant="destructive">
+              <AlertCircle className="h-4 w-4" />
+              <AlertTitle>Error</AlertTitle>
+              <AlertDescription>{displayError}</AlertDescription>
+            </Alert>
+          )}
+          
           {mode === 'register' && (
             <div className="space-y-2">
-              <Label htmlFor="name">Full Name</Label>
+              <Label htmlFor="fullname">Full Name</Label>
               <Input 
-                id="name" 
+                id="fullname"
+                type="text" 
+                placeholder="Your Name"
                 value={fullName}
                 onChange={(e) => setFullName(e.target.value)}
-                placeholder="Enter your full name" 
+                required 
+                disabled={isLoading}
               />
             </div>
           )}
@@ -59,31 +78,49 @@ export function AuthForm({ mode, onSubmit, isLoading, error }: AuthFormProps) {
             <Input 
               id="email" 
               type="email" 
+              placeholder="you@example.com" 
               value={email}
               onChange={(e) => setEmail(e.target.value)}
-              placeholder="example@example.com" 
               required 
+              disabled={isLoading}
             />
           </div>
           
           <div className="space-y-2">
             <Label htmlFor="password">Password</Label>
             <Input 
-              id="password" 
-              type="password" 
+              id="password"
+              type="password"
+              placeholder="••••••••" 
               value={password}
               onChange={(e) => setPassword(e.target.value)}
-              placeholder="••••••••" 
               required 
+              disabled={isLoading}
             />
           </div>
           
-          {error && (
-            <div className="text-sm text-red-500">{error}</div>
+          {mode === 'register' && (
+            <div className="space-y-2">
+              <Label htmlFor="confirm-password">Confirm Password</Label>
+              <Input 
+                id="confirm-password"
+                type="password"
+                placeholder="••••••••" 
+                value={confirmPassword}
+                onChange={(e) => setConfirmPassword(e.target.value)}
+                required 
+                disabled={isLoading}
+              />
+            </div>
           )}
           
           <Button type="submit" className="w-full" disabled={isLoading}>
-            {isLoading ? 'Loading...' : mode === 'login' ? 'Login' : 'Create Account'}
+            {isLoading ? (
+              <>
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                Please wait
+              </>
+            ) : (mode === 'login' ? 'Sign In' : 'Create Account')}
           </Button>
         </form>
         
@@ -106,14 +143,14 @@ export function AuthForm({ mode, onSubmit, isLoading, error }: AuthFormProps) {
             <>
               Don't have an account?{' '}
               <Link href="/auth/register" className="text-primary hover:underline">
-                Register
+                Sign up
               </Link>
             </>
           ) : (
             <>
               Already have an account?{' '}
               <Link href="/auth/login" className="text-primary hover:underline">
-                Login
+                Sign in
               </Link>
             </>
           )}
