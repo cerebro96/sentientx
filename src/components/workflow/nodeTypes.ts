@@ -108,6 +108,14 @@ export const nodeCatalog = [
   },
   {
     type: 'action',
+    label: 'Supabase AI Agent',
+    description: 'interact with supabase with natural language',
+    icon: Bot,
+    category: 'Pre-Built Agents',
+    hidden: false,
+  },
+  {
+    type: 'action',
     label: 'Redis Memory',
     description: 'Stores a customizable length of chat history',
     icon: DatabaseZap,
