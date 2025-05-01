@@ -34,16 +34,21 @@ export function NodePanel({ onToggle }: NodePanelProps) {
     setCollapsedCategories(initialCollapsedState);
   }, []);
 
-  // Filter nodes based on search query from the *available* nodes
-  const filteredNodes = searchQuery.trim() 
-    ? availableNodes.filter(node => 
+  // Filter nodes based on search query. Search *all* nodes if query exists.
+  const filteredNodes = searchQuery.trim()
+    ? nodeCatalog.filter(node => // Search the full catalog
         node.label.toLowerCase().includes(searchQuery.toLowerCase()) ||
         node.description.toLowerCase().includes(searchQuery.toLowerCase())
       )
-    : availableNodes;
+    : availableNodes; // Default to non-hidden nodes
+
+  // Determine categories based on whether we are searching or not
+  const currentCategories = searchQuery.trim()
+    ? [...new Set(filteredNodes.map(node => node.category))] // Categories from search results
+    : categories; // Default categories (from available nodes)
 
   // Group nodes by category
-  const nodesByCategory = categories.reduce((acc, category) => {
+  const nodesByCategory = currentCategories.reduce((acc, category) => {
     acc[category] = filteredNodes.filter(node => node.category === category);
     return acc;
   }, {} as Record<string, typeof nodeCatalog>);
@@ -94,26 +99,57 @@ export function NodePanel({ onToggle }: NodePanelProps) {
 
       <ScrollArea className="flex-1">
         <div className="p-2">
-          {categories.map(category => {
-            const categoryNodes = nodesByCategory[category] || [];
-            const isCollapsed = !!collapsedCategories[category];
-            
-            if (categoryNodes.length === 0 && !searchQuery.trim()) return null; // Hide empty categories unless searching
-            
-            return (
-              <div key={category} className="mb-4">
-                <button
-                  className="w-full flex items-center justify-between p-2 text-sm font-medium hover:bg-secondary rounded-md mb-1"
-                  onClick={() => toggleCategory(category)}
-                >
-                  {category}
-                  {isCollapsed ? <ChevronDown size={16} /> : <ChevronUp size={16} />}
-                </button>
-                
-                {!isCollapsed && (
-                  <div className="space-y-1 pl-2">
-                    {categoryNodes.length > 0 ? (
-                      categoryNodes.map((node) => (
+          {searchQuery.trim() ? (
+            // If searching, render a flat list of filtered nodes
+            <div className="space-y-1">
+              {filteredNodes.length > 0 ? (
+                filteredNodes.map((node) => (
+                  <div
+                    key={`${node.type}-${node.label}`}
+                    className="flex items-center p-2 rounded-md border border-border hover:bg-accent cursor-grab bg-card"
+                    draggable
+                    onDragStart={(event) => onDragStart(event, node)}
+                    onClick={() => handleAddNode(node)}
+                  >
+                    <div className={cn(
+                      "mr-2 p-1 rounded-full",
+                      node.type === 'trigger' ? "bg-blue-500" :
+                      node.type === 'output' ? "bg-green-500" : "bg-amber-500"
+                    )}>
+                      {/* Ensure icon exists before rendering */}
+                      {node.icon && <node.icon size={16} />}
+                    </div>
+                    <div>
+                      <div className="text-sm font-medium">{node.label}</div>
+                      <div className="text-xs text-muted-foreground">{node.description}</div>
+                    </div>
+                  </div>
+                ))
+              ) : (
+                <p className="text-center text-sm text-muted-foreground p-4">No nodes found matching your search.</p>
+              )}
+            </div>
+          ) : (
+            // If not searching, render nodes grouped by category
+            currentCategories.map(category => {
+              const categoryNodes = nodesByCategory[category] || [];
+              const isCollapsed = !!collapsedCategories[category];
+
+              if (categoryNodes.length === 0) return null; // Hide empty categories when not searching
+
+              return (
+                <div key={category} className="mb-4">
+                  <button
+                    className="w-full flex items-center justify-between p-2 text-sm font-medium hover:bg-secondary rounded-md mb-1"
+                    onClick={() => toggleCategory(category)}
+                  >
+                    {category}
+                    {isCollapsed ? <ChevronDown size={16} /> : <ChevronUp size={16} />}
+                  </button>
+
+                  {!isCollapsed && (
+                    <div className="space-y-1 pl-2">
+                      {categoryNodes.map((node) => (
                         <div
                           key={`${node.type}-${node.label}`}
                           className="flex items-center p-2 rounded-md border border-border hover:bg-accent cursor-grab bg-card"
@@ -126,24 +162,20 @@ export function NodePanel({ onToggle }: NodePanelProps) {
                             node.type === 'trigger' ? "bg-blue-500" :
                             node.type === 'output' ? "bg-green-500" : "bg-amber-500"
                           )}>
-                            <node.icon size={16} />
+                            {/* Ensure icon exists before rendering */}
+                            {node.icon && <node.icon size={16} />}
                           </div>
                           <div>
                             <div className="text-sm font-medium">{node.label}</div>
                             <div className="text-xs text-muted-foreground">{node.description}</div>
                           </div>
                         </div>
-                      ))
-                    ) : (
-                      searchQuery.trim() && <p className="text-xs text-muted-foreground p-2">No matching nodes in this category.</p>
-                    )}
-                  </div>
-                )}
-              </div>
-            );
-          })}
-          {filteredNodes.length === 0 && searchQuery.trim() && (
-             <p className="text-center text-sm text-muted-foreground p-4">No nodes found matching your search.</p>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              );
+            })
           )}
         </div>
       </ScrollArea>

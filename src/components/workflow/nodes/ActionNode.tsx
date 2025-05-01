@@ -72,12 +72,13 @@ function ActionNodeComponent({ id, data, selected }: NodeProps<NodeData>) {
   const isWebhookResponse = data.label === 'Respond to Webhook';
   const isHttpRequest = data.label === 'HTTP Request';
   const isTransformData = data.label === 'Transform Data';
+  const isSupabaseAgent = data.label === 'Supabase AI Agent';
   
   // Handle icon selection based on node type
   let IconComponent;
   
-  // Select the appropriate icon based on node type
-  if (isAIAgent) {
+  // Select the appropriate icon based on node type using the label
+  if (isAIAgent || isSupabaseAgent) { // Handle both generic and Supabase AI agents
     IconComponent = Bot;
   } else if (isButtonNode) {
     IconComponent = MessageCircle;
@@ -395,13 +396,17 @@ function ActionNodeComponent({ id, data, selected }: NodeProps<NodeData>) {
         className={cn(
           "p-4 rounded-lg border-2 bg-slate-800 flex flex-col min-w-[180px] transition-all duration-200 relative",
           isAIAgent ? "min-w-[280px] min-h-[240px]" : "",
-          isAIAgent 
-            ? selected 
-              ? "border-pink-500 shadow-[0_0_20px_-5px_rgba(236,72,153,0.7)]" 
-              : "border-pink-600 shadow-[0_0_10px_-5px_rgba(236,72,153,0.3)]"
-            : selected 
-              ? "border-blue-500 shadow-[0_0_20px_-5px_rgba(59,130,246,0.7)]" 
-              : "border-blue-600 shadow-[0_0_10px_-5px_rgba(59,130,246,0.3)]"
+          isSupabaseAgent
+            ? selected
+              ? "border-green-500 shadow-[0_0_20px_-5px_rgba(34,197,94,0.7)]"
+              : "border-green-600 shadow-[0_0_10px_-5px_rgba(34,197,94,0.3)]"
+            : isAIAgent
+              ? selected
+                ? "border-pink-500 shadow-[0_0_20px_-5px_rgba(236,72,153,0.7)]"
+                : "border-pink-600 shadow-[0_0_10px_-5px_rgba(236,72,153,0.3)]"
+              : selected
+                ? "border-blue-500 shadow-[0_0_20px_-5px_rgba(59,130,246,0.7)]"
+                : "border-blue-600 shadow-[0_0_10px_-5px_rgba(59,130,246,0.3)]"
         )}
         onClick={
           isChatTrigger 
@@ -421,17 +426,21 @@ function ActionNodeComponent({ id, data, selected }: NodeProps<NodeData>) {
         {/* Gradient glow effect */}
         <div className={cn(
           "absolute inset-0 rounded-lg opacity-50 blur-sm",
-          isAIAgent 
-            ? "bg-gradient-to-r from-pink-600 to-fuchsia-600 animate-pulse-slow" 
-            : "bg-gradient-to-r from-blue-600 to-indigo-600 animate-pulse-slow"
+          isSupabaseAgent
+            ? "bg-gradient-to-r from-green-600 to-emerald-600 animate-pulse-slow"
+            : isAIAgent
+              ? "bg-gradient-to-r from-pink-600 to-fuchsia-600 animate-pulse-slow"
+              : "bg-gradient-to-r from-blue-600 to-indigo-600 animate-pulse-slow"
         )} />
         
         <div className="relative w-full flex flex-col items-center mb-2 z-10">
           <div className={cn(
             "flex-shrink-0 p-3 rounded-full mb-2 transition-all",
-            isAIAgent 
-              ? "bg-slate-700 text-pink-400" 
-              : "bg-slate-700 text-blue-400"
+            isSupabaseAgent
+              ? "bg-slate-700 text-green-400"
+              : isAIAgent
+                ? "bg-slate-700 text-pink-400"
+                : "bg-slate-700 text-blue-400"
           )}>
             <IconComponent className="h-6 w-6" />
           </div>
@@ -493,17 +502,19 @@ function ActionNodeComponent({ id, data, selected }: NodeProps<NodeData>) {
         )}
         
         {/* Input handles */}
-        {/* Top input handle - always shown for LLM and Memory nodes, and other nodes except Chat Trigger, Webhook nodes, HTTP Request, Transform Data, and AI Agent */}
-        {(!isChatTrigger && !isWebhookTrigger && !isWebhookResponse && !isHttpRequest && !isTransformData && !isAIAgent) && (
+        {/* Top input handle - Hide for Chat Trigger, Webhooks, HTTP, Transform, AI Agent, and Supabase Agent */}
+        {(!isChatTrigger && !isWebhookTrigger && !isWebhookResponse && !isHttpRequest && !isTransformData && !isAIAgent && !isSupabaseAgent) && (
           <Handle 
             id="input-top"
             type="target" 
             position={Position.Top} 
             className={cn(
               "!transition-all hover:!w-4 hover:!h-4",
-              isAIAgent 
-                ? "!bg-pink-500 !border-pink-400 !w-3 !h-3 hover:!bg-pink-400 hover:!shadow-[0_0_10px_rgba(236,72,153,0.8)]" 
-                : "!bg-blue-500 !border-blue-400 !w-3 !h-3 hover:!bg-blue-400 hover:!shadow-[0_0_10px_rgba(59,130,246,0.8)]"
+              isSupabaseAgent
+                ? "!bg-green-500 !border-green-400 !w-3 !h-3 hover:!bg-green-400 hover:!shadow-[0_0_10px_rgba(34,197,94,0.8)]"
+                : isAIAgent
+                  ? "!bg-pink-500 !border-pink-400 !w-3 !h-3 hover:!bg-pink-400 hover:!shadow-[0_0_10px_rgba(236,72,153,0.8)]"
+                  : "!bg-blue-500 !border-blue-400 !w-3 !h-3 hover:!bg-blue-400 hover:!shadow-[0_0_10px_rgba(59,130,246,0.8)]"
             )}
           />
         )}
@@ -516,9 +527,11 @@ function ActionNodeComponent({ id, data, selected }: NodeProps<NodeData>) {
             position={Position.Left} 
             className={cn(
               "!transition-all hover:!w-4 hover:!h-4",
-              isAIAgent 
-                ? "!bg-pink-500 !border-pink-400 !w-3 !h-3 hover:!bg-pink-400 hover:!shadow-[0_0_10px_rgba(236,72,153,0.8)]" 
-                : "!bg-blue-500 !border-blue-400 !w-3 !h-3 hover:!bg-blue-400 hover:!shadow-[0_0_10px_rgba(59,130,246,0.8)]"
+              isSupabaseAgent
+                ? "!bg-green-500 !border-green-400 !w-3 !h-3 hover:!bg-green-400 hover:!shadow-[0_0_10px_rgba(34,197,94,0.8)]"
+                : isAIAgent
+                  ? "!bg-pink-500 !border-pink-400 !w-3 !h-3 hover:!bg-pink-400 hover:!shadow-[0_0_10px_rgba(236,72,153,0.8)]"
+                  : "!bg-blue-500 !border-blue-400 !w-3 !h-3 hover:!bg-blue-400 hover:!shadow-[0_0_10px_rgba(59,130,246,0.8)]"
             )}
           />
         )}
@@ -531,24 +544,28 @@ function ActionNodeComponent({ id, data, selected }: NodeProps<NodeData>) {
             position={Position.Right} 
             className={cn(
               "!transition-all hover:!w-4 hover:!h-4",
-              isAIAgent 
-                ? "!bg-pink-500 !border-pink-400 !w-3 !h-3 hover:!bg-pink-400 hover:!shadow-[0_0_10px_rgba(236,72,153,0.8)]" 
-                : "!bg-blue-500 !border-blue-400 !w-3 !h-3 hover:!bg-blue-400 hover:!shadow-[0_0_10px_rgba(59,130,246,0.8)]"
+              isSupabaseAgent
+                ? "!bg-green-500 !border-green-400 !w-3 !h-3 hover:!bg-green-400 hover:!shadow-[0_0_10px_rgba(34,197,94,0.8)]"
+                : isAIAgent
+                  ? "!bg-pink-500 !border-pink-400 !w-3 !h-3 hover:!bg-pink-400 hover:!shadow-[0_0_10px_rgba(236,72,153,0.8)]"
+                  : "!bg-blue-500 !border-blue-400 !w-3 !h-3 hover:!bg-blue-400 hover:!shadow-[0_0_10px_rgba(59,130,246,0.8)]"
             )}
           />
         )}
         
-        {/* Bottom output handle - not shown for Chat Trigger, Webhook nodes, HTTP Request, Transform Data, LLM, or Memory nodes */}
-        {(!isChatTrigger && !isWebhookTrigger && !isWebhookResponse && !isHttpRequest && !isTransformData && !isLLMNode && !isMemoryNode && !isAIAgent) && (
+        {/* Bottom output handle - Hide for Chat/Webhook Triggers, HTTP, Transform, LLM, Memory, AI Agent, and Supabase Agent */}
+        {(!isChatTrigger && !isWebhookTrigger && !isWebhookResponse && !isHttpRequest && !isTransformData && !isLLMNode && !isMemoryNode && !isAIAgent && !isSupabaseAgent) && (
           <Handle 
             id="output-bottom"
             type="source" 
             position={Position.Bottom} 
             className={cn(
               "!transition-all hover:!w-4 hover:!h-4",
-              isAIAgent 
-                ? "!bg-pink-500 !border-pink-400 !w-3 !h-3 hover:!bg-pink-400 hover:!shadow-[0_0_10px_rgba(236,72,153,0.8)]" 
-                : "!bg-blue-500 !border-blue-400 !w-3 !h-3 hover:!bg-blue-400 hover:!shadow-[0_0_10px_rgba(59,130,246,0.8)]"
+              isSupabaseAgent
+                ? "!bg-green-500 !border-green-400 !w-3 !h-3 hover:!bg-green-400 hover:!shadow-[0_0_10px_rgba(34,197,94,0.8)]"
+                : isAIAgent
+                  ? "!bg-pink-500 !border-pink-400 !w-3 !h-3 hover:!bg-pink-400 hover:!shadow-[0_0_10px_rgba(236,72,153,0.8)]"
+                  : "!bg-blue-500 !border-blue-400 !w-3 !h-3 hover:!bg-blue-400 hover:!shadow-[0_0_10px_rgba(59,130,246,0.8)]"
             )}
           />
         )}
