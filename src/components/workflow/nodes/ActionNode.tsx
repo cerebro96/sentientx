@@ -22,6 +22,7 @@ import {
 } from "@/components/ui/dialog";
 import { Textarea } from '@/components/ui/textarea';
 import { Input } from '@/components/ui/input';
+import { SupabaseAgentModal } from '../supabase-agent-modal';
 
 // Simple chat message interface
 interface ChatMessage {
@@ -47,6 +48,7 @@ function ActionNodeComponent({ id, data, selected }: NodeProps<NodeData>) {
   const [isMemoryModalOpen, setIsMemoryModalOpen] = useState(false);
   const [isAiAgentModalOpen, setIsAiAgentModalOpen] = useState(false);
   const [isWebhookResponseModalOpen, setIsWebhookResponseModalOpen] = useState(false);
+  const [isSupabaseModalOpen, setIsSupabaseModalOpen] = useState(false);
   const [llmProvider, setLlmProvider] = useState<string>('');
   
   // Chat session state
@@ -124,6 +126,10 @@ function ActionNodeComponent({ id, data, selected }: NodeProps<NodeData>) {
   const handleOpenWebhookResponse = () => {
     console.log('Opening Webhook Response Modal with data:', id, data.webhookConfig);
     setIsWebhookResponseModalOpen(true);
+  };
+  
+  const handleOpenSupabaseConfig = () => {
+    setIsSupabaseModalOpen(true);
   };
   
   const handleChatButtonClick = (e: React.MouseEvent) => {
@@ -377,6 +383,20 @@ function ActionNodeComponent({ id, data, selected }: NodeProps<NodeData>) {
     }
   };
   
+  const handleSupabaseConfigSave = (configData: { supabaseUrl: string; supabaseKey: string }) => {
+    if (id) {
+      const updateNodeData = useWorkflowStore.getState().updateNodeData;
+      console.log('Saving Supabase configuration in node:', configData);
+      updateNodeData(id, {
+        supabaseConfig: {
+          supabaseUrl: configData.supabaseUrl,
+          supabaseKey: configData.supabaseKey,
+        }
+      });
+      toast.success('Supabase configuration updated');
+    }
+  };
+  
   // If it's a button style node, render a button
   if (isButtonNode) {
     return (
@@ -419,9 +439,18 @@ function ActionNodeComponent({ id, data, selected }: NodeProps<NodeData>) {
                   ? handleOpenAiAgentConfig
                   : isWebhookResponse
                     ? handleOpenWebhookResponse
-                    : undefined
+                    : isSupabaseAgent
+                      ? handleOpenSupabaseConfig
+                      : undefined
         }
-        style={(isChatTrigger || isLLMNode || isMemoryNode || isAIAgent || isWebhookResponse) ? { cursor: 'pointer' } : undefined}
+        style={(
+          isChatTrigger || 
+          isLLMNode || 
+          isMemoryNode || 
+          isAIAgent || 
+          isWebhookResponse || 
+          isSupabaseAgent
+        ) ? { cursor: 'pointer' } : undefined}
       >
         {/* Gradient glow effect */}
         <div className={cn(
@@ -621,6 +650,17 @@ function ActionNodeComponent({ id, data, selected }: NodeProps<NodeData>) {
           nodeId={id}
           nodeData={(data && data.webhookConfig) ? data.webhookConfig : {}}
           onSave={handleWebhookConfigSave}
+        />
+      )}
+      
+      {/* Supabase Agent Configuration Modal */}
+      {isSupabaseAgent && (
+        <SupabaseAgentModal
+          isOpen={isSupabaseModalOpen}
+          onClose={() => setIsSupabaseModalOpen(false)}
+          nodeId={id}
+          nodeData={data.supabaseConfig}
+          onSave={handleSupabaseConfigSave}
         />
       )}
       
