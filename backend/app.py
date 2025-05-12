@@ -12,6 +12,7 @@ from contextlib import asynccontextmanager
 from google.cloud import pubsub_v1
 from google.oauth2 import service_account
 from datetime import datetime, timezone
+import httpx  # Add httpx for making HTTP requests
 
 # Import the AI Builder functionality
 from ai_builder import initialize_ai_builder_model, generate_builder_response, BuilderChatInput, BuilderChatResponse
@@ -161,6 +162,25 @@ class ChatMessageResponse(BaseModel):
     session_id: str
     error: Optional[str] = None
     message: Optional[str] = None
+
+class SupabaseAgentRegisterInput(BaseModel):
+    user_id: str
+    supabase_url: str
+    supabase_key: str
+
+class SupabaseAgentRunInput(BaseModel):
+    user_id: str
+    session_id: str
+    message: str
+    supabase_url: str
+    supabase_key: str
+
+class SupabaseAgentResponse(BaseModel):
+    status: str
+    session_id: str
+    message: Optional[str] = None
+    error: Optional[str] = None
+    data: Optional[Dict[str, Any]] = None
 
 # --- API Endpoints --- 
 
@@ -378,6 +398,236 @@ async def resume_workflow(workflow_id: str):
         return WorkflowResponse(status="running", execution_id=workflow_id, message="Workflow resumed.")
     status = workflow_status.get(workflow_id, "not found")
     raise HTTPException(status_code=400, detail=f"Workflow not in paused state (status: {status}).")
+
+# --- Supabase Agent Endpoints ---
+
+@app.post("/api/supabase/registeragent", response_model=SupabaseAgentResponse)
+async def register_supabase_agent(data: Dict[str, Any] = Body(...)):
+    """Register a new Supabase Agent with credentials."""
+    try:
+        # Extract data from request
+        user_id = data.get("user_id")
+        message = data.get("message", "")
+        session_id = data.get("sessionId")
+        
+        if not user_id or not session_id:
+            raise HTTPException(status_code=400, detail="Missing required fields: user_id and sessionId")
+        
+        # Get the base URL from environment variable
+        base_url = os.getenv("SUPABASEAGENT_URL", "http://localhost:8000")
+        
+        # Construct the full URL
+        url = f"{base_url}/apps/supabase_agent/users/{user_id}/sessions/{session_id}"
+        
+        logger.info(f"Forwarding request to Supabase Agent URL: {url}")
+        
+        # Forward the request to the Supabase Agent URL
+        async with httpx.AsyncClient(timeout=30.0) as client:
+            response = await client.post(
+                url,
+                json={"message": message},
+                headers={"Content-Type": "application/json"}
+            )
+            
+        # Check if the request was successful
+        if response.status_code != 200:
+            error_text = await response.text()
+            # If the external service returns 400, treat it as Not Found locally
+            if response.status_code == 400:
+                logger.warning(f"Supabase Agent service returned 400 for session {session_id}. Treating as Not Found.")
+                raise HTTPException(
+                    status_code=404, 
+                    detail=f"Supabase Agent session not found or invalid: {session_id}"
+                )
+            # For other errors, forward the status and message
+            raise HTTPException(
+                status_code=response.status_code,
+                detail=f"Error from Supabase Agent service: {error_text}"
+            )
+            
+        # Parse the response safely
+        response_data = {}
+        try:
+            raw_data = response.json()
+            # Ensure response_data is a dictionary - wrap non-dict responses
+            if isinstance(raw_data, dict):
+                response_data = raw_data
+            else:
+                # If it's not a dictionary, wrap it in a dictionary
+                response_data = {"result": raw_data}
+        except Exception as e:
+            logger.warning(f"Failed to parse JSON response: {str(e)}")
+        
+        logger.info(f"Supabase Agent response: {response_data}")
+        # Return the response with session ID
+        return SupabaseAgentResponse(
+            status="success",
+            session_id=session_id,
+            data=response_data
+        )
+    except httpx.RequestError as e:
+        logger.error(f"Error connecting to Supabase Agent: {str(e)}")
+        raise HTTPException(status_code=503, detail=f"Error connecting to Supabase Agent service: {str(e)}")
+    except Exception as e:
+        logger.error(f"Error in register_supabase_agent: {str(e)}")
+        raise HTTPException(status_code=404, detail=f"Not Found session: {session_id}")
+
+@app.post("/api/supabase/runagent", response_model=SupabaseAgentResponse)
+async def run_supabase_agent(data: Dict[str, Any] = Body(...)):
+    """Run a Supabase Agent with the provided credentials."""
+    try:
+        # Extract data from the frontend request
+        user_id = data.get("user_id")
+        session_id = data.get("session_id")
+        message = data.get("message", "")
+        supabase_url = data.get("supabase_url")
+        supabase_key = data.get("supabase_key")
+        
+        if not user_id or not session_id:
+            raise HTTPException(status_code=400, detail="Missing required fields: user_id and session_id")
+        
+        # Build the special message text if credentials are provided
+        message_text = message
+        if supabase_url and supabase_key:
+            # Format the credentials as expected by the agent
+            if not message:
+                message_text = f"[[SUPABASE_URL={supabase_url},SUPABASE_KEY={supabase_key}]]"
+        
+        # Construct the payload in the format expected by the external service
+        payload = {
+            "app_name": "supabase_agent",
+            "user_id": user_id,
+            "session_id": session_id,
+            "new_message": {
+                "role": "user",
+                "parts": [
+                    {
+                        "text": message_text
+                    }
+                ]
+            }
+        }
+        
+        # Get the backend URL from environment or use default
+        agent_url = os.getenv("SUPABASEAGENT_URL", "http://localhost:8000")
+        run_endpoint = f"{agent_url}/run"
+        
+        logger.info(f"Forwarding request to Supabase Agent run endpoint: {run_endpoint}")
+        logger.debug(f"Sending payload: {json.dumps(payload)}")
+        
+        # Forward the request to the external service
+        async with httpx.AsyncClient(timeout=60.0) as client:
+            response = await client.post(
+                run_endpoint,
+                json=payload,
+                headers={"Content-Type": "application/json"}
+            )
+        
+        # Check if the request was successful
+        if response.status_code != 200:
+            error_text = await response.text()
+            raise HTTPException(
+                status_code=response.status_code,
+                detail=f"Error from Supabase Agent service: {error_text}"
+            )
+        
+        # Parse the response safely
+        response_data = {}
+        try:
+            raw_data = response.json()
+            # Ensure response_data is a dictionary - wrap non-dict responses
+            if isinstance(raw_data, dict):
+                response_data = raw_data
+            else:
+                # If it's not a dictionary, wrap it in a dictionary
+                response_data = {"result": raw_data}
+        except Exception as e:
+            logger.warning(f"Failed to parse JSON response: {str(e)}")
+        logger.info(f"Supabase Agent response: {response_data}")
+        # Return the response with session ID
+        return SupabaseAgentResponse(
+            status="success",
+            session_id=session_id,
+            data=response_data
+        )
+        
+    except httpx.RequestError as e:
+        logger.error(f"Error connecting to Supabase Agent: {str(e)}")
+        raise HTTPException(status_code=503, detail=f"Error connecting to Supabase Agent service: {str(e)}")
+    except Exception as e:
+        logger.error(f"Error running Supabase agent: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Internal server error: {str(e)}")
+
+@app.post("/api/supabase/message", response_model=SupabaseAgentResponse)
+async def supabase_agent_message(data: Dict[str, Any] = Body(...)):
+    """Send a message to the Supabase Agent's /run endpoint."""
+    try:
+        user_id = data.get("user_id")
+        session_id = data.get("session_id")
+        message = data.get("message")
+
+        if not all([user_id, session_id, message]):
+            raise HTTPException(status_code=400, detail="Missing required fields: user_id, session_id, and message")
+
+        # Construct the payload for the external /run endpoint
+        payload = {
+            "app_name": "supabase_agent",
+            "user_id": user_id,
+            "session_id": session_id,
+            "new_message": {
+                "role": "user",
+                "parts": [{"text": message}]
+            }
+        }
+
+        agent_url = os.getenv("SUPABASEAGENT_URL", "http://localhost:8000")
+        run_endpoint = f"{agent_url}/run"
+
+        logger.info(f"Forwarding message to Supabase Agent /run: {run_endpoint} for session {session_id}")
+        logger.debug(f"Payload: {json.dumps(payload)}")
+
+        async with httpx.AsyncClient(timeout=60.0) as client:
+            response = await client.post(
+                run_endpoint,
+                json=payload,
+                headers={"Content-Type": "application/json"}
+            )
+
+        if response.status_code != 200:
+            error_text = await response.text()
+            raise HTTPException(
+                status_code=response.status_code,
+                detail=f"Error from Supabase Agent service (/run): {error_text}"
+            )
+
+        response_data = {}
+        try:
+            raw_data = response.json()
+            if isinstance(raw_data, dict):
+                response_data = raw_data
+            else:
+                response_data = {"result": raw_data}
+        except Exception as e:
+            logger.warning(f"Failed to parse JSON response from /run: {str(e)}")
+        logger.info(f"Supabase Agent response: {response_data}")
+
+        for result in response_data['result']:
+            for part in result['content']['parts']:
+                # text = part['text']
+                # Optionally, apply additional filtering (e.g., remove specific words, clean whitespace)
+                filtered_text = json.dumps(part)
+        return SupabaseAgentResponse(
+            status="success",
+            session_id=session_id,
+            message=filtered_text
+        )
+        
+    except httpx.RequestError as e:
+        logger.error(f"Error connecting to Supabase Agent (/run): {str(e)}")
+        raise HTTPException(status_code=503, detail=f"Error connecting to Supabase Agent service: {str(e)}")
+    except Exception as e:
+        logger.error(f"Error in supabase_agent_message: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Internal server error: {str(e)}")
 
 # --- Main Execution --- 
 if __name__ == "__main__":

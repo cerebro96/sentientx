@@ -35,7 +35,7 @@ export function NodePanel({ onToggle }: NodePanelProps) {
   }, []);
 
   // Filter nodes based on search query. Search *all* nodes if query exists.
-  const filteredNodes = searchQuery.trim()
+  const filteredNodes = searchQuery.trim() 
     ? nodeCatalog.filter(node => // Search the full catalog
         node.label.toLowerCase().includes(searchQuery.toLowerCase()) ||
         node.description.toLowerCase().includes(searchQuery.toLowerCase())
@@ -132,23 +132,23 @@ export function NodePanel({ onToggle }: NodePanelProps) {
           ) : (
             // If not searching, render nodes grouped by category
             currentCategories.map(category => {
-              const categoryNodes = nodesByCategory[category] || [];
-              const isCollapsed = !!collapsedCategories[category];
-
+            const categoryNodes = nodesByCategory[category] || [];
+            const isCollapsed = !!collapsedCategories[category];
+            
               if (categoryNodes.length === 0) return null; // Hide empty categories when not searching
-
-              return (
-                <div key={category} className="mb-4">
-                  <button
-                    className="w-full flex items-center justify-between p-2 text-sm font-medium hover:bg-secondary rounded-md mb-1"
-                    onClick={() => toggleCategory(category)}
-                  >
-                    {category}
-                    {isCollapsed ? <ChevronDown size={16} /> : <ChevronUp size={16} />}
-                  </button>
-
-                  {!isCollapsed && (
-                    <div className="space-y-1 pl-2">
+            
+            return (
+              <div key={category} className="mb-4">
+                <button
+                  className="w-full flex items-center justify-between p-2 text-sm font-medium hover:bg-secondary rounded-md mb-1"
+                  onClick={() => toggleCategory(category)}
+                >
+                  {category}
+                  {isCollapsed ? <ChevronDown size={16} /> : <ChevronUp size={16} />}
+                </button>
+                
+                {!isCollapsed && (
+                  <div className="space-y-1 pl-2">
                       {categoryNodes.map((node) => (
                         <div
                           key={`${node.type}-${node.label}`}
@@ -171,10 +171,10 @@ export function NodePanel({ onToggle }: NodePanelProps) {
                           </div>
                         </div>
                       ))}
-                    </div>
-                  )}
-                </div>
-              );
+                  </div>
+                )}
+              </div>
+            );
             })
           )}
         </div>

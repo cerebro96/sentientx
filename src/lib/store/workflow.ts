@@ -50,6 +50,8 @@ export type NodeData = {
   supabaseConfig?: {
     supabaseUrl?: string;
     supabaseKey?: string;
+    sessionId?: string;
+    userId?: string;
   };
 };
 

@@ -21,6 +21,8 @@ interface SupabaseAgentModalProps {
   nodeData: {
     supabaseUrl?: string;
     supabaseKey?: string;
+    sessionId?: string;
+    userId?: string;
   } | undefined;
   onSave: (configData: { supabaseUrl: string; supabaseKey: string }) => void;
 }
@@ -86,6 +88,29 @@ export function SupabaseAgentModal({
               placeholder="Enter your Supabase anon key"
             />
           </div>
+          
+          {/* Display Session ID and User ID if available */}
+          {nodeData?.sessionId && (
+            <div className="grid grid-cols-4 items-center gap-4">
+              <Label htmlFor="session-id" className="text-right">
+                Session ID
+              </Label>
+              <div className="col-span-3 text-sm text-gray-500 truncate" title={nodeData.sessionId}>
+                {nodeData.sessionId}
+              </div>
+            </div>
+          )}
+          
+          {nodeData?.userId && (
+            <div className="grid grid-cols-4 items-center gap-4">
+              <Label htmlFor="user-id" className="text-right">
+                User ID
+              </Label>
+              <div className="col-span-3 text-sm text-gray-500 truncate" title={nodeData.userId}>
+                {nodeData.userId}
+              </div>
+            </div>
+          )}
         </div>
         <DialogFooter>
           <Button variant="outline" onClick={onClose}>Cancel</Button>

@@ -35,6 +35,8 @@ import { supabase } from '@/lib/supabase';
 import { formatDistanceStrict } from 'date-fns';
 import { v4 as uuidv4 } from 'uuid';
 import { ExecutionDetailsView } from './ExecutionDetailsView';
+import { callSupabaseAgent, generateSupabaseAgentSessionId, runSupabaseAgent } from '@/lib/supabase-agent';
+import { getCurrentUser } from '@/lib/auth';
 
 interface WorkflowCanvasProps {
   isActive: boolean;
@@ -298,11 +300,58 @@ export function WorkflowCanvas({ isActive, onClose, workflowId, newWorkflowData 
       }
     };
 
-    // Check status when component mounts or workflowId changes
+    const checkSupabaseWorkflowStatus = async () => {
+      const currentWorkflowId = workflowId || createdWorkflowId;
+      if (!currentWorkflowId) {
+        setWorkflowStatus('idle');
+        return;
+      }
+
+      try {
+        console.log(`Checking Supabase execution status for workflow: ${currentWorkflowId}`);
+        const { data: runningExecutions, error } = await supabase
+          .from('executions')
+          .select('id, status')
+          .eq('workflow_id', currentWorkflowId)
+          .eq('status', 'running')
+          .limit(1);
+
+        if (error) {
+          console.error('Error fetching Supabase execution status:', error);
+          setWorkflowStatus('idle');
+          return;
+        }
+
+        if (runningExecutions && runningExecutions.length > 0) {
+          console.log(`Found running execution for workflow ${currentWorkflowId}. Status: ${runningExecutions[0].status}`);
+          setWorkflowStatus('running');
+        } else {
+          console.log(`No running execution found for workflow ${currentWorkflowId}.`);
+          setWorkflowStatus('idle');
+        }
+      } catch (error) {
+        console.error('Exception in checkSupabaseWorkflowStatus:', error);
+        setWorkflowStatus('idle');
+      }
+    };
+    // Check status only if component is ready and an AI Agent node exists
     if (isReady) {
+      const hasAgentNode =nodes.find(node => 
+        node.data.label  == "AI Agent" || node.data.label == "Supabase AI Agent"
+      );
+  
+      
+      if (hasAgentNode?.data.label == "AI Agent") {
       checkWorkflowStatus();
+      }else if (hasAgentNode?.data.label == "Supabase AI Agent") {
+        checkSupabaseWorkflowStatus();
+      }
+      else {
+        //If no agent node, ensure status is idle
+        setWorkflowStatus('idle'); 
+      }
     }
-  }, [workflowId, createdWorkflowId, isReady]);
+  }, [workflowId, createdWorkflowId, isReady, nodes]);
 
   // Existing useEffect for clean up timeout on unmount
   useEffect(() => {
@@ -535,11 +584,20 @@ export function WorkflowCanvas({ isActive, onClose, workflowId, newWorkflowData 
       });
       return; // Stop execution if not active
     }
-    // -----------------------------------
     
+    // -----------------------------------
+    // Get nodes from the store
+    const nodes = useWorkflowStore.getState().nodes; 
+    // Check if at least one AI Agent node exists
+    
+    const agentNode = nodes.find(node => 
+      node.data.label  == "AI Agent" || node.data.label == "Supabase AI Agent"
+    );
+
+    if (agentNode?.data.label == "AI Agent") {
     try {
       // Collect all nodes that need API keys
-      const nodes = useWorkflowStore.getState().nodes;
+      // const nodes = useWorkflowStore.getState().nodes;
       const llmNodes = nodes.filter(node => node.data?.llmConfig?.provider);
       
       // Store decrypted API keys
@@ -638,6 +696,128 @@ export function WorkflowCanvas({ isActive, onClose, workflowId, newWorkflowData 
       console.error('Error starting workflow:', error);
       toast.error('Failed to start workflow', {
         description: error instanceof Error ? error.message : 'Unknown error',
+        duration: 5000
+      });
+    }
+  } else if (agentNode?.data.label == "Supabase AI Agent") {
+    try {
+      // Get the current user
+      const { user, error: userError } = await getCurrentUser();
+      
+      if (userError || !user || !user.id) {
+        console.error('Error getting user ID:', userError);
+        toast.error('Could not get user ID', {
+          description: 'Please ensure you are logged in to start the workflow.',
+          duration: 5000
+        });
+        return; // Stop if user ID is not available
+      }
+      
+      const userId = user.id; // Use the actual user ID
+      
+      // Generate a session ID
+      const sessionId = generateSupabaseAgentSessionId();
+      
+      // Set the workflow status to running
+      setWorkflowStatus('running');
+      
+      // Save sessionId and userId to the Supabase agent node config
+      useWorkflowStore.getState().updateNodeData(agentNode.id, {
+        supabaseConfig: {
+          ...agentNode.data.supabaseConfig,
+          sessionId: sessionId,
+          userId: userId
+        }
+      });
+      
+      // Make initial call to start the Supabase Agent
+      const agentResponse = await callSupabaseAgent(
+        userId,
+        "Start the workflow", // Initial message to start the workflow
+        sessionId
+      );
+      
+      // Log the response from the Supabase Agent API
+      console.log('Supabase Agent API Response:', agentResponse);
+      
+      //Get Supabase URL and key from the agent node configuration
+      const supabaseUrl = agentNode.data.supabaseConfig?.supabaseUrl;
+      const supabaseKey = agentNode.data.supabaseConfig?.supabaseKey;
+      
+      if (supabaseUrl && supabaseKey) {
+        try {
+          // Call runSupabaseAgent to initialize the agent with Supabase credentials
+          // Use the saved sessionId and userId from the node configuration
+          const runResponse = await runSupabaseAgent(
+            userId,
+            sessionId,
+            supabaseUrl,
+            supabaseKey
+          );
+          console.log('Supabase Agent Run Response:', runResponse);
+          
+        } catch (runError) {
+          console.error('Error in runSupabaseAgent:', runError);
+        }
+      } else {
+        console.warn('Missing Supabase URL or key in agent node configuration');
+      }
+      
+    // DB Start
+    // Generate execution ID locally
+    const executionId = uuidv4();
+    console.log(`Generated local execution ID: ${executionId}`);
+    
+    // Insert execution record into Supabase - match the table structure exactly
+    try {
+      // Format current timestamp properly
+      const timestamp = new Date().toISOString();
+      
+      // Insert execution data following the exact table structure
+      const { data: executionData, error: executionError } = await supabase
+        .from('executions')
+        .insert({
+          id: executionId, // Use the locally generated ID
+          workflow_id: workflowId || createdWorkflowId,
+          workflow_name: workflowName,
+          status: 'running',
+          started_at: timestamp,
+          triggered_by: 'user'
+          // created_at and updated_at will be filled automatically by PostgreSQL
+        });
+      
+      if (executionError) {
+        console.error('Error saving execution to Supabase:', executionError);
+      } else {
+        console.log('Successfully saved workflow execution to Supabase');
+      }
+    } catch (dbError) {
+      console.error('Exception saving execution to Supabase:', dbError);
+      // Continue execution even if DB insert fails
+    }
+
+
+    // DB End
+      
+   
+      
+      // Update workflow status
+      setWorkflowStatus('running');
+      
+      toast.success('Workflow started', {
+        description: 'Your Supabase agent workflow is now running',
+        duration: 3000
+      });
+    } catch (error) {
+      console.error('Error starting Supabase Agent workflow:', error);
+      toast.error('Failed to start Supabase Agent', {
+        description: error instanceof Error ? error.message : 'Unknown error',
+        duration: 5000
+      });
+    }
+  } else {
+    toast.error('Start workflow aborted: No AI Agent node found.', {
+      description: 'Please add an AI Agent node to your workflow before starting.',
         duration: 5000
       });
     }

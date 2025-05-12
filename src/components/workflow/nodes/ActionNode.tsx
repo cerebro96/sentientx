@@ -23,6 +23,7 @@ import {
 import { Textarea } from '@/components/ui/textarea';
 import { Input } from '@/components/ui/input';
 import { SupabaseAgentModal } from '../supabase-agent-modal';
+import { getCurrentUser } from '@/lib/auth';
 
 // Simple chat message interface
 interface ChatMessage {
@@ -135,10 +136,20 @@ function ActionNodeComponent({ id, data, selected }: NodeProps<NodeData>) {
   const handleChatButtonClick = (e: React.MouseEvent) => {
     e.stopPropagation();
     
-    // Generate session ID using secure random values (24 characters)
+    let finalSessionId: string | undefined;
+    const agentNode = useWorkflowStore.getState().nodes.find(node => 
+      node.data.label  == "AI Agent" || node.data.label == "Supabase AI Agent"
+    );
+    if (agentNode?.data.label == "Supabase AI Agent") {
+      // Use existing session ID for Supabase Agent
+      finalSessionId = useWorkflowStore.getState().nodes.find(node => 
+        node.data.label == "Supabase AI Agent"
+      )?.data.supabaseConfig?.sessionId;
+    } else {
+      // Generate new session ID for Chat Trigger or if Supabase agent doesn't have one yet
     const generateSessionId = () => {
       const crypto = window.crypto || (window as any).msCrypto;
-      const array = new Uint32Array(6);  // Increased array size for longer ID
+        const array = new Uint8Array(6); // Increased array size for longer ID
       crypto.getRandomValues(array);
       
       // Convert to base36 string and combine for a 24-character ID
@@ -147,9 +158,15 @@ function ActionNodeComponent({ id, data, selected }: NodeProps<NodeData>) {
         .join('')
         .substring(0, 24);
     };
+      finalSessionId = `chat-${generateSessionId()}`;
+    }
+
+    if (!finalSessionId) {
+      toast.error("Failed to determine session ID.");
+      return;
+    }
     
-    const sessionId = generateSessionId();
-    setChatSessionId(sessionId);
+    setChatSessionId(finalSessionId);
     
     // Initialize chat with welcome message if available
     const initialMessage = data.chatConfig?.initialMessage || "Hello! How can I assist you today?";
@@ -163,7 +180,7 @@ function ActionNodeComponent({ id, data, selected }: NodeProps<NodeData>) {
     setIsChatSessionOpen(true);
     
     toast.success('Chat session opened', {
-      description: `Session ID: ${sessionId}`,
+      description: `Session ID: ${finalSessionId}`,
       duration: 3000
     });
   };
@@ -171,53 +188,69 @@ function ActionNodeComponent({ id, data, selected }: NodeProps<NodeData>) {
   const handleSendMessage = async () => {
     if (!currentMessage.trim()) return;
     
-    // Add user message to chat
     const userMessage = {
       role: 'user' as const,
       content: currentMessage,
       timestamp: new Date()
     };
-    
     setChatMessages(prev => [...prev, userMessage]);
+    const messageToProcess = currentMessage; // Store before clearing
     setCurrentMessage('');
     
     try {
-      // Get the workflow ID directly from the store
+      let endpoint = '/api/chat/message';
+      let requestBody: any;
+      const agentNode = useWorkflowStore.getState().nodes.find(node => 
+        node.data.label  == "AI Agent" || node.data.label == "Supabase AI Agent"
+      );
+      if (agentNode?.data.label == "Supabase AI Agent") {
+        const { user, error: userError } = await getCurrentUser();
+        if (userError || !user || !user.id) {
+          toast.error("User ID not found. Please log in.");
+          setChatMessages(prev => prev.slice(0, -1)); // Remove optimistic user message
+          return;
+        }
+        endpoint = '/api/supabase/message';
+        requestBody = {
+          user_id: user.id,
+          session_id: chatSessionId, // This comes from handleChatButtonClick
+          message: messageToProcess
+        };
+      } else {
+        // Existing logic for other chat types
       const workflowState = useWorkflowStore.getState();
       let workflowId = workflowState.workflowId;
-      
-      // Fallback if no workflow ID is set in the store
       if (!workflowId) {
-        console.warn("No workflow ID found in state");
-        const nodeId = id.substring(0, 8);
-        workflowId = `workflow-${nodeId}`;
-      }
-      
-      console.log("Using workflow ID:", workflowId);
-      
-      // Prepare API request data
-      const requestData = {
-        message: currentMessage,
+          const tempNodeId = id.substring(0, 8);
+          workflowId = `workflow-${tempNodeId}`;
+        }
+        requestBody = {
+          message: messageToProcess,
         session_id: chatSessionId,
         workflow_id: workflowId,
         node_id: id
       };
+      }
       
-      console.log("Sending API request:", JSON.stringify(requestData));
+      console.log(`Sending API request to: ${endpoint}`, requestBody);
       
-      const response = await fetch('/api/chat/message', {
+      const response = await fetch(endpoint, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify(requestData),
+        body: JSON.stringify(requestBody),
       });
       
       // Check for non-JSON responses first (like HTML error pages)
-      const contentType = response.headers.get('content-type');
+      let contentType
       let errorMessage = "Failed to get response from AI";
       let jsonData;
       
+      if (agentNode?.data.label == "Supabase AI Agent") {
+         jsonData = await response.json(); 
+      } else {
+         contentType = response.headers.get('content-type');
       if (contentType && contentType.includes('application/json')) {
         jsonData = await response.json();
       } else {
@@ -226,15 +259,30 @@ function ActionNodeComponent({ id, data, selected }: NodeProps<NodeData>) {
         console.error("Received non-JSON response:", text.substring(0, 200) + "...");
         throw new Error("Server returned a non-JSON response. The backend may be unavailable.");
       }
+      }
+      
+      
+      console.log("jsonData", jsonData);
+      
       
       if (!response.ok) {
         throw new Error(jsonData?.error || errorMessage);
       }
       
       // Add assistant response to chat
+      let assistantResponseContent = "No response received from server";
+      if (agentNode?.data.label == "Supabase AI Agent" ) {
+        // For Supabase agent, the actual chat message is nested within jsonData.data
+       
+        assistantResponseContent = jsonData.message;
+      } else if (jsonData && jsonData.response) {
+        // For generic chat or if Supabase agent response structure changes unexpectedly
+        assistantResponseContent = jsonData.response;
+      }
+
       const assistantMessage = {
         role: 'assistant' as const,
-        content: jsonData.response || "No response received from server",
+        content: assistantResponseContent,
         timestamp: new Date()
       };
       
@@ -391,6 +439,9 @@ function ActionNodeComponent({ id, data, selected }: NodeProps<NodeData>) {
         supabaseConfig: {
           supabaseUrl: configData.supabaseUrl,
           supabaseKey: configData.supabaseKey,
+          // Preserve the existing sessionId and userId if they exist
+          ...(data.supabaseConfig?.sessionId && { sessionId: data.supabaseConfig.sessionId }),
+          ...(data.supabaseConfig?.userId && { userId: data.supabaseConfig.userId }),
         }
       });
       toast.success('Supabase configuration updated');
@@ -421,12 +472,12 @@ function ActionNodeComponent({ id, data, selected }: NodeProps<NodeData>) {
               ? "border-green-500 shadow-[0_0_20px_-5px_rgba(34,197,94,0.7)]"
               : "border-green-600 shadow-[0_0_10px_-5px_rgba(34,197,94,0.3)]"
             : isAIAgent
-              ? selected
-                ? "border-pink-500 shadow-[0_0_20px_-5px_rgba(236,72,153,0.7)]"
-                : "border-pink-600 shadow-[0_0_10px_-5px_rgba(236,72,153,0.3)]"
-              : selected
-                ? "border-blue-500 shadow-[0_0_20px_-5px_rgba(59,130,246,0.7)]"
-                : "border-blue-600 shadow-[0_0_10px_-5px_rgba(59,130,246,0.3)]"
+            ? selected 
+              ? "border-pink-500 shadow-[0_0_20px_-5px_rgba(236,72,153,0.7)]" 
+              : "border-pink-600 shadow-[0_0_10px_-5px_rgba(236,72,153,0.3)]"
+            : selected 
+              ? "border-blue-500 shadow-[0_0_20px_-5px_rgba(59,130,246,0.7)]" 
+              : "border-blue-600 shadow-[0_0_10px_-5px_rgba(59,130,246,0.3)]"
         )}
         onClick={
           isChatTrigger 
@@ -441,7 +492,7 @@ function ActionNodeComponent({ id, data, selected }: NodeProps<NodeData>) {
                     ? handleOpenWebhookResponse
                     : isSupabaseAgent
                       ? handleOpenSupabaseConfig
-                      : undefined
+                    : undefined
         }
         style={(
           isChatTrigger || 
@@ -458,8 +509,8 @@ function ActionNodeComponent({ id, data, selected }: NodeProps<NodeData>) {
           isSupabaseAgent
             ? "bg-gradient-to-r from-green-600 to-emerald-600 animate-pulse-slow"
             : isAIAgent
-              ? "bg-gradient-to-r from-pink-600 to-fuchsia-600 animate-pulse-slow"
-              : "bg-gradient-to-r from-blue-600 to-indigo-600 animate-pulse-slow"
+            ? "bg-gradient-to-r from-pink-600 to-fuchsia-600 animate-pulse-slow" 
+            : "bg-gradient-to-r from-blue-600 to-indigo-600 animate-pulse-slow"
         )} />
         
         <div className="relative w-full flex flex-col items-center mb-2 z-10">
@@ -468,8 +519,8 @@ function ActionNodeComponent({ id, data, selected }: NodeProps<NodeData>) {
             isSupabaseAgent
               ? "bg-slate-700 text-green-400"
               : isAIAgent
-                ? "bg-slate-700 text-pink-400"
-                : "bg-slate-700 text-blue-400"
+              ? "bg-slate-700 text-pink-400" 
+              : "bg-slate-700 text-blue-400"
           )}>
             <IconComponent className="h-6 w-6" />
           </div>
@@ -542,8 +593,8 @@ function ActionNodeComponent({ id, data, selected }: NodeProps<NodeData>) {
               isSupabaseAgent
                 ? "!bg-green-500 !border-green-400 !w-3 !h-3 hover:!bg-green-400 hover:!shadow-[0_0_10px_rgba(34,197,94,0.8)]"
                 : isAIAgent
-                  ? "!bg-pink-500 !border-pink-400 !w-3 !h-3 hover:!bg-pink-400 hover:!shadow-[0_0_10px_rgba(236,72,153,0.8)]"
-                  : "!bg-blue-500 !border-blue-400 !w-3 !h-3 hover:!bg-blue-400 hover:!shadow-[0_0_10px_rgba(59,130,246,0.8)]"
+                ? "!bg-pink-500 !border-pink-400 !w-3 !h-3 hover:!bg-pink-400 hover:!shadow-[0_0_10px_rgba(236,72,153,0.8)]" 
+                : "!bg-blue-500 !border-blue-400 !w-3 !h-3 hover:!bg-blue-400 hover:!shadow-[0_0_10px_rgba(59,130,246,0.8)]"
             )}
           />
         )}
@@ -559,8 +610,8 @@ function ActionNodeComponent({ id, data, selected }: NodeProps<NodeData>) {
               isSupabaseAgent
                 ? "!bg-green-500 !border-green-400 !w-3 !h-3 hover:!bg-green-400 hover:!shadow-[0_0_10px_rgba(34,197,94,0.8)]"
                 : isAIAgent
-                  ? "!bg-pink-500 !border-pink-400 !w-3 !h-3 hover:!bg-pink-400 hover:!shadow-[0_0_10px_rgba(236,72,153,0.8)]"
-                  : "!bg-blue-500 !border-blue-400 !w-3 !h-3 hover:!bg-blue-400 hover:!shadow-[0_0_10px_rgba(59,130,246,0.8)]"
+                ? "!bg-pink-500 !border-pink-400 !w-3 !h-3 hover:!bg-pink-400 hover:!shadow-[0_0_10px_rgba(236,72,153,0.8)]" 
+                : "!bg-blue-500 !border-blue-400 !w-3 !h-3 hover:!bg-blue-400 hover:!shadow-[0_0_10px_rgba(59,130,246,0.8)]"
             )}
           />
         )}
@@ -576,8 +627,8 @@ function ActionNodeComponent({ id, data, selected }: NodeProps<NodeData>) {
               isSupabaseAgent
                 ? "!bg-green-500 !border-green-400 !w-3 !h-3 hover:!bg-green-400 hover:!shadow-[0_0_10px_rgba(34,197,94,0.8)]"
                 : isAIAgent
-                  ? "!bg-pink-500 !border-pink-400 !w-3 !h-3 hover:!bg-pink-400 hover:!shadow-[0_0_10px_rgba(236,72,153,0.8)]"
-                  : "!bg-blue-500 !border-blue-400 !w-3 !h-3 hover:!bg-blue-400 hover:!shadow-[0_0_10px_rgba(59,130,246,0.8)]"
+                ? "!bg-pink-500 !border-pink-400 !w-3 !h-3 hover:!bg-pink-400 hover:!shadow-[0_0_10px_rgba(236,72,153,0.8)]" 
+                : "!bg-blue-500 !border-blue-400 !w-3 !h-3 hover:!bg-blue-400 hover:!shadow-[0_0_10px_rgba(59,130,246,0.8)]"
             )}
           />
         )}
@@ -593,8 +644,8 @@ function ActionNodeComponent({ id, data, selected }: NodeProps<NodeData>) {
               isSupabaseAgent
                 ? "!bg-green-500 !border-green-400 !w-3 !h-3 hover:!bg-green-400 hover:!shadow-[0_0_10px_rgba(34,197,94,0.8)]"
                 : isAIAgent
-                  ? "!bg-pink-500 !border-pink-400 !w-3 !h-3 hover:!bg-pink-400 hover:!shadow-[0_0_10px_rgba(236,72,153,0.8)]"
-                  : "!bg-blue-500 !border-blue-400 !w-3 !h-3 hover:!bg-blue-400 hover:!shadow-[0_0_10px_rgba(59,130,246,0.8)]"
+                ? "!bg-pink-500 !border-pink-400 !w-3 !h-3 hover:!bg-pink-400 hover:!shadow-[0_0_10px_rgba(236,72,153,0.8)]" 
+                : "!bg-blue-500 !border-blue-400 !w-3 !h-3 hover:!bg-blue-400 hover:!shadow-[0_0_10px_rgba(59,130,246,0.8)]"
             )}
           />
         )}
