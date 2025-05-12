@@ -712,14 +712,16 @@ export function WorkflowCanvas({ isActive, onClose, workflowId, newWorkflowData 
         });
         return; // Stop if user ID is not available
       }
-      
+      // Set the workflow status to running
+      setWorkflowStatus('running');
+
       const userId = user.id; // Use the actual user ID
       
       // Generate a session ID
       const sessionId = generateSupabaseAgentSessionId();
       
-      // Set the workflow status to running
-      setWorkflowStatus('running');
+      
+      
       
       // Save sessionId and userId to the Supabase agent node config
       useWorkflowStore.getState().updateNodeData(agentNode.id, {
@@ -763,6 +765,10 @@ export function WorkflowCanvas({ isActive, onClose, workflowId, newWorkflowData 
         console.warn('Missing Supabase URL or key in agent node configuration');
       }
       
+      toast.success('Workflow started', {
+        description: 'Your Supabase agent workflow is now running',
+        duration: 3000
+      });
     // DB Start
     // Generate execution ID locally
     const executionId = uuidv4();
@@ -802,12 +808,9 @@ export function WorkflowCanvas({ isActive, onClose, workflowId, newWorkflowData 
    
       
       // Update workflow status
-      setWorkflowStatus('running');
+      // setWorkflowStatus('running');
       
-      toast.success('Workflow started', {
-        description: 'Your Supabase agent workflow is now running',
-        duration: 3000
-      });
+      
     } catch (error) {
       console.error('Error starting Supabase Agent workflow:', error);
       toast.error('Failed to start Supabase Agent', {

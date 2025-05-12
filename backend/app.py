@@ -611,15 +611,53 @@ async def supabase_agent_message(data: Dict[str, Any] = Body(...)):
             logger.warning(f"Failed to parse JSON response from /run: {str(e)}")
         logger.info(f"Supabase Agent response: {response_data}")
 
-        for result in response_data['result']:
-            for part in result['content']['parts']:
-                # text = part['text']
-                # Optionally, apply additional filtering (e.g., remove specific words, clean whitespace)
-                filtered_text = json.dumps(part)
+        extracted_message = ""
+        try:
+            for result in response_data['result']:
+                for part in result['content']['parts']:
+                    if 'text' in part:
+                        text = part['text']
+                        # If the text looks like it contains JSON or code blocks, extract just the content
+                        if text.startswith('```') and text.endswith('```'):
+                            # Extract content between code blocks
+                            content = text.split('```')[1]
+                            if content.startswith('json\n'):
+                                content = content[5:]  # Remove 'json\n' prefix
+                            try:
+                                # Try to parse as JSON if that's what it is
+                                parsed_json = json.loads(content.strip())
+                                # If parsed_json is a list, dict, or non-string type, convert to JSON string
+                                if not isinstance(parsed_json, str):
+                                    extracted_message = json.dumps(parsed_json)
+                                else:
+                                    extracted_message = parsed_json
+                            except json.JSONDecodeError:
+                                # If it's not valid JSON, just use the cleaned text
+                                extracted_message = content.strip()
+                        else:
+                            # Use the raw text if it's not in code blocks
+                            extracted_message = text
+        except Exception as e:
+            logger.warning(f"Error extracting clean content: {str(e)}")
+            # Fallback to using the first text part if available
+            if response_data.get('result') and len(response_data['result']) > 0:
+                first_result = response_data['result'][0]
+                if 'content' in first_result and 'parts' in first_result['content']:
+                    first_part = first_result['content']['parts'][0]
+                    extracted_message = first_part.get('text', '')
+            
+        # Final check to ensure extracted_message is a string
+        if not isinstance(extracted_message, str):
+            try:
+                extracted_message = json.dumps(extracted_message)
+            except:
+                # Last resort fallback
+                extracted_message = str(extracted_message)
+            
         return SupabaseAgentResponse(
             status="success",
             session_id=session_id,
-            message=filtered_text
+            message=extracted_message
         )
         
     except httpx.RequestError as e:

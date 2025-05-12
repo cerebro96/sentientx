@@ -271,10 +271,23 @@ function ActionNodeComponent({ id, data, selected }: NodeProps<NodeData>) {
       
       // Add assistant response to chat
       let assistantResponseContent = "No response received from server";
-      if (agentNode?.data.label == "Supabase AI Agent" ) {
-        // For Supabase agent, the actual chat message is nested within jsonData.data
-       
-        assistantResponseContent = jsonData.message;
+      if (agentNode?.data.label == "Supabase AI Agent") {
+        // For Supabase agent, get the message property
+        if (jsonData.message) {
+          // Check if message is an object or string
+          if (typeof jsonData.message === 'object' && jsonData.message !== null) {
+            // If it's an object, stringify it for display
+            try {
+              assistantResponseContent = JSON.stringify(jsonData.message, null, 2);
+            } catch (e) {
+              console.error("Error stringifying message object:", e);
+              assistantResponseContent = "Error processing response data";
+            }
+          } else {
+            // If it's already a string, use it directly
+            assistantResponseContent = jsonData.message;
+          }
+        }
       } else if (jsonData && jsonData.response) {
         // For generic chat or if Supabase agent response structure changes unexpectedly
         assistantResponseContent = jsonData.response;
