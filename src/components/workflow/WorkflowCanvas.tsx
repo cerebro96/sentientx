@@ -311,6 +311,17 @@ export function WorkflowCanvas({ isActive, onClose, workflowId, newWorkflowData 
       }
 
       try {
+        // Check if at least one Supabase AI Agent exists
+        const nodes = useWorkflowStore.getState().nodes;
+        const supabaseAgentNode = nodes.find(node => node.data.label == "Supabase AI Agent");
+        
+        // If the Supabase Agent node has no sessionId, set to idle
+        if (!supabaseAgentNode?.data.supabaseConfig?.sessionId) {
+          console.log('Supabase agent has no active session, setting status to idle');
+          setWorkflowStatus('idle');
+          return;
+        }
+        
         console.log(`Checking Supabase execution status for workflow: ${currentWorkflowId}`);
         const { data: runningExecutions, error } = await supabase
           .from('executions')
@@ -880,6 +891,15 @@ export function WorkflowCanvas({ isActive, onClose, workflowId, newWorkflowData 
   };
 
   const handleStopWorkflow = async () => {
+
+    const nodes = useWorkflowStore.getState().nodes; 
+    // Check if at least one AI Agent node exists
+    
+    const agentNode = nodes.find(node => 
+      node.data.label  == "AI Agent" || node.data.label == "Supabase AI Agent"
+    );
+
+    if (agentNode?.data.label == "AI Agent") {
     const workflowIdentifier = workflowId || createdWorkflowId;
     if (!workflowIdentifier) {
       toast.error('Cannot stop workflow without an ID');
@@ -979,6 +999,77 @@ export function WorkflowCanvas({ isActive, onClose, workflowId, newWorkflowData 
         duration: 5000
       });
     }
+  } else if (agentNode?.data.label == "Supabase AI Agent") {
+    // Reset the workflow status
+    
+    // Get the correct workflow identifier
+    const currentWorkflowId = workflowId || createdWorkflowId;
+    
+    // Show notification
+    toast.info('Workflow stopped', {
+      description: 'Your Supabase agent workflow has been stopped',
+      duration: 3000
+    });
+    
+    // Clear the Supabase agent session data from the node
+    try {
+      // Preserve supabaseUrl and supabaseKey but remove sessionId and userId
+      useWorkflowStore.getState().updateNodeData(agentNode.id, {
+        supabaseConfig: {
+          supabaseUrl: agentNode.data.supabaseConfig?.supabaseUrl,
+          supabaseKey: agentNode.data.supabaseConfig?.supabaseKey
+          // Not including sessionId and userId to remove them
+        }
+      });
+      
+      console.log('Cleared Supabase agent session data while preserving connection settings');
+      
+      // Update execution record in database
+      try {
+        // Fetch the execution record to get started_at time
+        const { data: executionData, error: fetchError } = await supabase
+          .from('executions')
+          .select('started_at')
+          .eq('workflow_id', currentWorkflowId)
+          .eq('status', 'running')
+          .single();
+        
+        if (fetchError) {
+          console.error('Error fetching execution record for update:', fetchError);
+          // Don't block UI for this error
+        } else if (executionData && executionData.started_at) {
+          const stoppedAt = new Date();
+          const startedAt = new Date(executionData.started_at);
+          
+          // Calculate run time
+          const runTime = formatDistanceStrict(stoppedAt, startedAt);
+          
+          // Update the record with the correct workflow ID
+          const { error: updateError } = await supabase
+            .from('executions')
+            .update({ 
+              status: 'stopped',
+              run_time: stoppedAt
+            })
+            .eq('workflow_id', currentWorkflowId)
+            .eq('status', 'running');
+          
+          setWorkflowStatus('idle');
+          if (updateError) {
+            console.error('Error updating execution record in Supabase:', updateError);
+          } else {
+            console.log(`Successfully updated execution ${currentWorkflowId} status to stopped with run time: ${runTime}`);
+          }
+        } else {
+          console.warn(`Execution record ${currentWorkflowId} not found or missing started_at time.`);
+        }
+      } catch (dbError) {
+        console.error('Exception updating execution in Supabase:', dbError);
+      }
+    } catch (error) {
+      console.error('Error clearing Supabase agent session data:', error);
+    }
+  }
   };
 
   // --- Determine the current workflow ID to use --- 
