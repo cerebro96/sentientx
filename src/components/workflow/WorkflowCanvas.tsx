@@ -98,6 +98,9 @@ export function WorkflowCanvas({ isActive, onClose, workflowId, newWorkflowData 
   // Add a ref to track if we need to focus the view
   const shouldFitViewRef = useRef(false);
   
+  // Add a new loading state for Supabase agent workflow
+  const [isSupabaseAgentLoading, setIsSupabaseAgentLoading] = useState(false);
+  
   // Add a saveWorkflow function that both the handleSaveWorkflow and triggerAutoSave can use
   const saveWorkflow = async (isAutoSave = false) => {
     try {
@@ -701,27 +704,35 @@ export function WorkflowCanvas({ isActive, onClose, workflowId, newWorkflowData 
     }
   } else if (agentNode?.data.label == "Supabase AI Agent") {
     try {
+      // First show early notification to user
+      const loadingToast = toast.loading('Starting Supabase Agent...', {
+        description: 'This might take a few moments',
+        duration: 20000, // Long duration since we'll dismiss it manually
+      });
+      
+      // Set the workflow status to running immediately 
+      setWorkflowStatus('running');
+      setIsSupabaseAgentLoading(true); // Set loading state
+      
       // Get the current user
       const { user, error: userError } = await getCurrentUser();
       
       if (userError || !user || !user.id) {
+        toast.dismiss(loadingToast);
         console.error('Error getting user ID:', userError);
         toast.error('Could not get user ID', {
           description: 'Please ensure you are logged in to start the workflow.',
           duration: 5000
         });
+        setWorkflowStatus('idle'); // Reset status if failed
+        setIsSupabaseAgentLoading(false); // Reset loading state
         return; // Stop if user ID is not available
       }
-      // Set the workflow status to running
-      setWorkflowStatus('running');
 
       const userId = user.id; // Use the actual user ID
       
       // Generate a session ID
       const sessionId = generateSupabaseAgentSessionId();
-      
-      
-      
       
       // Save sessionId and userId to the Supabase agent node config
       useWorkflowStore.getState().updateNodeData(agentNode.id, {
@@ -732,84 +743,91 @@ export function WorkflowCanvas({ isActive, onClose, workflowId, newWorkflowData 
         }
       });
       
-      // Make initial call to start the Supabase Agent
-      const agentResponse = await callSupabaseAgent(
-        userId,
-        "Start the workflow", // Initial message to start the workflow
-        sessionId
-      );
-      
-      // Log the response from the Supabase Agent API
-      console.log('Supabase Agent API Response:', agentResponse);
-      
-      //Get Supabase URL and key from the agent node configuration
+      // Get Supabase URL and key from the agent node configuration
       const supabaseUrl = agentNode.data.supabaseConfig?.supabaseUrl;
       const supabaseKey = agentNode.data.supabaseConfig?.supabaseKey;
       
-      if (supabaseUrl && supabaseKey) {
+      if (!supabaseUrl || !supabaseKey) {
+        toast.dismiss(loadingToast);
+        toast.error('Missing Supabase configuration', {
+          description: 'Please configure Supabase URL and API key in the agent node',
+          duration: 5000
+        });
+        setWorkflowStatus('idle'); // Reset status if failed
+        setIsSupabaseAgentLoading(false); // Reset loading state
+        return;
+      }
+      
+      // Generate execution ID locally for database
+      const executionId = uuidv4();
+      console.log(`Generated local execution ID: ${executionId}`);
+      
+      // Continue the initialization in the background
+      setTimeout(async () => {
         try {
-          // Call runSupabaseAgent to initialize the agent with Supabase credentials
-          // Use the saved sessionId and userId from the node configuration
+          // Insert execution record into Supabase first
+          try {
+            const timestamp = new Date().toISOString();
+            
+            const { error: executionError } = await supabase
+              .from('executions')
+              .insert({
+                id: executionId,
+                workflow_id: workflowId || createdWorkflowId,
+                workflow_name: workflowName,
+                status: 'running',
+                started_at: timestamp,
+                triggered_by: 'user'
+              });
+            
+            if (executionError) {
+              console.error('Error saving execution to Supabase:', executionError);
+            } else {
+              console.log('Successfully saved workflow execution to Supabase');
+            }
+          } catch (dbError) {
+            console.error('Exception saving execution to Supabase:', dbError);
+            // Continue even if DB insert fails
+          }
+          
+          // Make initial call to start the Supabase Agent
+          const agentResponse = await callSupabaseAgent(
+            userId,
+            "Start the workflow", // Initial message to start the workflow
+            sessionId
+          );
+          
+          console.log('Supabase Agent API Response:', agentResponse);
+          
+          // Initialize agent with credentials
           const runResponse = await runSupabaseAgent(
             userId,
             sessionId,
             supabaseUrl,
             supabaseKey
           );
+          
           console.log('Supabase Agent Run Response:', runResponse);
           
-        } catch (runError) {
-          console.error('Error in runSupabaseAgent:', runError);
+          // Dismiss loading toast and show success
+          toast.dismiss(loadingToast);
+          toast.success('Workflow started successfully', {
+            description: 'Your Supabase agent workflow is now running',
+            duration: 3000
+          });
+          setIsSupabaseAgentLoading(false); // Reset loading state after success
+        } catch (error) {
+          // Handle errors that occur during background initialization
+          toast.dismiss(loadingToast);
+          console.error('Error in Supabase Agent initialization:', error);
+          toast.error('Error initializing Supabase Agent', {
+            description: error instanceof Error ? error.message : 'Unknown error',
+            duration: 5000
+          });
+          setIsSupabaseAgentLoading(false); // Reset loading state
+          // Don't reset status here since the workflow is technically started
         }
-      } else {
-        console.warn('Missing Supabase URL or key in agent node configuration');
-      }
-      
-      toast.success('Workflow started', {
-        description: 'Your Supabase agent workflow is now running',
-        duration: 3000
-      });
-    // DB Start
-    // Generate execution ID locally
-    const executionId = uuidv4();
-    console.log(`Generated local execution ID: ${executionId}`);
-    
-    // Insert execution record into Supabase - match the table structure exactly
-    try {
-      // Format current timestamp properly
-      const timestamp = new Date().toISOString();
-      
-      // Insert execution data following the exact table structure
-      const { data: executionData, error: executionError } = await supabase
-        .from('executions')
-        .insert({
-          id: executionId, // Use the locally generated ID
-          workflow_id: workflowId || createdWorkflowId,
-          workflow_name: workflowName,
-          status: 'running',
-          started_at: timestamp,
-          triggered_by: 'user'
-          // created_at and updated_at will be filled automatically by PostgreSQL
-        });
-      
-      if (executionError) {
-        console.error('Error saving execution to Supabase:', executionError);
-      } else {
-        console.log('Successfully saved workflow execution to Supabase');
-      }
-    } catch (dbError) {
-      console.error('Exception saving execution to Supabase:', dbError);
-      // Continue execution even if DB insert fails
-    }
-
-
-    // DB End
-      
-   
-      
-      // Update workflow status
-      // setWorkflowStatus('running');
-      
+      }, 100); // Small delay to ensure UI updates first
       
     } catch (error) {
       console.error('Error starting Supabase Agent workflow:', error);
@@ -817,6 +835,8 @@ export function WorkflowCanvas({ isActive, onClose, workflowId, newWorkflowData 
         description: error instanceof Error ? error.message : 'Unknown error',
         duration: 5000
       });
+      setWorkflowStatus('idle'); // Reset status if failed
+      setIsSupabaseAgentLoading(false); // Reset loading state
     }
   } else {
     toast.error('Start workflow aborted: No AI Agent node found.', {
@@ -1039,6 +1059,7 @@ export function WorkflowCanvas({ isActive, onClose, workflowId, newWorkflowData 
         onPauseWorkflow={handlePauseWorkflow}
         onStopWorkflow={handleStopWorkflow}
         workflowStatus={workflowStatus}
+        isSupabaseAgentLoading={isSupabaseAgentLoading}
       />
       
       <div className="flex-1 flex overflow-hidden">
