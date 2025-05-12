@@ -27,6 +27,7 @@ interface WorkflowHeaderProps {
   onStopWorkflow?: () => void;
   onPauseWorkflow?: () => void;
   workflowStatus?: 'idle' | 'running' | 'paused';
+  isSupabaseAgentLoading?: boolean;
 }
 
 export function WorkflowHeader({ 
@@ -41,7 +42,8 @@ export function WorkflowHeader({
   onStartWorkflow,
   onStopWorkflow,
   onPauseWorkflow,
-  workflowStatus
+  workflowStatus,
+  isSupabaseAgentLoading = false
 }: WorkflowHeaderProps) {
   const [isEditing, setIsEditing] = useState(false);
   const [editedName, setEditedName] = useState(name);
@@ -211,11 +213,23 @@ export function WorkflowHeader({
           size="sm" 
           className={`h-8 ${workflowStatus === 'running' ? 'bg-green-100' : ''}`}
           onClick={onStartWorkflow}
-          disabled={workflowStatus === 'running'}
+          disabled={workflowStatus === 'running' || isSupabaseAgentLoading}
           title="Start Workflow"
         >
-          <Play className="h-4 w-4 mr-1" />
-          Start
+          {workflowStatus === 'running' || isSupabaseAgentLoading ? (
+            <>
+              <svg className="animate-spin h-4 w-4 mr-1" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+              </svg>
+              Running
+            </>
+          ) : (
+            <>
+              <Play className="h-4 w-4 mr-1" />
+              Start
+            </>
+          )}
         </Button>
         <Button 
           variant="outline" 

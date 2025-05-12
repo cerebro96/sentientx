@@ -47,6 +47,12 @@ export type NodeData = {
     apiEnabled?: boolean;
     workflowId?: string | null;
   };
+  supabaseConfig?: {
+    supabaseUrl?: string;
+    supabaseKey?: string;
+    sessionId?: string;
+    userId?: string;
+  };
 };
 
 // Define initial nodes with proper types
