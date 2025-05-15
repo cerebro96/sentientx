@@ -248,11 +248,26 @@ export function WorkflowCanvas({ isActive, onClose, workflowId, newWorkflowData 
   }, [originalOnEdgesChange, triggerAutoSave]);
 
   const onConnect = useCallback((connection: Connection) => {
-    originalOnConnect(connection);
+    const { nodes: currentNodes } = useWorkflowStore.getState();
+    const sourceNode = currentNodes.find(node => node.id === connection.source);
+
+    let modifiedConnection: Connection & { type?: string; animated?: boolean } = { ...connection };
+
+    if (sourceNode?.data.label === 'Multi Agent (BaseAgent)' || 
+      sourceNode?.data.label === 'LLM Agent' ||
+      sourceNode?.data.label === 'Sequential agent' ||
+      sourceNode?.data.label === 'Loop agent' || 
+      sourceNode?.data.label === 'Parallel agent'
+    ) {
+      modifiedConnection.type = 'bezier';
+      modifiedConnection.animated = true;
+    }
+
+    originalOnConnect(modifiedConnection);
     
     // Always auto-save when new connections are made
     if (!initialLoadRef.current) {
-      console.log('Auto-saving after new connection:', connection);
+      console.log('Auto-saving after new connection:', modifiedConnection);
       triggerAutoSave();
     }
   }, [originalOnConnect, triggerAutoSave]);
@@ -1069,7 +1084,7 @@ export function WorkflowCanvas({ isActive, onClose, workflowId, newWorkflowData 
     } catch (error) {
       console.error('Error clearing Supabase agent session data:', error);
     }
-  }
+    }
   };
 
   // --- Determine the current workflow ID to use --- 
