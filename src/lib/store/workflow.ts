@@ -53,6 +53,19 @@ export type NodeData = {
     sessionId?: string;
     userId?: string;
   };
+  multiAgentConfig?: {
+    name?: string;
+    model?: string;
+    description?: string;
+    instructions?: string;
+    connectedNodes?: {
+      id: string;
+      label: string;
+      type: string;
+      direction: 'input' | 'output';
+      description?: string;
+    }[];
+  };
 };
 
 // Define initial nodes with proper types

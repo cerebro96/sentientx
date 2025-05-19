@@ -24,6 +24,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Input } from '@/components/ui/input';
 import { SupabaseAgentModal } from '../supabase-agent-modal';
 import { getCurrentUser } from '@/lib/auth';
+import { MultiAgentModal } from '../multi-agent-modal';
 
 // Simple chat message interface
 interface ChatMessage {
@@ -50,6 +51,7 @@ function ActionNodeComponent({ id, data, selected }: NodeProps<NodeData>) {
   const [isAiAgentModalOpen, setIsAiAgentModalOpen] = useState(false);
   const [isWebhookResponseModalOpen, setIsWebhookResponseModalOpen] = useState(false);
   const [isSupabaseModalOpen, setIsSupabaseModalOpen] = useState(false);
+  const [isMultiAgentModalOpen, setIsMultiAgentModalOpen] = useState(false);
   const [llmProvider, setLlmProvider] = useState<string>('');
   
   // Chat session state
@@ -136,6 +138,10 @@ function ActionNodeComponent({ id, data, selected }: NodeProps<NodeData>) {
   
   const handleOpenSupabaseConfig = () => {
     setIsSupabaseModalOpen(true);
+  };
+  
+  const handleOpenMultiAgentConfig = () => {
+    setIsMultiAgentModalOpen(true);
   };
   
   const handleChatButtonClick = (e: React.MouseEvent) => {
@@ -466,6 +472,38 @@ function ActionNodeComponent({ id, data, selected }: NodeProps<NodeData>) {
     }
   };
   
+  const handleMultiAgentConfigSave = (configData: { 
+    name: string; 
+    model: string;
+    description: string;
+    instructions: string;
+    connectedNodes: {
+      id: string;
+      label: string;
+      type: string;
+      direction: 'input' | 'output';
+      description?: string;
+    }[];
+  }) => {
+    if (id) {
+      const updateNodeData = useWorkflowStore.getState().updateNodeData;
+      
+      console.log('Saving Multi Agent configuration in node:', configData);
+      
+      updateNodeData(id, {
+        multiAgentConfig: {
+          name: configData.name,
+          model: configData.model,
+          description: configData.description,
+          instructions: configData.instructions,
+          connectedNodes: configData.connectedNodes
+        }
+      });
+      
+      toast.success('Multi Agent configuration updated');
+    }
+  };
+  
   // If it's a button style node, render a button
   if (isButtonNode) {
     return (
@@ -514,6 +552,8 @@ function ActionNodeComponent({ id, data, selected }: NodeProps<NodeData>) {
                     ? handleOpenWebhookResponse
                     : isSupabaseAgent
                       ? handleOpenSupabaseConfig
+                    : isMultiAgent
+                      ? handleOpenMultiAgentConfig
                     : undefined
         }
         style={(
@@ -522,7 +562,8 @@ function ActionNodeComponent({ id, data, selected }: NodeProps<NodeData>) {
           isMemoryNode || 
           isAIAgent || 
           isWebhookResponse || 
-          isSupabaseAgent
+          isSupabaseAgent ||
+          isMultiAgent
         ) ? { cursor: 'pointer' } : undefined}
       >
         {/* Gradient glow effect */}
@@ -537,7 +578,12 @@ function ActionNodeComponent({ id, data, selected }: NodeProps<NodeData>) {
             : "bg-gradient-to-r from-blue-600 to-indigo-600 animate-pulse-slow"
         )} />
         
-        <div className="relative w-full flex flex-col items-center mb-2 z-10">
+        <div className="relative w-full flex flex-col items-center z-10">
+          {isMultiAgent && data.multiAgentConfig?.name && (
+            <div className="text-xs font-semibold text-yellow-400 mb-1 text-center break-all px-1">
+              {data.multiAgentConfig.name}
+            </div>
+          )}
           <div className={cn(
             "flex-shrink-0 p-3 rounded-full mb-2 transition-all",
             isMultiAgent
@@ -742,6 +788,17 @@ function ActionNodeComponent({ id, data, selected }: NodeProps<NodeData>) {
           nodeId={id}
           nodeData={data.supabaseConfig}
           onSave={handleSupabaseConfigSave}
+        />
+      )}
+      
+      {/* Multi Agent Configuration Modal */}
+      {isMultiAgent && (
+        <MultiAgentModal
+          isOpen={isMultiAgentModalOpen}
+          onClose={() => setIsMultiAgentModalOpen(false)}
+          nodeId={id}
+          nodeData={data.multiAgentConfig}
+          onSave={handleMultiAgentConfigSave}
         />
       )}
       
