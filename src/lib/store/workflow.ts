@@ -58,6 +58,8 @@ export type NodeData = {
     model?: string;
     description?: string;
     instructions?: string;
+    provider?: string;
+    apiKeyId?: string;
     connectedNodes?: {
       id: string;
       label: string;
@@ -65,6 +67,15 @@ export type NodeData = {
       direction: 'input' | 'output';
       description?: string;
     }[];
+  };
+  llmAgentConfig?: {
+    name?: string;
+    model?: string;
+    description?: string;
+    instructions?: string;
+    apiKeyId?: string;
+    provider?: string;
+    //options?: Array<{ key: string; value: string }>;
   };
 };
 

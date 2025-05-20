@@ -25,6 +25,7 @@ import { Input } from '@/components/ui/input';
 import { SupabaseAgentModal } from '../supabase-agent-modal';
 import { getCurrentUser } from '@/lib/auth';
 import { MultiAgentModal } from '../multi-agent-modal';
+import { LlmAgentModal } from '../llm-agent-modal';
 
 // Simple chat message interface
 interface ChatMessage {
@@ -52,6 +53,7 @@ function ActionNodeComponent({ id, data, selected }: NodeProps<NodeData>) {
   const [isWebhookResponseModalOpen, setIsWebhookResponseModalOpen] = useState(false);
   const [isSupabaseModalOpen, setIsSupabaseModalOpen] = useState(false);
   const [isMultiAgentModalOpen, setIsMultiAgentModalOpen] = useState(false);
+  const [isLlmAgentModalOpen, setIsLlmAgentModalOpen] = useState(false);
   const [llmProvider, setLlmProvider] = useState<string>('');
   
   // Chat session state
@@ -142,6 +144,10 @@ function ActionNodeComponent({ id, data, selected }: NodeProps<NodeData>) {
   
   const handleOpenMultiAgentConfig = () => {
     setIsMultiAgentModalOpen(true);
+  };
+  
+  const handleOpenLlmAgentConfig = () => {
+    setIsLlmAgentModalOpen(true);
   };
   
   const handleChatButtonClick = (e: React.MouseEvent) => {
@@ -477,6 +483,8 @@ function ActionNodeComponent({ id, data, selected }: NodeProps<NodeData>) {
     model: string;
     description: string;
     instructions: string;
+    provider: string;
+    apiKeyId?: string;
     connectedNodes: {
       id: string;
       label: string;
@@ -496,11 +504,38 @@ function ActionNodeComponent({ id, data, selected }: NodeProps<NodeData>) {
           model: configData.model,
           description: configData.description,
           instructions: configData.instructions,
+          provider: configData.provider,
+          apiKeyId: configData.apiKeyId,
           connectedNodes: configData.connectedNodes
         }
       });
       
       toast.success('Multi Agent configuration updated');
+    }
+  };
+  
+  const handleLlmAgentConfigSave = (configData: { 
+    name: string; 
+    model: string;
+    description: string;
+    instructions: string;
+    apiKeyId: string;
+    provider: string;
+  }) => {
+    if (id) {
+      const updateNodeData = useWorkflowStore.getState().updateNodeData;
+      console.log('Saving LLM Agent configuration in node:', configData);
+      updateNodeData(id, {
+        llmAgentConfig: {
+          name: configData.name,
+          model: configData.model,
+          description: configData.description,
+          instructions: configData.instructions,
+          apiKeyId: configData.apiKeyId,
+          provider: configData.provider
+        }
+      });
+      toast.success('LLM Agent configuration updated');
     }
   };
   
@@ -554,6 +589,8 @@ function ActionNodeComponent({ id, data, selected }: NodeProps<NodeData>) {
                       ? handleOpenSupabaseConfig
                     : isMultiAgent
                       ? handleOpenMultiAgentConfig
+                    : isLLMAgent
+                      ? handleOpenLlmAgentConfig
                     : undefined
         }
         style={(
@@ -563,7 +600,8 @@ function ActionNodeComponent({ id, data, selected }: NodeProps<NodeData>) {
           isAIAgent || 
           isWebhookResponse || 
           isSupabaseAgent ||
-          isMultiAgent
+          isMultiAgent ||
+          isLLMAgent
         ) ? { cursor: 'pointer' } : undefined}
       >
         {/* Gradient glow effect */}
@@ -582,6 +620,11 @@ function ActionNodeComponent({ id, data, selected }: NodeProps<NodeData>) {
           {isMultiAgent && data.multiAgentConfig?.name && (
             <div className="text-xs font-semibold text-yellow-400 mb-1 text-center break-all px-1">
               {data.multiAgentConfig.name}
+            </div>
+          )}
+          {(isLLMAgent && data.llmAgentConfig?.name) && (
+            <div className="text-xs font-semibold text-blue-400 mb-1 text-center break-all px-1">
+              {data.llmAgentConfig.name}
             </div>
           )}
           <div className={cn(
@@ -799,6 +842,17 @@ function ActionNodeComponent({ id, data, selected }: NodeProps<NodeData>) {
           nodeId={id}
           nodeData={data.multiAgentConfig}
           onSave={handleMultiAgentConfigSave}
+        />
+      )}
+      
+      {/* LLM Agent Configuration Modal */}
+      {isLLMAgent && (
+        <LlmAgentModal
+          isOpen={isLlmAgentModalOpen}
+          onClose={() => setIsLlmAgentModalOpen(false)}
+          nodeId={id}
+          nodeData={data.llmAgentConfig}
+          onSave={handleLlmAgentConfigSave}
         />
       )}
       
