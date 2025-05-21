@@ -640,19 +640,44 @@ function ActionNodeComponent({ id, data, selected }: NodeProps<NodeData>) {
             <IconComponent className="h-6 w-6" />
           </div>
           <div className="font-medium text-center text-white">{data.label}</div>
-          {isAIAgent && (
-            <div className="text-xs text-slate-300 text-center mt-1">{data.description}</div>
-          )}
+          
+          {/* Display node description logic */}
+          {isMultiAgent ? (
+            data.multiAgentConfig?.description ? (
+              <div className="text-xs text-slate-300 text-center mt-1 px-1 break-words">
+                {data.multiAgentConfig.description}
+              </div>
+            ) : data.description ? (
+              <div className="text-xs text-slate-300 text-center mt-1 px-1 break-words">
+                {data.description} {/* Fallback to catalog description for MultiAgent */}
+              </div>
+            ) : null
+          ) : isLLMAgent ? ( // Check for LLM Agent
+            data.llmAgentConfig?.description ? (
+              <div className="text-xs text-slate-300 text-center mt-1 px-1 break-words">
+                {data.llmAgentConfig.description}
+              </div>
+            ) : data.description ? (
+              <div className="text-xs text-slate-300 text-center mt-1 px-1 break-words">
+                {data.description} {/* Fallback to catalog description for LLMAgent */}
+              </div>
+            ) : null
+          ) : isAIAgent && data.description ? (
+            <div className="text-xs text-slate-300 text-center mt-1 px-1 break-words">
+              {data.description}
+            </div>
+          ) : !isAIAgent && !isMultiAgent && !isLLMAgent && data.description ? ( // Ensure LLMAgent is also excluded from this generic case
+            <div className="text-xs text-slate-300 text-center mt-1 mb-1 px-1 break-words">
+              {data.description}
+            </div>
+          ) : null}
+
           {data.hasError && (
             <div className="absolute top-2 right-2 animate-pulse">
               <AlertTriangle className="h-5 w-5 text-pink-500" />
             </div>
           )}
         </div>
-        
-        {!isAIAgent && data.description && (
-          <div className="relative z-10 text-xs text-slate-300 text-center mt-1 mb-1">{data.description}</div>
-        )}
         
         {/* Chat button that appears only for Chat Trigger nodes */}
         {isChatTrigger && (

@@ -37,7 +37,7 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover";
-import { Check, ChevronsUpDown, Plus, Eye, EyeOff } from "lucide-react";
+import { Check, ChevronsUpDown, Plus, Eye, EyeOff, ChevronDown, ChevronUp } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { SearchIcon } from "lucide-react";
 import {
@@ -123,6 +123,7 @@ export function MultiAgentModal({
   const [newKeyValue, setNewKeyValue] = useState('');
   const [showKey, setShowKey] = useState(false);
   const [isSubmittingKey, setIsSubmittingKey] = useState(false);
+  const [isModelSettingsOpen, setIsModelSettingsOpen] = useState(true);
   
   // Get nodes and edges from workflow store
   const { nodes, edges } = useWorkflowStore();
@@ -209,7 +210,9 @@ export function MultiAgentModal({
       setDescription(nodeData.description || '');
       setInstructions(nodeData.instructions || '');
       
-      // If we have provider information, fetch the API keys
+      // Collapse model settings if a model is already set
+      setIsModelSettingsOpen(!nodeData.model);
+
       if (nodeData.provider) {
         fetchApiKeys(nodeData.provider, nodeData.apiKeyId);
       }
@@ -384,88 +387,106 @@ export function MultiAgentModal({
                     />
                   </div>
                   
-                  <div className="grid gap-2">
-                    <Label htmlFor="provider">Provider *</Label>
-                    <Select value={currentProvider} onValueChange={setCurrentProvider}>
-                      <SelectTrigger><SelectValue placeholder="Select AI Provider" /></SelectTrigger>
-                      <SelectContent>
-                        {Object.keys(llmProviderConfigs).map(providerKey => (
-                          <SelectItem key={providerKey} value={providerKey}>
-                            {llmProviderConfigs[providerKey].displayName}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
+                  {/* Collapsible Model Settings Section */}
+                  <div className="border rounded-md">
+                    <button 
+                      type="button"
+                      className="w-full flex items-center justify-between p-3 hover:bg-muted/50"
+                      onClick={() => setIsModelSettingsOpen(!isModelSettingsOpen)}
+                    >
+                      <Label className="font-medium cursor-pointer">Model Configuration</Label>
+                      {isModelSettingsOpen ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+                    </button>
 
-                  <div className="grid gap-2">
-                    <Label htmlFor="api-key">API Key *</Label>
-                    <div className="flex gap-2">
-                      {isLoadingKeys ? (
-                        <div className="flex-1 h-10 flex items-center justify-center rounded-md border border-input animate-pulse">
-                          <span className="text-sm text-muted-foreground">Loading keys...</span>
-                        </div>
-                      ) : (
-                        <>
-                          <Select 
-                            value={selectedApiKeyId} 
-                            onValueChange={setSelectedApiKeyId} 
-                            disabled={!currentProvider}
-                          >
-                            <SelectTrigger className="w-full">
-                              <SelectValue placeholder={currentProvider ? 
-                                `Select ${llmProviderConfigs[currentProvider]?.displayName} API key` : 
-                                "Select a provider first"} 
-                              />
-                            </SelectTrigger>
-                            <SelectContent>
-                              {availableApiKeys.length > 0 ? (
-                                availableApiKeys.map((key) => (
-                                  <SelectItem key={key.id} value={key.id}>
-                                    {key.name}
+                    {isModelSettingsOpen && (
+                      <div className="p-4 border-t">
+                        <div className="grid gap-4">
+                          <div className="grid gap-2">
+                            <Label htmlFor="provider">Provider *</Label>
+                            <Select value={currentProvider} onValueChange={setCurrentProvider}>
+                              <SelectTrigger><SelectValue placeholder="Select AI Provider" /></SelectTrigger>
+                              <SelectContent>
+                                {Object.keys(llmProviderConfigs).map(providerKey => (
+                                  <SelectItem key={providerKey} value={providerKey}>
+                                    {llmProviderConfigs[providerKey].displayName}
                                   </SelectItem>
-                                ))
-                              ) : (
-                                <div className="p-2 text-sm text-muted-foreground">
-                                  No API keys found. Please click + to add a new key.
-                                </div>
-                              )}
-                            </SelectContent>
-                          </Select>
-                          <Button 
-                            variant="outline" 
-                            size="icon" 
-                            onClick={() => setIsAddKeyDialogOpen(true)} 
-                            title="Add New API Key" 
-                            disabled={!currentProvider}
-                          >
-                            <Plus className="h-4 w-4" />
-                          </Button>
-                        </>
-                      )}
-                    </div>
-                  </div>
-                  
-                  <div className="grid gap-2">
-                    <Label htmlFor="model">Model *</Label>
-                    <Select value={model} onValueChange={setModel} disabled={!currentProvider || !selectedApiKeyId}>
-                      <SelectTrigger>
-                        <SelectValue placeholder="Select model..." />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {modelsForCurrentProvider.length === 0 ? (
-                          <div className="p-2 text-sm text-muted-foreground">
-                            No models available for this provider.
+                                ))}
+                              </SelectContent>
+                            </Select>
                           </div>
-                        ) : (
-                          modelsForCurrentProvider.map((modelOption) => (
-                            <SelectItem key={modelOption.value} value={modelOption.value}>
-                              {modelOption.label}
-                            </SelectItem>
-                          ))
-                        )}
-                      </SelectContent>
-                    </Select>
+
+                          <div className="grid gap-2">
+                            <Label htmlFor="api-key">API Key *</Label>
+                            <div className="flex gap-2">
+                              {isLoadingKeys ? (
+                                <div className="flex-1 h-10 flex items-center justify-center rounded-md border border-input animate-pulse">
+                                  <span className="text-sm text-muted-foreground">Loading keys...</span>
+                                </div>
+                              ) : (
+                                <>
+                                  <Select 
+                                    value={selectedApiKeyId} 
+                                    onValueChange={setSelectedApiKeyId} 
+                                    disabled={!currentProvider}
+                                  >
+                                    <SelectTrigger className="w-full">
+                                      <SelectValue placeholder={currentProvider ? 
+                                        `Select ${llmProviderConfigs[currentProvider]?.displayName} API key` : 
+                                        "Select a provider first"} 
+                                    />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                      {availableApiKeys.length > 0 ? (
+                                        availableApiKeys.map((key) => (
+                                          <SelectItem key={key.id} value={key.id}>
+                                            {key.name}
+                                          </SelectItem>
+                                        ))
+                                      ) : (
+                                        <div className="p-2 text-sm text-muted-foreground">
+                                          No API keys found. Please click + to add a new key.
+                                        </div>
+                                      )}
+                                    </SelectContent>
+                                  </Select>
+                                  <Button 
+                                    variant="outline" 
+                                    size="icon" 
+                                    onClick={() => setIsAddKeyDialogOpen(true)} 
+                                    title="Add New API Key" 
+                                    disabled={!currentProvider}
+                                  >
+                                    <Plus className="h-4 w-4" />
+                                  </Button>
+                                </>
+                              )}
+                            </div>
+                          </div>
+                          
+                          <div className="grid gap-2">
+                            <Label htmlFor="model">Model *</Label>
+                            <Select value={model} onValueChange={setModel} disabled={!currentProvider || !selectedApiKeyId}>
+                              <SelectTrigger>
+                                <SelectValue placeholder="Select model..." />
+                              </SelectTrigger>
+                              <SelectContent>
+                                {modelsForCurrentProvider.length === 0 ? (
+                                  <div className="p-2 text-sm text-muted-foreground">
+                                    No models available for this provider.
+                                  </div>
+                                ) : (
+                                  modelsForCurrentProvider.map((modelOption) => (
+                                    <SelectItem key={modelOption.value} value={modelOption.value}>
+                                      {modelOption.label}
+                                    </SelectItem>
+                                  ))
+                                )}
+                              </SelectContent>
+                            </Select>
+                          </div>
+                        </div>
+                      </div>
+                    )}
                   </div>
                   
                   <div className="grid gap-2">
