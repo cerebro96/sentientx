@@ -301,19 +301,25 @@ export function MultiAgentModal({
     if (connectedNodes.length === 0) {
       return (
         <div className="p-3 bg-muted rounded-md text-sm flex items-center">
-          <p className="text-muted-foreground">No nodes connected</p>
+          <p className="text-muted-foreground">No agents connected</p>
         </div>
       );
     }
     
     return connectedNodes.map((node, index) => {
-      // Determine the display name: configured name or default label
-      let displayName = node.data.label; // Default to original label
+      let displayName = node.data.label;
       if (node.data.label === 'Multi Agent (BaseAgent)' && node.data.multiAgentConfig?.name) {
         displayName = node.data.multiAgentConfig.name;
       } else if (node.data.label === 'LLM Agent' && node.data.llmAgentConfig?.name) {
         displayName = node.data.llmAgentConfig.name;
-      } // Add more else if blocks here for other agent types with configurable names
+      }
+
+      let displayDescription = node.data.description;
+      if (node.data.label === 'Multi Agent (BaseAgent)' && node.data.multiAgentConfig?.description) {
+        displayDescription = node.data.multiAgentConfig.description;
+      } else if (node.data.label === 'LLM Agent' && node.data.llmAgentConfig?.description) {
+        displayDescription = node.data.llmAgentConfig.description;
+      }
 
       return (
         <div key={index} className="p-3 border rounded-md mb-2">
@@ -323,8 +329,8 @@ export function MultiAgentModal({
               <span className="text-xs text-muted-foreground ml-1">({node.data.label})</span>
             )}
           </h4>
-          {node.data.description && (
-            <p className="text-xs text-muted-foreground mt-1">{node.data.description}</p>
+          {displayDescription && (
+            <p className="text-xs text-muted-foreground mt-1 break-words">{displayDescription}</p>
           )}
           
           {/* Show connection type - whether incoming or outgoing */}
