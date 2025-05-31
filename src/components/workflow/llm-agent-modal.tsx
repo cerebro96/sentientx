@@ -369,16 +369,18 @@ export function LlmAgentModal({
             )}
             
             {/* Description field - Hidden when connected to Multi Agent */}
-            {!isConnectedToMultiAgent && (
+            {/* {!isConnectedToMultiAgent && ( */}
               <div className="grid gap-2">
-                <Label htmlFor="llm-agent-description">Description</Label>
+                <Label htmlFor="llm-agent-description">Description <span className="text-xs text-muted-foreground">(Optional - for documentation only)</span></Label>
                 <Textarea id="llm-agent-description" value={description} onChange={(e) => setDescription(e.target.value)} placeholder="Describe what this LLM agent does" rows={2}/>
+                <p className="text-sm text-muted-foreground">Note: The description is for documentation purposes only. The Instructions field below is what actually guides the agent's behavior.</p>
               </div>
-            )}
+            {/* )} */}
             
             <div className="grid gap-2">
-              <Label htmlFor="llm-agent-instructions">Instructions (System Prompt)</Label>
+              <Label htmlFor="llm-agent-instructions">Instructions (System Prompt) <span className="text-sm text-blue-500">*Important</span></Label>
               <Textarea id="llm-agent-instructions" value={instructions} onChange={(e) => setInstructions(e.target.value)} placeholder="Provide detailed instructions for the agent..." rows={4}/>
+              <p className="text-sm text-blue-500">This is the most important field - it defines how your agent will think and behave.</p>
             </div>
           </div>
           
