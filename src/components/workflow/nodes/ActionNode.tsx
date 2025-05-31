@@ -26,6 +26,7 @@ import { SupabaseAgentModal } from '../supabase-agent-modal';
 import { getCurrentUser } from '@/lib/auth';
 import { MultiAgentModal } from '../multi-agent-modal';
 import { LlmAgentModal } from '../llm-agent-modal';
+import { ToolsModal } from '../tools-modal';
 
 // Simple chat message interface
 interface ChatMessage {
@@ -54,6 +55,7 @@ function ActionNodeComponent({ id, data, selected }: NodeProps<NodeData>) {
   const [isSupabaseModalOpen, setIsSupabaseModalOpen] = useState(false);
   const [isMultiAgentModalOpen, setIsMultiAgentModalOpen] = useState(false);
   const [isLlmAgentModalOpen, setIsLlmAgentModalOpen] = useState(false);
+  const [isToolModalOpen, setIsToolModalOpen] = useState(false);
   const [llmProvider, setLlmProvider] = useState<string>('');
   
   // Chat session state
@@ -92,6 +94,8 @@ function ActionNodeComponent({ id, data, selected }: NodeProps<NodeData>) {
   const isScrapeWebsiteTool = data.label === 'ScrapeWebsiteTool';
   const isEXASearchTool = data.label === 'EXASearchTool';
   const isHyperbrowserTool = data.label === 'hyperbrowser_tool';
+  const isToolNode = isSerperApi || isGetPrice || isYahooFinanceNewsTool || 
+    isBraveSearchTool || isScrapeWebsiteTool || isEXASearchTool || isHyperbrowserTool;
   // Handle icon selection based on node type
   let IconComponent;
   
@@ -113,8 +117,7 @@ function ActionNodeComponent({ id, data, selected }: NodeProps<NodeData>) {
     IconComponent = Globe;
   } else if (isTransformData) {
     IconComponent = FileJson;
-  } else if (isSerperApi || isGetPrice || isYahooFinanceNewsTool || isBraveSearchTool 
-    || isScrapeWebsiteTool || isEXASearchTool || isHyperbrowserTool) {
+  } else if (isToolNode) {
     IconComponent = Wrench;
   } else {
     IconComponent = CircleIcon;
@@ -158,6 +161,19 @@ function ActionNodeComponent({ id, data, selected }: NodeProps<NodeData>) {
   
   const handleOpenLlmAgentConfig = () => {
     setIsLlmAgentModalOpen(true);
+  };
+  
+  const handleToolConfigSave = (configData: { apiKeyId: string }) => {
+    if (id) {
+      const updateNodeData = useWorkflowStore.getState().updateNodeData;
+      console.log('Saving Tool configuration in node:', configData);
+      updateNodeData(id, {
+        toolConfig: {
+          apiKeyId: configData.apiKeyId
+        }
+      });
+      toast.success('Tool configuration updated');
+    }
   };
   
   const handleChatButtonClick = (e: React.MouseEvent) => {
@@ -603,6 +619,8 @@ function ActionNodeComponent({ id, data, selected }: NodeProps<NodeData>) {
                       ? handleOpenMultiAgentConfig
                     : isLLMAgent
                       ? handleOpenLlmAgentConfig
+                    : isToolNode
+                      ? () => setIsToolModalOpen(true)
                     : undefined
         }
         style={(
@@ -613,7 +631,8 @@ function ActionNodeComponent({ id, data, selected }: NodeProps<NodeData>) {
           isWebhookResponse || 
           isSupabaseAgent ||
           isMultiAgent ||
-          isLLMAgent
+          isLLMAgent ||
+          isToolNode
         ) ? { cursor: 'pointer' } : undefined}
       >
         {/* Gradient glow effect */}
@@ -949,6 +968,18 @@ function ActionNodeComponent({ id, data, selected }: NodeProps<NodeData>) {
           </div>
         </DialogContent>
       </Dialog>
+
+      {/* Tools Configuration Modal */}
+      {isToolNode && (
+        <ToolsModal
+          isOpen={isToolModalOpen}
+          onClose={() => setIsToolModalOpen(false)}
+          nodeId={id}
+          toolType={data.label}
+          nodeData={data.toolConfig}
+          onSave={handleToolConfigSave}
+        />
+      )}
     </>
   );
 }

@@ -75,7 +75,13 @@ export type NodeData = {
     instructions?: string;
     apiKeyId?: string;
     provider?: string;
-    //options?: Array<{ key: string; value: string }>;
+    tools?: Array<{
+      name: string;
+      apiKeyId?: string;
+    }>;
+  };
+  toolConfig?: {
+    apiKeyId?: string;
   };
 };
 
