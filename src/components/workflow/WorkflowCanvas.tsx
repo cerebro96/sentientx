@@ -588,6 +588,29 @@ export function WorkflowCanvas({ isActive, onClose, workflowId, newWorkflowData 
     // Note: Add nodes as a dependency, but be mindful of performance. Deep comparison might be needed.
   }, [nodes, triggerAutoSave]);
 
+  // Cleanup function
+  useEffect(() => {
+    return () => {
+      if (autoSaveTimeoutRef.current) {
+        clearTimeout(autoSaveTimeoutRef.current);
+      }
+    };
+  }, []);
+
+  // Add event listener for manual auto-save triggers
+  useEffect(() => {
+    const handleTriggerAutoSave = () => {
+      console.log('🎯 Received triggerAutoSave event');
+      triggerAutoSave();
+    };
+
+    window.addEventListener('triggerAutoSave', handleTriggerAutoSave);
+    
+    return () => {
+      window.removeEventListener('triggerAutoSave', handleTriggerAutoSave);
+    };
+  }, [triggerAutoSave]);
+
   // --- New useEffect to fitView on tab change --- 
   useEffect(() => {
     if (activeTab === 'canvas' && reactFlowInstance) {

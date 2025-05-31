@@ -47,13 +47,14 @@ export function ToolsModal({
   onSave
 }: ToolsModalProps) {
   const [availableApiKeys, setAvailableApiKeys] = useState<Array<{ id: string; name: string }>>([]);
-  const [selectedApiKeyId, setSelectedApiKeyId] = useState(nodeData?.apiKeyId || "");
+  const [selectedApiKeyId, setSelectedApiKeyId] = useState("");
   const [isAddKeyDialogOpen, setIsAddKeyDialogOpen] = useState(false);
   const [newKeyName, setNewKeyName] = useState('');
   const [newKeyValue, setNewKeyValue] = useState('');
   const [showKey, setShowKey] = useState(false);
   const [isSubmittingKey, setIsSubmittingKey] = useState(false);
   const [isLoadingKeys, setIsLoadingKeys] = useState(false);
+  const [hasInitialized, setHasInitialized] = useState(false);
 
   const needsApiKey = TOOLS_WITH_API_KEYS.includes(toolType);
 
@@ -67,7 +68,7 @@ export function ToolsModal({
     return serviceMap[tool] || tool;
   };
 
-  const fetchApiKeys = async () => {
+  const fetchApiKeys = async (preserveSelection: string = "") => {
     if (!needsApiKey) return;
     
     setIsLoadingKeys(true);
@@ -77,12 +78,20 @@ export function ToolsModal({
       const toolKeys = keys.filter(key => key.service === serviceName);
       setAvailableApiKeys(toolKeys.map(key => ({ id: key.id, name: key.name })));
       
-      if (nodeData?.apiKeyId && toolKeys.some(key => key.id === nodeData.apiKeyId)) {
-        setSelectedApiKeyId(nodeData.apiKeyId);
-      } else if (toolKeys.length > 0) {
+      console.log("Available keys for", toolType, ":", toolKeys);
+      console.log("Preserve selection:", preserveSelection);
+      
+      // If we have a saved selection and it exists in the keys, use it
+      if (preserveSelection && toolKeys.some(key => key.id === preserveSelection)) {
+        console.log("✅ Preserving saved selection:", preserveSelection);
+        setSelectedApiKeyId(preserveSelection);
+      } else if (!preserveSelection && toolKeys.length > 0) {
+        // Only set default if no preserved selection
+        console.log("❌ No saved selection, using first available key:", toolKeys[0].id);
         setSelectedApiKeyId(toolKeys[0].id);
-      } else {
-        setSelectedApiKeyId("");
+      } else if (preserveSelection && !toolKeys.some(key => key.id === preserveSelection)) {
+        console.log("⚠️ Saved selection not found in available keys, using first available");
+        setSelectedApiKeyId(toolKeys.length > 0 ? toolKeys[0].id : "");
       }
     } catch (error) {
       toast.error("Failed to load API keys");
@@ -91,11 +100,27 @@ export function ToolsModal({
     }
   };
 
+  // Initialize when modal opens
   useEffect(() => {
-    if (isOpen) {
-      fetchApiKeys();
+    if (isOpen && !hasInitialized) {
+      const savedApiKeyId = nodeData?.apiKeyId || "";
+      console.log("🔄 Modal opened for", toolType);
+      console.log("📦 nodeData received:", nodeData);
+      console.log("🔑 savedApiKeyId from nodeData:", savedApiKeyId);
+      
+      setSelectedApiKeyId(savedApiKeyId);
+      fetchApiKeys(savedApiKeyId);
+      setHasInitialized(true);
+    } else if (!isOpen) {
+      // Reset when modal closes
+      setHasInitialized(false);
     }
-  }, [isOpen, toolType]);
+  }, [isOpen, nodeData?.apiKeyId, toolType]);
+
+  // Debug effect to track nodeData changes
+  useEffect(() => {
+    console.log("📊 nodeData changed:", nodeData);
+  }, [nodeData]);
 
   const handleAddKey = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -112,10 +137,8 @@ export function ToolsModal({
       setNewKeyValue('');
       setShowKey(false);
       setIsAddKeyDialogOpen(false);
-      await fetchApiKeys();
-      if (newKey?.id) {
-        setSelectedApiKeyId(newKey.id);
-      }
+      // Fetch keys again but preserve the new key selection
+      await fetchApiKeys(newKey?.id || "");
     } catch (error: any) {
       toast.error(error.message || "Failed to add API key");
     } finally {
@@ -129,6 +152,7 @@ export function ToolsModal({
       return;
     }
 
+    console.log("💾 Saving tool config with apiKeyId:", selectedApiKeyId);
     onSave({
       apiKeyId: selectedApiKeyId
     });

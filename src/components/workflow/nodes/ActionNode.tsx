@@ -163,15 +163,38 @@ function ActionNodeComponent({ id, data, selected }: NodeProps<NodeData>) {
     setIsLlmAgentModalOpen(true);
   };
   
+  const triggerAutoSave = () => {
+    // Get the current workflow canvas instance and trigger auto-save
+    const event = new CustomEvent('triggerAutoSave');
+    window.dispatchEvent(event);
+  };
+  
   const handleToolConfigSave = (configData: { apiKeyId: string }) => {
     if (id) {
       const updateNodeData = useWorkflowStore.getState().updateNodeData;
-      console.log('Saving Tool configuration in node:', configData);
+      console.log('💾 Saving Tool configuration in node:', id, configData);
+      console.log('🔍 Current node data before save:', data);
+      
       updateNodeData(id, {
         toolConfig: {
           apiKeyId: configData.apiKeyId
         }
       });
+      
+      // Explicitly trigger auto-save to ensure persistence
+      setTimeout(() => {
+        const event = new CustomEvent('triggerAutoSave');
+        window.dispatchEvent(event);
+        console.log('🚀 Triggered auto-save after tool config update');
+      }, 100);
+      
+      // Debug: Check if the data was saved correctly
+      setTimeout(() => {
+        const updatedNode = useWorkflowStore.getState().nodes.find(n => n.id === id);
+        console.log('✅ Tool configuration saved. Updated node data:', updatedNode?.data);
+        console.log('🔑 Saved toolConfig:', updatedNode?.data.toolConfig);
+      }, 200);
+      
       toast.success('Tool configuration updated');
     }
   };
