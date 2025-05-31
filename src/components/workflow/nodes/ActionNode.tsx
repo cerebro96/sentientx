@@ -3,7 +3,7 @@
 import { memo, useState } from 'react';
 import { Handle, Position, NodeProps } from 'reactflow';
 import { NodeData } from '@/lib/store/workflow';
-import { CircleIcon, AlertTriangle, Bot, MessageCircle, Plus, BrainCircuit, DatabaseZap, Webhook, Globe, FileJson, MessageSquare } from 'lucide-react';
+import { CircleIcon, AlertTriangle, Bot, MessageCircle, Plus, BrainCircuit, DatabaseZap, Webhook, Globe, FileJson, MessageSquare, Wrench } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import { toast } from 'sonner';
@@ -85,6 +85,13 @@ function ActionNodeComponent({ id, data, selected }: NodeProps<NodeData>) {
   const isParallelAgent = data.label === 'Parallel agent';
   const isLoopAgent = data.label === 'Loop agent';
   const isMultiAgent = data.label === 'Multi Agent (BaseAgent)';
+  const isSerperApi = data.label === 'Serper API';
+  const isGetPrice = data.label === 'get_price';
+  const isYahooFinanceNewsTool = data.label === 'YahooFinanceNewsTool';
+  const isBraveSearchTool = data.label === 'BraveSearchTool';
+  const isScrapeWebsiteTool = data.label === 'ScrapeWebsiteTool';
+  const isEXASearchTool = data.label === 'EXASearchTool';
+  const isHyperbrowserTool = data.label === 'hyperbrowser_tool';
   // Handle icon selection based on node type
   let IconComponent;
   
@@ -106,6 +113,9 @@ function ActionNodeComponent({ id, data, selected }: NodeProps<NodeData>) {
     IconComponent = Globe;
   } else if (isTransformData) {
     IconComponent = FileJson;
+  } else if (isSerperApi || isGetPrice || isYahooFinanceNewsTool || isBraveSearchTool 
+    || isScrapeWebsiteTool || isEXASearchTool || isHyperbrowserTool) {
+    IconComponent = Wrench;
   } else {
     IconComponent = CircleIcon;
   }
@@ -558,6 +568,8 @@ function ActionNodeComponent({ id, data, selected }: NodeProps<NodeData>) {
         className={cn(
           "p-4 rounded-lg border-2 bg-slate-800 flex flex-col min-w-[180px] transition-all duration-200 relative",
           isAIAgent ? "min-w-[280px] min-h-[240px]" : "",
+          (isSerperApi || isGetPrice || isYahooFinanceNewsTool || isBraveSearchTool 
+            || isScrapeWebsiteTool || isEXASearchTool || isHyperbrowserTool) ? "rounded-full !min-w-[120px] !min-h-[120px] flex items-center justify-center" : "",
           isMultiAgent
             ? selected 
               ? "border-yellow-500 shadow-[0_0_20px_-5px_rgba(234,179,8,0.7)]" 
@@ -629,7 +641,9 @@ function ActionNodeComponent({ id, data, selected }: NodeProps<NodeData>) {
           )}
           <div className={cn(
             "flex-shrink-0 p-3 rounded-full mb-2 transition-all",
-            isMultiAgent
+            isSerperApi || isGetPrice || isYahooFinanceNewsTool || isBraveSearchTool || isScrapeWebsiteTool || isEXASearchTool || isHyperbrowserTool
+              ? "bg-slate-700 text-orange-400 !mb-1"
+              : isMultiAgent
               ? "bg-slate-700 text-yellow-400"
               : isSupabaseAgent
               ? "bg-slate-700 text-green-400"
@@ -637,9 +651,13 @@ function ActionNodeComponent({ id, data, selected }: NodeProps<NodeData>) {
               ? "bg-slate-700 text-pink-400" 
               : "bg-slate-700 text-blue-400"
           )}>
-            <IconComponent className="h-6 w-6" />
+            <IconComponent className={cn("h-6 w-6", (isSerperApi || isGetPrice || isYahooFinanceNewsTool || isBraveSearchTool || 
+              isScrapeWebsiteTool || isEXASearchTool || isHyperbrowserTool) && "h-8 w-8")} />
           </div>
-          <div className="font-medium text-center text-white">{data.label}</div>
+          <div className={cn(
+            "font-medium text-center text-white",
+            (isSerperApi || isGetPrice || isYahooFinanceNewsTool || isBraveSearchTool || isScrapeWebsiteTool || isEXASearchTool || isHyperbrowserTool) && "text-sm"
+          )}>{data.label}</div>
           
           {/* Display node description logic */}
           {isMultiAgent ? (
@@ -649,24 +667,25 @@ function ActionNodeComponent({ id, data, selected }: NodeProps<NodeData>) {
               </div>
             ) : data.description ? (
               <div className="text-xs text-slate-300 text-center mt-1 px-1 break-words">
-                {data.description} {/* Fallback to catalog description for MultiAgent */}
+                {data.description}
               </div>
             ) : null
-          ) : isLLMAgent ? ( // Check for LLM Agent
+          ) : isLLMAgent ? (
             data.llmAgentConfig?.description ? (
               <div className="text-xs text-slate-300 text-center mt-1 px-1 break-words">
                 {data.llmAgentConfig.description}
               </div>
             ) : data.description ? (
               <div className="text-xs text-slate-300 text-center mt-1 px-1 break-words">
-                {data.description} {/* Fallback to catalog description for LLMAgent */}
+                {data.description}
               </div>
             ) : null
           ) : isAIAgent && data.description ? (
             <div className="text-xs text-slate-300 text-center mt-1 px-1 break-words">
               {data.description}
             </div>
-          ) : !isAIAgent && !isMultiAgent && !isLLMAgent && data.description ? ( // Ensure LLMAgent is also excluded from this generic case
+          ) : !isAIAgent && !isMultiAgent && !isLLMAgent && !isSerperApi && !isGetPrice && !isYahooFinanceNewsTool && 
+          !isBraveSearchTool && !isScrapeWebsiteTool && !isEXASearchTool && !isHyperbrowserTool && data.description ? (
             <div className="text-xs text-slate-300 text-center mt-1 mb-1 px-1 break-words">
               {data.description}
             </div>
@@ -742,7 +761,8 @@ function ActionNodeComponent({ id, data, selected }: NodeProps<NodeData>) {
         )}
         
         {/* Left input handle - not shown for LLM, Memory, Chat Trigger nodes, or Multi Agent */}
-        {(!isChatTrigger && !isLLMNode && !isMemoryNode && !isWebhookTrigger && !isMultiAgent && !isLLMAgent && !isSequentialAgent && !isParallelAgent && !isLoopAgent) && (
+        {(!isChatTrigger && !isLLMNode && !isMemoryNode && !isWebhookTrigger && !isMultiAgent && !isLLMAgent && !isSequentialAgent && !isParallelAgent && !isLoopAgent && !isSerperApi && !isGetPrice && !isYahooFinanceNewsTool 
+        && !isBraveSearchTool && !isScrapeWebsiteTool && !isEXASearchTool && !isHyperbrowserTool) && (
           <Handle 
             id="input-left"
             type="target" 
@@ -759,7 +779,8 @@ function ActionNodeComponent({ id, data, selected }: NodeProps<NodeData>) {
         )}
         
         {/* Right output handle - for Chat Trigger, Webhook nodes, HTTP Request, Transform Data, and all nodes except LLM, Memory, and Multi Agent */}
-        {(isChatTrigger || isWebhookTrigger || isWebhookResponse || isHttpRequest || isTransformData || (!isLLMNode && !isMemoryNode && !isMultiAgent && !isLLMAgent && !isSequentialAgent && !isParallelAgent && !isLoopAgent)) && (
+        {(isChatTrigger || isWebhookTrigger || isWebhookResponse || isHttpRequest || isTransformData || (!isLLMNode && !isMemoryNode && !isMultiAgent && !isLLMAgent && !isSequentialAgent && !isParallelAgent && !isLoopAgent 
+        && !isSerperApi && !isGetPrice && !isYahooFinanceNewsTool && !isBraveSearchTool && !isScrapeWebsiteTool && !isEXASearchTool && !isHyperbrowserTool)) && (
           <Handle 
             id="output-right"
             type="source" 
@@ -776,7 +797,8 @@ function ActionNodeComponent({ id, data, selected }: NodeProps<NodeData>) {
         )}
         
         {/* Bottom output handle - Keep this for Multi Agent */}
-        {((!isChatTrigger && !isWebhookTrigger && !isWebhookResponse && !isHttpRequest && !isTransformData && !isLLMNode && !isMemoryNode && !isAIAgent && !isSupabaseAgent) || isMultiAgent) && (
+        {((!isChatTrigger && !isWebhookTrigger && !isWebhookResponse && !isHttpRequest && !isTransformData && !isLLMNode && !isMemoryNode && !isAIAgent && !isSupabaseAgent && !isSerperApi && !isGetPrice && !isYahooFinanceNewsTool && !isBraveSearchTool 
+        && !isScrapeWebsiteTool && !isEXASearchTool && !isHyperbrowserTool) || isMultiAgent) && (
           <Handle 
             id="output-bottom"
             type="source" 
