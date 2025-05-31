@@ -31,6 +31,8 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover";
+import { useWorkflowStore } from '@/lib/store/workflow';
+import { Edge, Node } from 'reactflow';
 
 function getAllModelsForProvider(provider: string) {
   const providerConfig = llmProviderConfigs[provider];
@@ -52,7 +54,6 @@ interface LlmAgentModalProps {
     description?: string;
     instructions?: string;
     apiKeyId?: string;
-    // Options removed as advanced settings are removed
     provider?: string; 
   } | undefined;
   onSave: (configData: { 
@@ -62,7 +63,6 @@ interface LlmAgentModalProps {
     instructions: string;
     apiKeyId: string;
     provider: string; 
-    // Options removed from here as well
   }) => void;
 }
 
@@ -71,8 +71,18 @@ export function LlmAgentModal({
   onClose, 
   nodeId, 
   nodeData, 
-  onSave 
+  onSave,
 }: LlmAgentModalProps) {
+  // Get workflow state to check connections
+  const { nodes, edges } = useWorkflowStore();
+
+  // Check if this LLM Agent is connected to a Multi Agent
+  const isConnectedToMultiAgent = edges.some(edge => {
+    const targetNode = nodes.find(n => n.id === edge.target);
+    return (edge.source === nodeId && targetNode?.data.label === 'Multi Agent (BaseAgent)') ||
+           (edge.target === nodeId && nodes.find(n => n.id === edge.source)?.data.label === 'Multi Agent (BaseAgent)');
+  });
+
   // Log nodeData when modal opens for debugging
   useEffect(() => {
     if (isOpen) {
@@ -88,7 +98,6 @@ export function LlmAgentModal({
   
   const [availableApiKeys, setAvailableApiKeys] = useState<Array<{ id: string; name: string }>>([]);
   const [selectedApiKeyId, setSelectedApiKeyId] = useState(nodeData?.apiKeyId || "");
-  // Removed advancedSettings state
   const [isAddKeyDialogOpen, setIsAddKeyDialogOpen] = useState(false);
   const [newKeyName, setNewKeyName] = useState('');
   const [newKeyValue, setNewKeyValue] = useState('');
@@ -289,86 +298,88 @@ export function LlmAgentModal({
               <Input id="llm-agent-name" value={name} onChange={(e) => setName(e.target.value)} placeholder="Enter agent name" />
             </div>
 
-            {/* Collapsible Model Configuration Section */}
-            <div className="border rounded-md">
-              <button 
-                type="button"
-                className="w-full flex items-center justify-between p-3 hover:bg-muted/50"
-                onClick={() => setIsModelConfigOpen(!isModelConfigOpen)}
-                aria-expanded={isModelConfigOpen}
-              >
-                <Label className="font-medium cursor-pointer">Model Configuration</Label>
-                {isModelConfigOpen ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
-              </button>
+            {/* Model Configuration Section - Hidden when connected to Multi Agent */}
+            {!isConnectedToMultiAgent && (
+              <div className="border rounded-md">
+                <button 
+                  type="button"
+                  className="w-full flex items-center justify-between p-3 hover:bg-muted/50"
+                  onClick={() => setIsModelConfigOpen(!isModelConfigOpen)}
+                  aria-expanded={isModelConfigOpen}
+                >
+                  <Label className="font-medium cursor-pointer">Model Configuration</Label>
+                  {isModelConfigOpen ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+                </button>
 
-              {isModelConfigOpen && (
-                <div className="p-4 border-t space-y-4">
-                  <div className="grid gap-2">
-                      <Label htmlFor="llm-agent-provider">Provider *</Label>
-                      <Select value={currentProvider} onValueChange={setCurrentProvider}>
-                          <SelectTrigger><SelectValue placeholder="Select LLM Provider" /></SelectTrigger>
-                          <SelectContent>
-                              {Object.keys(llmProviderConfigs).map(providerKey => (
-                                  <SelectItem key={providerKey} value={providerKey}>
-                                      {llmProviderConfigs[providerKey].displayName}
-                                  </SelectItem>
-                              ))}
-                          </SelectContent>
-                      </Select>
-                  </div>
-
-                  <div>
-                    <Label htmlFor="api-key">API Key *</Label>
-                    <div className="flex gap-2 mt-1">
-                      {isLoadingKeys ? (
-                        <div className="flex-1 h-10 flex items-center justify-center rounded-md border border-input animate-pulse"><span className="text-sm text-muted-foreground">Loading keys...</span></div>
-                      ) : (
-                        <>
-                          <Select value={selectedApiKeyId} onValueChange={setSelectedApiKeyId} disabled={!currentProvider}>
-                            <SelectTrigger className="w-full"><SelectValue placeholder={currentProvider ? `Select ${currentProviderConfig?.displayName} API key` : "Select a provider first"} /></SelectTrigger>
+                {isModelConfigOpen && (
+                  <div className="p-4 border-t space-y-4">
+                    <div className="grid gap-2">
+                        <Label htmlFor="llm-agent-provider">Provider *</Label>
+                        <Select value={currentProvider} onValueChange={setCurrentProvider}>
+                            <SelectTrigger><SelectValue placeholder="Select LLM Provider" /></SelectTrigger>
                             <SelectContent>
-                              {availableApiKeys.length > 0 ? 
-                                availableApiKeys.map((key) => <SelectItem key={key.id} value={key.id}>{key.name}</SelectItem>) :
-                                <div className="p-2 text-sm text-muted-foreground">No keys for this provider. Click + to add.</div>}
+                                {Object.keys(llmProviderConfigs).map(providerKey => (
+                                    <SelectItem key={providerKey} value={providerKey}>
+                                        {llmProviderConfigs[providerKey].displayName}
+                                    </SelectItem>
+                                ))}
                             </SelectContent>
-                          </Select>
-                          <Button variant="outline" size="icon" onClick={() => setIsAddKeyDialogOpen(true)} title="Add New API Key" disabled={!currentProvider}><Plus className="h-4 w-4" /></Button>
-                        </>
-                      )}
+                        </Select>
+                    </div>
+
+                    <div>
+                      <Label htmlFor="api-key">API Key *</Label>
+                      <div className="flex gap-2 mt-1">
+                        {isLoadingKeys ? (
+                          <div className="flex-1 h-10 flex items-center justify-center rounded-md border border-input animate-pulse"><span className="text-sm text-muted-foreground">Loading keys...</span></div>
+                        ) : (
+                          <>
+                            <Select value={selectedApiKeyId} onValueChange={setSelectedApiKeyId} disabled={!currentProvider}>
+                              <SelectTrigger className="w-full"><SelectValue placeholder={currentProvider ? `Select ${currentProviderConfig?.displayName} API key` : "Select a provider first"} /></SelectTrigger>
+                              <SelectContent>
+                                {availableApiKeys.length > 0 ? 
+                                  availableApiKeys.map((key) => <SelectItem key={key.id} value={key.id}>{key.name}</SelectItem>) :
+                                  <div className="p-2 text-sm text-muted-foreground">No keys for this provider. Click + to add.</div>}
+                              </SelectContent>
+                            </Select>
+                            <Button variant="outline" size="icon" onClick={() => setIsAddKeyDialogOpen(true)} title="Add New API Key" disabled={!currentProvider}><Plus className="h-4 w-4" /></Button>
+                          </>
+                        )}
+                      </div>
+                    </div>
+                    
+                    <div className="grid gap-2">
+                      <Label htmlFor="llm-agent-model">Model *</Label>
+                      <Select value={currentModel} onValueChange={setCurrentModel} disabled={!currentProvider}>
+                        <SelectTrigger><SelectValue placeholder="Select model..." /></SelectTrigger>
+                        <SelectContent>
+                          {modelsForCurrentProvider.length === 0 ? (
+                            <div className="p-2 text-sm text-muted-foreground">No models available for this provider.</div>
+                          ) : (
+                            modelsForCurrentProvider.map((item) => (
+                              <SelectItem key={item.value} value={item.value}>{item.label}</SelectItem>
+                            ))
+                          )}
+                        </SelectContent>
+                      </Select>
                     </div>
                   </div>
-                  
-                  <div className="grid gap-2">
-                    <Label htmlFor="llm-agent-model">Model *</Label>
-                    <Select value={currentModel} onValueChange={setCurrentModel} disabled={!currentProvider}>
-                      <SelectTrigger><SelectValue placeholder="Select model..." /></SelectTrigger>
-                      <SelectContent>
-                        {modelsForCurrentProvider.length === 0 ? (
-                          <div className="p-2 text-sm text-muted-foreground">No models available for this provider.</div>
-                        ) : (
-                          modelsForCurrentProvider.map((item) => (
-                            <SelectItem key={item.value} value={item.value}>{item.label}</SelectItem>
-                          ))
-                        )}
-                      </SelectContent>
-                    </Select>
-                  </div>
-                </div>
-              )}
-            </div>
-            {/* End Collapsible Section */}
+                )}
+              </div>
+            )}
             
-            <div className="grid gap-2">
-              <Label htmlFor="llm-agent-description">Description</Label>
-              <Textarea id="llm-agent-description" value={description} onChange={(e) => setDescription(e.target.value)} placeholder="Describe what this LLM agent does" rows={2}/>
-            </div>
+            {/* Description field - Hidden when connected to Multi Agent */}
+            {!isConnectedToMultiAgent && (
+              <div className="grid gap-2">
+                <Label htmlFor="llm-agent-description">Description</Label>
+                <Textarea id="llm-agent-description" value={description} onChange={(e) => setDescription(e.target.value)} placeholder="Describe what this LLM agent does" rows={2}/>
+              </div>
+            )}
             
             <div className="grid gap-2">
               <Label htmlFor="llm-agent-instructions">Instructions (System Prompt)</Label>
               <Textarea id="llm-agent-instructions" value={instructions} onChange={(e) => setInstructions(e.target.value)} placeholder="Provide detailed instructions for the agent..." rows={4}/>
             </div>
-            
-            {/* Advanced Settings Section Removed */}
           </div>
           
           <DialogFooter>
@@ -378,7 +389,7 @@ export function LlmAgentModal({
         </DialogContent>
       </Dialog>
 
-      {/* Add Key Dialog (copied from LlmNodeModal) */}
+      {/* Add Key Dialog */}
       <Dialog open={isAddKeyDialogOpen} onOpenChange={setIsAddKeyDialogOpen}>
         <DialogContent className="sm:max-w-[425px]">
           <DialogHeader>

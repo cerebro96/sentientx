@@ -136,7 +136,7 @@ export const nodeCatalog = [
     description: 'executes its sub-agents in the order they are specified in the list',
     icon: Bot,
     category: 'Multi Agentic',
-    hidden: false,
+    hidden: true,
   },
   {
     type: 'action',
@@ -144,7 +144,7 @@ export const nodeCatalog = [
     description: 'executes its sub-agents in a loop (i.e. iteratively)',
     icon: Bot,
     category: 'Multi Agentic',
-    hidden: false,
+    hidden: true,
   },
   {
     type: 'action',
@@ -152,6 +152,7 @@ export const nodeCatalog = [
     description: 'executes all sub-agents in parallel',
     icon: Bot,
     category: 'Multi Agentic',
+    hidden: true,
   },
   {
     type: 'action',
