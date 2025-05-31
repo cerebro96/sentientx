@@ -23,7 +23,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Plus, Eye, EyeOff, ChevronsUpDown, SearchIcon, Check, ChevronDown, ChevronUp } from "lucide-react";
+import { Plus, Eye, EyeOff, ChevronsUpDown, SearchIcon, Check, ChevronDown, ChevronUp, Wrench } from "lucide-react";
 import { getApiKeys, createApiKey } from "@/lib/api-keys";
 import { cn } from "@/lib/utils";
 import {
@@ -33,6 +33,12 @@ import {
 } from "@/components/ui/popover";
 import { useWorkflowStore } from '@/lib/store/workflow';
 import { Edge, Node } from 'reactflow';
+import {
+  Tabs,
+  TabsContent,
+  TabsList,
+  TabsTrigger,
+} from "@/components/ui/tabs";
 
 function getAllModelsForProvider(provider: string) {
   const providerConfig = llmProviderConfigs[provider];
@@ -107,6 +113,7 @@ export function LlmAgentModal({
   const [isModelConfigOpen, setIsModelConfigOpen] = useState(true);
 
   const [modelPopoverOpen, setModelPopoverOpen] = useState(false);
+  const [activeTab, setActiveTab] = useState("config");
 
   const providerConfig = llmProviderConfigs[currentProvider];
   const modelsForCurrentProvider = getAllModelsForProvider(currentProvider);
@@ -266,6 +273,21 @@ export function LlmAgentModal({
     onClose(); 
   };
 
+  // Get connected tool nodes
+  const getConnectedTools = () => {
+    const outgoingEdges = edges.filter(edge => edge.source === nodeId);
+    return nodes.filter(node => 
+      outgoingEdges.some(edge => edge.target === node.id) && 
+      [
+        'Serper API', 'get_price', 'YahooFinanceNewsTool', 
+        'BraveSearchTool', 'ScrapeWebsiteTool', 'EXASearchTool', 
+        'hyperbrowser_tool'
+      ].includes(node.data.label)
+    );
+  };
+
+  const connectedTools = getConnectedTools();
+
   if (!isOpen) return null;
   
   // Only show configuration error if a provider is selected but not configured
@@ -284,107 +306,159 @@ export function LlmAgentModal({
   return (
     <>
       <Dialog open={isOpen} onOpenChange={(openState) => { if (!openState) { onClose(); setModelPopoverOpen(false); } }}>
-        <DialogContent className="sm:max-w-[600px] max-h-[85vh] flex flex-col">
-          <DialogHeader>
+        <DialogContent className="sm:max-w-[90vw] md:max-w-[80vw] lg:max-w-[70vw] xl:max-w-[60vw] max-h-[90vh] flex flex-col">
+          <DialogHeader className="flex-shrink-0">
             <DialogTitle className="text-xl font-bold flex items-center">
               LLM Agent Configuration
             </DialogTitle>
             <DialogDescription>Configure your LLM Agent settings.</DialogDescription>
           </DialogHeader>
-          
-          <div className="grid gap-4 py-4 overflow-y-auto flex-grow pr-2">
-            <div className="grid gap-2">
-              <Label htmlFor="llm-agent-name">Agent Name *</Label>
-              <Input id="llm-agent-name" value={name} onChange={(e) => setName(e.target.value)} placeholder="Enter agent name" />
-            </div>
 
-            {/* Model Configuration Section - Hidden when connected to Multi Agent */}
-            {!isConnectedToMultiAgent && (
-              <div className="border rounded-md">
-                <button 
-                  type="button"
-                  className="w-full flex items-center justify-between p-3 hover:bg-muted/50"
-                  onClick={() => setIsModelConfigOpen(!isModelConfigOpen)}
-                  aria-expanded={isModelConfigOpen}
-                >
-                  <Label className="font-medium cursor-pointer">Model Configuration</Label>
-                  {isModelConfigOpen ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
-                </button>
+          <Tabs value={activeTab} onValueChange={setActiveTab} className="flex-grow flex flex-col min-h-0">
+            <TabsList className="grid w-full grid-cols-2 flex-shrink-0">
+              <TabsTrigger value="config">Configuration</TabsTrigger>
+              <TabsTrigger value="tools">Connected Tools ({connectedTools.length})</TabsTrigger>
+            </TabsList>
 
-                {isModelConfigOpen && (
-                  <div className="p-4 border-t space-y-4">
-                    <div className="grid gap-2">
-                        <Label htmlFor="llm-agent-provider">Provider *</Label>
-                        <Select value={currentProvider} onValueChange={setCurrentProvider}>
-                            <SelectTrigger><SelectValue placeholder="Select LLM Provider" /></SelectTrigger>
-                            <SelectContent>
-                                {Object.keys(llmProviderConfigs).map(providerKey => (
-                                    <SelectItem key={providerKey} value={providerKey}>
-                                        {llmProviderConfigs[providerKey].displayName}
-                                    </SelectItem>
-                                ))}
-                            </SelectContent>
-                        </Select>
-                    </div>
+            <TabsContent value="config" className="flex-grow overflow-y-auto data-[state=active]:flex flex-col">
+              <div className="grid gap-4 py-4 pr-2 flex-grow">
+                <div className="grid gap-2">
+                  <Label htmlFor="llm-agent-name">Agent Name *</Label>
+                  <Input id="llm-agent-name" value={name} onChange={(e) => setName(e.target.value)} placeholder="Enter agent name" />
+                </div>
 
-                    <div>
-                      <Label htmlFor="api-key">API Key *</Label>
-                      <div className="flex gap-2 mt-1">
-                        {isLoadingKeys ? (
-                          <div className="flex-1 h-10 flex items-center justify-center rounded-md border border-input animate-pulse"><span className="text-sm text-muted-foreground">Loading keys...</span></div>
-                        ) : (
-                          <>
-                            <Select value={selectedApiKeyId} onValueChange={setSelectedApiKeyId} disabled={!currentProvider}>
-                              <SelectTrigger className="w-full"><SelectValue placeholder={currentProvider ? `Select ${currentProviderConfig?.displayName} API key` : "Select a provider first"} /></SelectTrigger>
-                              <SelectContent>
-                                {availableApiKeys.length > 0 ? 
-                                  availableApiKeys.map((key) => <SelectItem key={key.id} value={key.id}>{key.name}</SelectItem>) :
-                                  <div className="p-2 text-sm text-muted-foreground">No keys for this provider. Click + to add.</div>}
-                              </SelectContent>
+                {!isConnectedToMultiAgent && (
+                  <div className="border rounded-md">
+                    <button 
+                      type="button"
+                      className="w-full flex items-center justify-between p-3 hover:bg-muted/50"
+                      onClick={() => setIsModelConfigOpen(!isModelConfigOpen)}
+                      aria-expanded={isModelConfigOpen}
+                    >
+                      <Label className="font-medium cursor-pointer">Model Configuration</Label>
+                      {isModelConfigOpen ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+                    </button>
+
+                    {isModelConfigOpen && (
+                      <div className="p-4 border-t space-y-4">
+                        <div className="grid gap-2">
+                            <Label htmlFor="llm-agent-provider">Provider *</Label>
+                            <Select value={currentProvider} onValueChange={setCurrentProvider}>
+                                <SelectTrigger><SelectValue placeholder="Select LLM Provider" /></SelectTrigger>
+                                <SelectContent>
+                                    {Object.keys(llmProviderConfigs).map(providerKey => (
+                                        <SelectItem key={providerKey} value={providerKey}>
+                                            {llmProviderConfigs[providerKey].displayName}
+                                        </SelectItem>
+                                    ))}
+                                </SelectContent>
                             </Select>
-                            <Button variant="outline" size="icon" onClick={() => setIsAddKeyDialogOpen(true)} title="Add New API Key" disabled={!currentProvider}><Plus className="h-4 w-4" /></Button>
-                          </>
+                        </div>
+
+                        <div>
+                          <Label htmlFor="api-key">API Key *</Label>
+                          <div className="flex gap-2 mt-1">
+                            {isLoadingKeys ? (
+                              <div className="flex-1 h-10 flex items-center justify-center rounded-md border border-input animate-pulse"><span className="text-sm text-muted-foreground">Loading keys...</span></div>
+                            ) : (
+                              <>
+                                <Select value={selectedApiKeyId} onValueChange={setSelectedApiKeyId} disabled={!currentProvider}>
+                                  <SelectTrigger className="w-full"><SelectValue placeholder={currentProvider ? `Select ${currentProviderConfig?.displayName} API key` : "Select a provider first"} /></SelectTrigger>
+                                  <SelectContent>
+                                    {availableApiKeys.length > 0 ? 
+                                      availableApiKeys.map((key) => <SelectItem key={key.id} value={key.id}>{key.name}</SelectItem>) :
+                                      <div className="p-2 text-sm text-muted-foreground">No keys for this provider. Click + to add.</div>}
+                                  </SelectContent>
+                                </Select>
+                                <Button variant="outline" size="icon" onClick={() => setIsAddKeyDialogOpen(true)} title="Add New API Key" disabled={!currentProvider}><Plus className="h-4 w-4" /></Button>
+                              </>
+                            )}
+                          </div>
+                        </div>
+                        
+                        <div className="grid gap-2">
+                          <Label htmlFor="llm-agent-model">Model *</Label>
+                          <Select value={currentModel} onValueChange={setCurrentModel} disabled={!currentProvider}>
+                            <SelectTrigger><SelectValue placeholder="Select model..." /></SelectTrigger>
+                            <SelectContent>
+                              {modelsForCurrentProvider.length === 0 ? (
+                                <div className="p-2 text-sm text-muted-foreground">No models available for this provider.</div>
+                              ) : (
+                                modelsForCurrentProvider.map((item) => (
+                                  <SelectItem key={item.value} value={item.value}>{item.label}</SelectItem>
+                                ))
+                              )}
+                            </SelectContent>
+                          </Select>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                )}
+                
+                <div className="grid gap-2">
+                  <Label htmlFor="llm-agent-description">Description <span className="text-xs text-muted-foreground">(Optional - for documentation only)</span></Label>
+                  <Textarea id="llm-agent-description" value={description} onChange={(e) => setDescription(e.target.value)} placeholder="Describe what this LLM agent does" rows={2}/>
+                  <p className="text-sm text-muted-foreground">Note: The description is for documentation purposes only. The Instructions field below is what actually guides the agent's behavior.</p>
+                </div>
+                
+                <div className="grid gap-2">
+                  <Label htmlFor="llm-agent-instructions">Instructions (System Prompt) <span className="text-sm text-blue-500">*Important</span></Label>
+                  <Textarea id="llm-agent-instructions" value={instructions} onChange={(e) => setInstructions(e.target.value)} placeholder="Provide detailed instructions for the agent..." rows={4}/>
+                  <p className="text-sm text-blue-500">This is the most important field - it defines how your agent will think and behave.</p>
+                </div>
+              </div>
+            </TabsContent>
+
+            <TabsContent value="tools" className="flex-grow overflow-y-auto data-[state=active]:flex flex-col">
+              <div className="py-4 space-y-4 flex-grow">
+                {connectedTools.length === 0 ? (
+                  <div className="text-center p-6 border rounded-lg bg-muted/50 flex flex-col items-center justify-center h-full">
+                    <Wrench className="h-12 w-12 mb-4 text-muted-foreground" />
+                    <p className="text-lg font-medium text-muted-foreground">No tools connected to this agent.</p>
+                    <p className="text-sm text-muted-foreground mt-2">Connect tools to enhance the agent's capabilities.</p>
+                  </div>
+                ) : (
+                  <div className="space-y-3">
+                    {connectedTools.map((tool, index) => (
+                      <div key={index} className="border rounded-lg p-4 space-y-2 hover:bg-muted/50 transition-colors">
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center gap-2">
+                            <Wrench className="h-5 w-5 text-orange-400" />
+                            <h4 className="font-medium">{tool.data.label}</h4>
+                          </div>
+                          {tool.data.toolConfig?.apiKeyId ? (
+                            <span className="text-xs bg-green-500/10 text-green-500 px-2 py-1 rounded-full">
+                              Configured
+                            </span>
+                          ) : ['EXASearchTool', 'hyperbrowser_tool', 'Serper API', 'BraveSearchTool'].includes(tool.data.label) ? (
+                            <span className="text-xs bg-yellow-500/10 text-yellow-500 px-2 py-1 rounded-full">
+                              Needs Configuration
+                            </span>
+                          ) : (
+                            <span className="text-xs bg-blue-500/10 text-blue-500 px-2 py-1 rounded-full">
+                              Ready to Use
+                            </span>
+                          )}
+                        </div>
+                        {tool.data.description && (
+                          <p className="text-sm text-muted-foreground">{tool.data.description}</p>
+                        )}
+                        {['EXASearchTool', 'hyperbrowser_tool', 'Serper API', 'BraveSearchTool'].includes(tool.data.label) && (
+                          <div className="text-xs text-muted-foreground mt-2 flex items-center gap-1">
+                            <span className="text-yellow-500">*</span>
+                            Requires API key configuration
+                          </div>
                         )}
                       </div>
-                    </div>
-                    
-                    <div className="grid gap-2">
-                      <Label htmlFor="llm-agent-model">Model *</Label>
-                      <Select value={currentModel} onValueChange={setCurrentModel} disabled={!currentProvider}>
-                        <SelectTrigger><SelectValue placeholder="Select model..." /></SelectTrigger>
-                        <SelectContent>
-                          {modelsForCurrentProvider.length === 0 ? (
-                            <div className="p-2 text-sm text-muted-foreground">No models available for this provider.</div>
-                          ) : (
-                            modelsForCurrentProvider.map((item) => (
-                              <SelectItem key={item.value} value={item.value}>{item.label}</SelectItem>
-                            ))
-                          )}
-                        </SelectContent>
-                      </Select>
-                    </div>
+                    ))}
                   </div>
                 )}
               </div>
-            )}
-            
-            {/* Description field - Hidden when connected to Multi Agent */}
-            {/* {!isConnectedToMultiAgent && ( */}
-              <div className="grid gap-2">
-                <Label htmlFor="llm-agent-description">Description <span className="text-xs text-muted-foreground">(Optional - for documentation only)</span></Label>
-                <Textarea id="llm-agent-description" value={description} onChange={(e) => setDescription(e.target.value)} placeholder="Describe what this LLM agent does" rows={2}/>
-                <p className="text-sm text-muted-foreground">Note: The description is for documentation purposes only. The Instructions field below is what actually guides the agent's behavior.</p>
-              </div>
-            {/* )} */}
-            
-            <div className="grid gap-2">
-              <Label htmlFor="llm-agent-instructions">Instructions (System Prompt) <span className="text-sm text-blue-500">*Important</span></Label>
-              <Textarea id="llm-agent-instructions" value={instructions} onChange={(e) => setInstructions(e.target.value)} placeholder="Provide detailed instructions for the agent..." rows={4}/>
-              <p className="text-sm text-blue-500">This is the most important field - it defines how your agent will think and behave.</p>
-            </div>
-          </div>
+            </TabsContent>
+          </Tabs>
           
-          <DialogFooter>
+          <DialogFooter className="flex-shrink-0 mt-4 pt-4 border-t">
             <Button variant="outline" onClick={() => { onClose(); setModelPopoverOpen(false); }}>Cancel</Button>
             <Button onClick={handleSave}>Save Configuration</Button>
           </DialogFooter>
