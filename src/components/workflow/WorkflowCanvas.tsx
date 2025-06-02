@@ -893,13 +893,218 @@ export function WorkflowCanvas({ isActive, onClose, workflowId, newWorkflowData 
       duration: 20000, // Long duration since we'll dismiss it manually
     });
 
-    
-     // Dismiss loading toast and show success
-    toast.dismiss(loadingToast);
-    toast.success('Workflow started successfully', {
-      description: 'Your Multi agent workflow is now running',
-      duration: 3000
-    });
+    try {
+      // Set the workflow status to running immediately 
+      setWorkflowStatus('running');
+
+      // Get all nodes and edges from the workflow
+      const allNodes = useWorkflowStore.getState().nodes;
+      const allEdges = useWorkflowStore.getState().edges;
+
+      // Find the Multi Agent node
+      const multiAgentNode = allNodes.find(node => node.data.label === 'Multi Agent (BaseAgent)');
+      
+      if (!multiAgentNode || !multiAgentNode.data.multiAgentConfig) {
+        throw new Error('Multi Agent node not properly configured');
+      }
+
+      // Find all LLM Agent nodes connected to the Multi Agent
+      const connectedLLMAgents = allEdges
+        .filter(edge => edge.source === multiAgentNode.id)
+        .map(edge => allNodes.find(node => node.id === edge.target))
+        .filter(node => node && node.data.label === 'LLM Agent');
+
+      console.log('Found connected LLM Agents:', connectedLLMAgents.length);
+
+      // Helper function to get API key value by ID
+      const getApiKeyValue = async (apiKeyId: string): Promise<string> => {
+        try {
+          const keyData = await getApiKeyWithValue(apiKeyId);
+          return keyData?.decrypted_key || '';
+        } catch (error) {
+          console.error(`Error fetching API key ${apiKeyId}:`, error);
+          return '';
+        }
+      };
+
+      // Helper function to get tool API key for a tool node
+      const getToolApiKey = async (toolNodeId: string): Promise<{ toolName: string, apiKey: string, keyName: string }> => {
+        const toolNode = allNodes.find(node => node.id === toolNodeId);
+        if (!toolNode) return { toolName: '', apiKey: '', keyName: '' };
+
+        const toolName = toolNode.data.label;
+        let keyName = '';
+        let apiKey = '';
+
+        // Map tool names to API key names
+        const toolKeyMap: Record<string, string> = {
+          'BraveSearchTool': 'BraveSearchAPIKey',
+          'EXASearchTool': 'EXA_API_KEY',
+          'hyperbrowser_tool': 'HYPERBROWSER_API_KEY',
+          'Serper API': 'SERPER_API_KEY'
+        };
+
+        keyName = toolKeyMap[toolName] || '';
+
+        if (toolNode.data.toolConfig?.apiKeyId) {
+          apiKey = await getApiKeyValue(toolNode.data.toolConfig.apiKeyId);
+        }
+
+        return { toolName, apiKey, keyName };
+      };
+
+      // Build connected agents array
+      const connectedAgents = await Promise.all(
+        connectedLLMAgents.map(async (llmAgent) => {
+          if (!llmAgent || !llmAgent.data.llmAgentConfig) return null;
+
+          const config = llmAgent.data.llmAgentConfig;
+          
+          // Find tools connected to this LLM Agent
+          const connectedToolEdges = allEdges.filter(edge => edge.source === llmAgent.id);
+          const connectedTools = connectedToolEdges
+            .map(edge => allNodes.find(node => node.id === edge.target))
+            .filter((node): node is NonNullable<typeof node> => 
+              node !== undefined && [
+                'Serper API', 'get_price', 'YahooFinanceNewsTool', 
+                'BraveSearchTool', 'ScrapeWebsiteTool', 'EXASearchTool', 
+                'hyperbrowser_tool'
+              ].includes(node.data.label)
+            );
+
+          // Get the primary tool name (first connected tool)
+          const primaryTool = connectedTools[0];
+          let toolName = primaryTool?.data.label || '';
+          
+          // Map tool labels to expected names
+          const toolNameMap: Record<string, string> = {
+            'Serper API': 'serper_tool',
+            'get_price': 'get_price',
+            'YahooFinanceNewsTool': 'YahooFinanceNewsTool',
+            'BraveSearchTool': 'BraveSearchTool',
+            'ScrapeWebsiteTool': 'ScrapeWebsiteTool',
+            'EXASearchTool': 'EXASearchTool',
+            'hyperbrowser_tool': 'hyperbrowser_tool'
+          };
+
+          toolName = toolNameMap[toolName] || toolName;
+
+          // Build the agent object
+          const agentData: any = {
+            id: llmAgent.id,
+            name: config.name || 'unnamed_agent',
+            type: 'LLM Agent',
+            model: config.model || '',
+            provider: config.provider || '',
+            instruction: config.instructions || '',
+            tools: toolName
+          };
+
+          // Add API keys for tools that require them
+          for (const tool of connectedTools) {
+            const { keyName, apiKey } = await getToolApiKey(tool.id);
+            if (keyName && apiKey) {
+              agentData[keyName] = apiKey;
+            }
+          }
+
+          return agentData;
+        })
+      );
+
+      // Filter out null entries
+      const validConnectedAgents = connectedAgents.filter(agent => agent !== null);
+
+      // Get Multi Agent's API key
+      const multiAgentApiKey = multiAgentNode.data.multiAgentConfig.apiKeyId 
+        ? await getApiKeyValue(multiAgentNode.data.multiAgentConfig.apiKeyId)
+        : '';
+
+      // Build the main Multi Agent structure
+      const multiAgentData = {
+        id: multiAgentNode.id,
+        type: 'Multi Agent',
+        name: multiAgentNode.data.multiAgentConfig.name || 'MultiAgent',
+        model: multiAgentNode.data.multiAgentConfig.model || '',
+        apiKey: multiAgentApiKey,
+        provider: multiAgentNode.data.multiAgentConfig.provider || '',
+        description: multiAgentNode.data.multiAgentConfig.description || '',
+        instructions: multiAgentNode.data.multiAgentConfig.instructions ? 
+          multiAgentNode.data.multiAgentConfig.instructions.split('\n').filter(line => line.trim()) :
+          [],
+        connected_agents: validConnectedAgents
+      };
+
+      console.log('Multi Agent workflow data:', JSON.stringify([multiAgentData], null, 2));
+
+      // Get the current user ID
+      const { user, error: userError } = await getCurrentUser();
+      if (userError || !user || !user.id) {
+        throw new Error('User not authenticated. Please log in.');
+      }
+
+      // Send to backend server with user ID in headers
+      const response = await fetch('/api/multi-agent/start', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-User-ID': user.id, // Send user ID in headers
+        },
+        body: JSON.stringify([multiAgentData]),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.message || 'Failed to start Multi Agent workflow');
+      }
+
+      const result = await response.json();
+      console.log('Multi Agent workflow started:', result);
+
+      // Generate execution ID locally for database tracking
+      // const executionId = uuidv4();
+      // console.log(`Generated local execution ID: ${executionId}`);
+      
+      // // Insert execution record into Supabase
+      // try {
+      //   const timestamp = new Date().toISOString();
+        
+      //   const { error: executionError } = await supabase
+      //     .from('executions')
+      //     .insert({
+      //       id: executionId,
+      //       workflow_id: workflowId || createdWorkflowId,
+      //       workflow_name: workflowName,
+      //       status: 'running',
+      //       started_at: timestamp,
+      //       triggered_by: 'user'
+      //     });
+        
+      //   if (executionError) {
+      //     console.error('Error saving execution to Supabase:', executionError);
+      //   } else {
+      //     console.log('Successfully saved Multi Agent execution to Supabase');
+      //   }
+      // } catch (dbError) {
+      //   console.error('Exception saving execution to Supabase:', dbError);
+      // }
+
+      // Dismiss loading toast and show success
+      toast.dismiss(loadingToast);
+      toast.success('Multi Agent workflow started successfully', {
+        description: `Started with ${validConnectedAgents.length} connected agents`,
+        duration: 3000
+      });
+
+    } catch (error) {
+      console.error('Error starting Multi Agent workflow:', error);
+      toast.dismiss(loadingToast);
+      toast.error('Failed to start Multi Agent workflow', {
+        description: error instanceof Error ? error.message : 'Unknown error',
+        duration: 5000
+      });
+      setWorkflowStatus('idle'); // Reset status if failed
+    }
   }
   else {
     toast.error('Start workflow aborted: No AI Agent node found. :' + agentNode?.data.label, {

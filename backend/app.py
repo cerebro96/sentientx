@@ -1,4 +1,4 @@
-from fastapi import FastAPI, HTTPException, Body
+from fastapi import FastAPI, HTTPException, Body, Header
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from typing import Dict, List, Any, Optional
@@ -181,6 +181,23 @@ class SupabaseAgentResponse(BaseModel):
     message: Optional[str] = None
     error: Optional[str] = None
     data: Optional[Dict[str, Any]] = None
+
+class MultiAgentInput(BaseModel):
+    """Model for Multi Agent workflow data"""
+    id: str
+    type: str
+    name: str
+    model: str
+    apiKey: str
+    provider: str
+    description: str
+    instructions: List[str]
+    connected_agents: List[Dict[str, Any]]
+
+class MultiAgentResponse(BaseModel):
+    status: str
+    message: str
+    workflow_id: Optional[str] = None
 
 # --- API Endpoints --- 
 
@@ -398,6 +415,40 @@ async def resume_workflow(workflow_id: str):
         return WorkflowResponse(status="running", execution_id=workflow_id, message="Workflow resumed.")
     status = workflow_status.get(workflow_id, "not found")
     raise HTTPException(status_code=400, detail=f"Workflow not in paused state (status: {status}).")
+
+@app.post("/api/multi-agent/start", response_model=MultiAgentResponse)
+async def start_multi_agent_workflow(
+    multi_agent_data: List[MultiAgentInput],
+    x_user_id: str = Header(..., alias="X-User-ID")
+):
+    """Start a Multi Agent workflow execution."""
+    try:
+ 
+        
+        # Print the complete JSON structure
+        logger.info("COMPLETE JSON STRUCTURE:")
+        import json
+        logger.info(json.dumps([agent.dict() for agent in multi_agent_data], indent=2))
+        
+        logger.info("=" * 60)
+        logger.info(f"END MULTI AGENT WORKFLOW DATA (User: {x_user_id})")
+        logger.info("=" * 60)
+        
+        # Generate a workflow ID for tracking
+        workflow_id = f"multi-agent-{x_user_id[:8]}-{uuid.uuid4().hex[:8]}"
+        
+        # Here you would typically process the multi-agent workflow
+        # For now, we'll just acknowledge receipt
+        
+        return MultiAgentResponse(
+            status="success",
+            message=f"Multi Agent workflow received and processed for user {x_user_id}. {len(multi_agent_data)} agents configured.",
+            workflow_id=workflow_id
+        )
+        
+    except Exception as e:
+        logger.error(f"Error processing Multi Agent workflow for user {x_user_id}: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Failed to process Multi Agent workflow: {str(e)}")
 
 # --- Supabase Agent Endpoints ---
 

@@ -327,7 +327,7 @@ export function LlmAgentModal({
                   <Input id="llm-agent-name" value={name} onChange={(e) => setName(e.target.value)} placeholder="Enter agent name" />
                 </div>
 
-                {!isConnectedToMultiAgent && (
+                {/* {!isConnectedToMultiAgent && ( */}
                   <div className="border rounded-md">
                     <button 
                       type="button"
@@ -354,7 +354,8 @@ export function LlmAgentModal({
                                 </SelectContent>
                             </Select>
                         </div>
-
+                        
+                        {!isConnectedToMultiAgent && (
                         <div>
                           <Label htmlFor="api-key">API Key *</Label>
                           <div className="flex gap-2 mt-1">
@@ -375,7 +376,7 @@ export function LlmAgentModal({
                             )}
                           </div>
                         </div>
-                        
+                        )}
                         <div className="grid gap-2">
                           <Label htmlFor="llm-agent-model">Model *</Label>
                           <Select value={currentModel} onValueChange={setCurrentModel} disabled={!currentProvider}>
@@ -394,7 +395,7 @@ export function LlmAgentModal({
                       </div>
                     )}
                   </div>
-                )}
+                 {/* )} */}
                 
                 <div className="grid gap-2">
                   <Label htmlFor="llm-agent-description">Description <span className="text-xs text-muted-foreground">(Optional - for documentation only)</span></Label>
