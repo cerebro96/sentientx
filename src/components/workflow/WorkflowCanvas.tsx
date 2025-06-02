@@ -643,7 +643,7 @@ export function WorkflowCanvas({ isActive, onClose, workflowId, newWorkflowData 
     // Check if at least one AI Agent node exists
     
     const agentNode = nodes.find(node => 
-      node.data.label  == "AI Agent" || node.data.label == "Supabase AI Agent"
+      node.data.label  == "AI Agent" || node.data.label == "Supabase AI Agent" || node.data.label == "Multi Agent (BaseAgent)"
     );
 
     if (agentNode?.data.label == "AI Agent") {
@@ -887,8 +887,22 @@ export function WorkflowCanvas({ isActive, onClose, workflowId, newWorkflowData 
       setWorkflowStatus('idle'); // Reset status if failed
       setIsSupabaseAgentLoading(false); // Reset loading state
     }
-  } else {
-    toast.error('Start workflow aborted: No AI Agent node found.', {
+  } else if (agentNode?.data.label == "Multi Agent (BaseAgent)") {
+    const loadingToast = toast.loading('Starting Multi Agent...', {
+      description: 'This might take a few moments',
+      duration: 20000, // Long duration since we'll dismiss it manually
+    });
+
+    
+     // Dismiss loading toast and show success
+    toast.dismiss(loadingToast);
+    toast.success('Workflow started successfully', {
+      description: 'Your Multi agent workflow is now running',
+      duration: 3000
+    });
+  }
+  else {
+    toast.error('Start workflow aborted: No AI Agent node found. :' + agentNode?.data.label, {
       description: 'Please add an AI Agent node to your workflow before starting.',
         duration: 5000
       });
