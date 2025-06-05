@@ -1012,10 +1012,6 @@ export function WorkflowCanvas({ isActive, onClose, workflowId, newWorkflowData 
               ].includes(node.data.label)
             );
 
-          // Get the primary tool name (first connected tool)
-          const primaryTool = connectedTools[0];
-          let toolName = primaryTool?.data.label || '';
-          
           // Map tool labels to expected names
           const toolNameMap: Record<string, string> = {
             'Serper API': 'serper_tool',
@@ -1027,7 +1023,13 @@ export function WorkflowCanvas({ isActive, onClose, workflowId, newWorkflowData 
             'hyperbrowser_tool': 'hyperbrowser_tool'
           };
 
-          toolName = toolNameMap[toolName] || toolName;
+          // Get all tool names, map them, and join with a comma
+          const toolNames = connectedTools.map(toolNode => {
+            const rawToolName = toolNode.data.label || '';
+            return toolNameMap[rawToolName] || rawToolName;
+          }).filter(name => name); // Filter out any empty names if a tool somehow has no label
+
+          const toolsString = toolNames.join(',');
 
           // Build the agent object
           const agentData: any = {
@@ -1037,7 +1039,7 @@ export function WorkflowCanvas({ isActive, onClose, workflowId, newWorkflowData 
             model: config.model || '',
             provider: config.provider || '',
             instruction: config.instructions || '',
-            tools: toolName
+            tools: toolsString // Use the comma-separated string of all tool names
           };
 
           // Add API keys for tools that require them
