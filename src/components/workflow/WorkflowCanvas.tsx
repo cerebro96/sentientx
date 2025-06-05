@@ -24,7 +24,7 @@ import { nodeTypes } from './nodeTypes';
 import { useWorkflowStore } from '@/lib/store/workflow';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Check, Save, ChevronLeft, Trash2, Maximize, Search, PanelLeftClose } from 'lucide-react';
+import { Check, Save, ChevronLeft, Trash2, Maximize, Search, PanelLeftClose, Link as LinkIcon } from 'lucide-react';
 import { toast } from 'sonner';
 import { NodeData } from '@/lib/store/workflow';
 import { WorkflowFormData } from './WorkflowDialog';
@@ -363,24 +363,64 @@ export function WorkflowCanvas({ isActive, onClose, workflowId, newWorkflowData 
         setWorkflowStatus('idle');
       }
     };
-    // Check status only if component is ready and an AI Agent node exists
-    if (isReady) {
-      const hasAgentNode =nodes.find(node => 
-        node.data.label  == "AI Agent" || node.data.label == "Supabase AI Agent"
-      );
-  
-      
-      if (hasAgentNode?.data.label == "AI Agent") {
-      checkWorkflowStatus();
-      }else if (hasAgentNode?.data.label == "Supabase AI Agent") {
-        checkSupabaseWorkflowStatus();
+
+    const checkMultiAgentWorkflowStatus = async () => {
+      const currentWorkflowId = workflowId || createdWorkflowId;
+      if (!currentWorkflowId) {
+        setWorkflowStatus('idle');
+        console.log('Multi Agent status check: No workflow ID, setting to idle.');
+        return;
       }
-      else {
-        //If no agent node, ensure status is idle
+
+      try {
+        // Check if at least one Supabase AI Agent exists
+        console.log(`Checking Supabase execution status for workflow: ${currentWorkflowId}`);
+        const { data: runningExecutions, error } = await supabase
+          .from('executions')
+          .select('id, status')
+          .eq('workflow_id', currentWorkflowId)
+          .eq('status', 'running')
+          .limit(1);
+        
+          if (error) {
+            console.error('Error fetching Supabase execution status:', error);
+            setWorkflowStatus('idle');
+            return;
+          }
+        
+          if (runningExecutions && runningExecutions.length > 0) {
+            console.log(`Found running execution for workflow ${currentWorkflowId}. Status: ${runningExecutions[0].status}`);
+            setWorkflowStatus('running');
+          } else {
+            console.log(`No running execution found for workflow ${currentWorkflowId}.`);
+            setWorkflowStatus('idle');
+          }
+      } catch (error) {
+        console.error('Exception checking Multi Agent workflow status:', error);
+        setWorkflowStatus('idle');
+      }
+    };
+
+    // Check status only if component is ready
+    if (isReady) {
+      const agentNode = nodes.find(node => 
+        node.data.label === "AI Agent" || 
+        node.data.label === "Supabase AI Agent" ||
+        node.data.label === "Multi Agent (BaseAgent)"
+      );
+      
+      if (agentNode?.data.label === "AI Agent") {
+        checkWorkflowStatus();
+      } else if (agentNode?.data.label === "Supabase AI Agent") {
+        checkSupabaseWorkflowStatus();
+      } else if (agentNode?.data.label === "Multi Agent (BaseAgent)") {
+        checkMultiAgentWorkflowStatus(); // Call the new function
+      } else {
+        // If no specific agent node type relevant to status checking is found, set to idle
         setWorkflowStatus('idle'); 
       }
     }
-  }, [workflowId, createdWorkflowId, isReady, nodes]);
+  }, [workflowId, createdWorkflowId, isReady, nodes]); // Ensure all dependencies are correct
 
   // Existing useEffect for clean up timeout on unmount
   useEffect(() => {
@@ -1056,38 +1096,40 @@ export function WorkflowCanvas({ isActive, onClose, workflowId, newWorkflowData 
       if (!response.ok) {
         const errorData = await response.json();
         throw new Error(errorData.message || 'Failed to start Multi Agent workflow');
+      }else{
+        const executionId = uuidv4();
+        console.log(`Generated local execution ID: ${executionId}`);
+        
+        // Insert execution record into Supabase
+        try {
+          const timestamp = new Date().toISOString();
+          
+          const { error: executionError } = await supabase
+            .from('executions')
+            .insert({
+              id: executionId,
+              workflow_id: workflowId || createdWorkflowId,
+              workflow_name: workflowName,
+              status: 'running',
+              started_at: timestamp,
+              triggered_by: 'user'
+            });
+          
+          if (executionError) {
+            console.error('Error saving execution to Supabase:', executionError);
+          } else {
+            console.log('Successfully saved Multi Agent execution to Supabase');
+          }
+        } catch (dbError) {
+          console.error('Exception saving execution to Supabase:', dbError);
+        }
       }
 
       const result = await response.json();
       console.log('Multi Agent workflow started:', result);
 
       // Generate execution ID locally for database tracking
-      // const executionId = uuidv4();
-      // console.log(`Generated local execution ID: ${executionId}`);
-      
-      // // Insert execution record into Supabase
-      // try {
-      //   const timestamp = new Date().toISOString();
-        
-      //   const { error: executionError } = await supabase
-      //     .from('executions')
-      //     .insert({
-      //       id: executionId,
-      //       workflow_id: workflowId || createdWorkflowId,
-      //       workflow_name: workflowName,
-      //       status: 'running',
-      //       started_at: timestamp,
-      //       triggered_by: 'user'
-      //     });
-        
-      //   if (executionError) {
-      //     console.error('Error saving execution to Supabase:', executionError);
-      //   } else {
-      //     console.log('Successfully saved Multi Agent execution to Supabase');
-      //   }
-      // } catch (dbError) {
-      //   console.error('Exception saving execution to Supabase:', dbError);
-      // }
+
 
       // Dismiss loading toast and show success
       toast.dismiss(loadingToast);
@@ -1153,7 +1195,7 @@ export function WorkflowCanvas({ isActive, onClose, workflowId, newWorkflowData 
     // Check if at least one AI Agent node exists
     
     const agentNode = nodes.find(node => 
-      node.data.label  == "AI Agent" || node.data.label == "Supabase AI Agent"
+      node.data.label  == "AI Agent" || node.data.label == "Supabase AI Agent" || node.data.label == "Multi Agent (BaseAgent)"
     );
 
     if (agentNode?.data.label == "AI Agent") {
@@ -1326,6 +1368,101 @@ export function WorkflowCanvas({ isActive, onClose, workflowId, newWorkflowData 
     } catch (error) {
       console.error('Error clearing Supabase agent session data:', error);
     }
+    }else if(agentNode?.data.label == "Multi Agent (BaseAgent)"){
+      // Reset the workflow status
+      setWorkflowStatus('idle');
+      toast.info('Multi Agent workflow stopped', {
+        description: 'Your Multi Agent workflow has been stopped',
+        duration: 3000
+      });
+
+      // Get the folder name from Multi Agent config
+      const multiAgentNode = nodes.find(node => node.data.label === 'Multi Agent (BaseAgent)');
+      const folderName = multiAgentNode?.data.multiAgentConfig?.name;
+
+      if (folderName) {
+        try {
+          // Get the current user
+          const { user, error: userError } = await getCurrentUser();
+          if (userError || !user || !user.id) {
+            throw new Error('User not authenticated. Please log in.');
+          }
+
+          // Call the stop endpoint with the folder name
+          const response = await fetch('/api/multi-agent/stop', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'X-User-ID': user.id
+            },
+            body: JSON.stringify({
+              folder_name: folderName
+            })
+          });
+
+          if (!response.ok) {
+            const errorData = await response.json();
+            throw new Error(errorData.message || 'Failed to stop Multi Agent workflow');
+          }else{
+            const currentWorkflowId = workflowId || createdWorkflowId;
+      
+            try {
+              // Fetch the execution record to get started_at time
+              const { data: executionData, error: fetchError } = await supabase
+                .from('executions')
+                .select('started_at')
+                .eq('workflow_id', currentWorkflowId)
+                .eq('status', 'running')
+                .single();
+              
+              if (fetchError) {
+                console.error('Error fetching execution record for update:', fetchError);
+                // Don't block UI for this error
+              } else if (executionData && executionData.started_at) {
+                const stoppedAt = new Date();
+                const startedAt = new Date(executionData.started_at);
+                
+                // Calculate run time
+                const runTime = formatDistanceStrict(stoppedAt, startedAt);
+                
+                // Update the record with the correct workflow ID
+                const { error: updateError } = await supabase
+                  .from('executions')
+                  .update({ 
+                    status: 'stopped',
+                    run_time: stoppedAt
+                  })
+                  .eq('workflow_id', currentWorkflowId)
+                  .eq('status', 'running');
+                
+                setWorkflowStatus('idle');
+                if (updateError) {
+                  console.error('Error updating execution record in Supabase:', updateError);
+                } else {
+                  console.log(`Successfully updated execution ${currentWorkflowId} status to stopped with run time: ${runTime}`);
+                }
+              } else {
+                console.warn(`Execution record ${currentWorkflowId} not found or missing started_at time.`);
+              }
+            } catch (dbError) {
+              console.error('Exception updating execution in Supabase:', dbError);
+            }
+          }
+
+          console.log(`Successfully stopped Multi Agent workflow and deleted folder: ${folderName}`);
+        } catch (error) {
+          console.error('Error stopping Multi Agent workflow:', error);
+          toast.error('Error stopping Multi Agent workflow', {
+            description: error instanceof Error ? error.message : 'Unknown error',
+            duration: 5000
+          });
+        }
+      } else {
+        console.warn('No folder name found in Multi Agent config');
+      }
+
+
+
     }
   };
 
@@ -1507,6 +1644,29 @@ export function WorkflowCanvas({ isActive, onClose, workflowId, newWorkflowData 
                     </Button>
                   </Panel>
                   <Panel position="top-right" className="flex gap-2">
+                    {(() => {
+                      // Find Multi-Agent node and check if ADK button should be shown
+                      const multiAgentNode = nodes.find(
+                        node => node.data.label === 'Multi Agent (BaseAgent)' && 
+                        node.data.multiAgentConfig?.name
+                      );
+                      const multiAgentName = multiAgentNode?.data.multiAgentConfig?.name;
+                      const adkWebUrl = process.env.NEXT_PUBLIC_ADK_WEB_URL || process.env.ADK_WEB_URL;
+                      const adkAppUrl = adkWebUrl && multiAgentName ? 
+                        `${adkWebUrl}/?app=${encodeURIComponent(multiAgentName)}` : '';
+
+                      return adkAppUrl ? (
+                        <Button 
+                          size="sm" 
+                          variant="outline" 
+                          onClick={() => window.open(adkAppUrl, '_blank')}
+                          title={`Open ${multiAgentName} in SentientX Testing Ground`}
+                        >
+                          <LinkIcon className="h-4 w-4 mr-1" />
+                          SentientX Testing Ground
+                        </Button>
+                      ) : null;
+                    })()}
                     <Button size="sm" variant="outline" onClick={() => {
                       if (reactFlowInstance) {
                         reactFlowInstance.fitView({
