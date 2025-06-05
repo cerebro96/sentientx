@@ -53,6 +53,36 @@ export type NodeData = {
     sessionId?: string;
     userId?: string;
   };
+  multiAgentConfig?: {
+    name?: string;
+    model?: string;
+    description?: string;
+    instructions?: string;
+    provider?: string;
+    apiKeyId?: string;
+    connectedNodes?: {
+      id: string;
+      label: string;
+      type: string;
+      direction: 'input' | 'output';
+      description?: string;
+    }[];
+  };
+  llmAgentConfig?: {
+    name?: string;
+    model?: string;
+    description?: string;
+    instructions?: string;
+    apiKeyId?: string;
+    provider?: string;
+    tools?: Array<{
+      name: string;
+      apiKeyId?: string;
+    }>;
+  };
+  toolConfig?: {
+    apiKeyId?: string;
+  };
 };
 
 // Define initial nodes with proper types

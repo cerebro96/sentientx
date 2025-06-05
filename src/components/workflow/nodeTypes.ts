@@ -16,7 +16,8 @@ import {
   MessageCircle,
   MemoryStickIcon,
   DatabaseZap,
-  Webhook
+  Webhook,
+  Wrench
 } from "lucide-react";
 
 // Registry of node types mapped to their respective components
@@ -116,6 +117,46 @@ export const nodeCatalog = [
   },
   {
     type: 'action',
+    label: 'Multi Agent (BaseAgent)',
+    description: 'BaseAgent instances - Multi-Agent System (MAS)',
+    icon: Bot,
+    category: 'Multi Agentic',
+    hidden: false,
+  },
+  {
+    type: 'action',
+    label: 'LLM Agent',
+    description: 'acting as the "thinking" part of your application',
+    icon: Bot,
+    category: 'Multi Agentic',
+    hidden: false,
+  },
+  {
+    type: 'action',
+    label: 'Sequential agent',
+    description: 'executes its sub-agents in the order they are specified in the list',
+    icon: Bot,
+    category: 'Multi Agentic',
+    hidden: true,
+  },
+  {
+    type: 'action',
+    label: 'Loop agent',
+    description: 'executes its sub-agents in a loop (i.e. iteratively)',
+    icon: Bot,
+    category: 'Multi Agentic',
+    hidden: true,
+  },
+  {
+    type: 'action',
+    label: 'Parallel agent',
+    description: 'executes all sub-agents in parallel',
+    icon: Bot,
+    category: 'Multi Agentic',
+    hidden: true,
+  },
+  {
+    type: 'action',
     label: 'Redis Memory',
     description: 'Stores a customizable length of chat history',
     icon: DatabaseZap,
@@ -137,5 +178,61 @@ export const nodeCatalog = [
     icon: Webhook,
     category: 'Webhook',
     hidden: true,
+  },
+  {
+    type: 'action',
+    label: 'get_price',
+    description: 'Return the latest stock price for a ticker symbol.',
+    icon: Wrench,
+    category: 'Tools',
+    hidden: false,
+  },
+  {
+    type: 'action',
+    label: 'YahooFinanceNewsTool',
+    description: 'Return recent finance headlines from Yahoo Finance.',
+    icon: Wrench,
+    category: 'Tools',
+    hidden: false,
+  },
+  {
+    type: 'action',
+    label: 'BraveSearchTool',
+    description: 'Search the web using the Brave API.',
+    icon: Wrench,
+    category: 'Tools',
+    hidden: false,
+  },
+  {
+    type: 'action',
+    label: 'ScrapeWebsiteTool',
+    description: 'Scrape a website',
+    icon: Wrench,
+    category: 'Tools',
+    hidden: false,
+  },
+  {
+    type: 'action',
+    label: 'EXASearchTool',
+    description: 'perform a semantic search for a specified query',
+    icon: Wrench,
+    category: 'Tools',
+    hidden: false,
+  },
+  {
+    type: 'action',
+    label: 'hyperbrowser_tool',
+    description: 'Use the hyperbrowser tool to perform browser automation tasks.',
+    icon: Wrench,
+    category: 'Tools',
+    hidden: false,
+  },
+  {
+    type: 'action',
+    label: 'Serper API',
+    description: 'serper tool to perform search queries on the internet.',
+    icon: Wrench,
+    category: 'Tools',
+    hidden: false,
   }
 ]; 

@@ -24,7 +24,7 @@ import { nodeTypes } from './nodeTypes';
 import { useWorkflowStore } from '@/lib/store/workflow';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Check, Save, ChevronLeft, Trash2, Maximize, Search, PanelLeftClose } from 'lucide-react';
+import { Check, Save, ChevronLeft, Trash2, Maximize, Search, PanelLeftClose, Link as LinkIcon } from 'lucide-react';
 import { toast } from 'sonner';
 import { NodeData } from '@/lib/store/workflow';
 import { WorkflowFormData } from './WorkflowDialog';
@@ -248,11 +248,26 @@ export function WorkflowCanvas({ isActive, onClose, workflowId, newWorkflowData 
   }, [originalOnEdgesChange, triggerAutoSave]);
 
   const onConnect = useCallback((connection: Connection) => {
-    originalOnConnect(connection);
+    const { nodes: currentNodes } = useWorkflowStore.getState();
+    const sourceNode = currentNodes.find(node => node.id === connection.source);
+
+    let modifiedConnection: Connection & { type?: string; animated?: boolean } = { ...connection };
+
+    if (sourceNode?.data.label === 'Multi Agent (BaseAgent)' || 
+      sourceNode?.data.label === 'LLM Agent' ||
+      sourceNode?.data.label === 'Sequential agent' ||
+      sourceNode?.data.label === 'Loop agent' || 
+      sourceNode?.data.label === 'Parallel agent'
+    ) {
+      modifiedConnection.type = 'bezier';
+      modifiedConnection.animated = true;
+    }
+
+    originalOnConnect(modifiedConnection);
     
     // Always auto-save when new connections are made
     if (!initialLoadRef.current) {
-      console.log('Auto-saving after new connection:', connection);
+      console.log('Auto-saving after new connection:', modifiedConnection);
       triggerAutoSave();
     }
   }, [originalOnConnect, triggerAutoSave]);
@@ -348,24 +363,64 @@ export function WorkflowCanvas({ isActive, onClose, workflowId, newWorkflowData 
         setWorkflowStatus('idle');
       }
     };
-    // Check status only if component is ready and an AI Agent node exists
-    if (isReady) {
-      const hasAgentNode =nodes.find(node => 
-        node.data.label  == "AI Agent" || node.data.label == "Supabase AI Agent"
-      );
-  
-      
-      if (hasAgentNode?.data.label == "AI Agent") {
-      checkWorkflowStatus();
-      }else if (hasAgentNode?.data.label == "Supabase AI Agent") {
-        checkSupabaseWorkflowStatus();
+
+    const checkMultiAgentWorkflowStatus = async () => {
+      const currentWorkflowId = workflowId || createdWorkflowId;
+      if (!currentWorkflowId) {
+        setWorkflowStatus('idle');
+        console.log('Multi Agent status check: No workflow ID, setting to idle.');
+        return;
       }
-      else {
-        //If no agent node, ensure status is idle
+
+      try {
+        // Check if at least one Supabase AI Agent exists
+        console.log(`Checking Supabase execution status for workflow: ${currentWorkflowId}`);
+        const { data: runningExecutions, error } = await supabase
+          .from('executions')
+          .select('id, status')
+          .eq('workflow_id', currentWorkflowId)
+          .eq('status', 'running')
+          .limit(1);
+        
+          if (error) {
+            console.error('Error fetching Supabase execution status:', error);
+            setWorkflowStatus('idle');
+            return;
+          }
+        
+          if (runningExecutions && runningExecutions.length > 0) {
+            console.log(`Found running execution for workflow ${currentWorkflowId}. Status: ${runningExecutions[0].status}`);
+            setWorkflowStatus('running');
+          } else {
+            console.log(`No running execution found for workflow ${currentWorkflowId}.`);
+            setWorkflowStatus('idle');
+          }
+      } catch (error) {
+        console.error('Exception checking Multi Agent workflow status:', error);
+        setWorkflowStatus('idle');
+      }
+    };
+
+    // Check status only if component is ready
+    if (isReady) {
+      const agentNode = nodes.find(node => 
+        node.data.label === "AI Agent" || 
+        node.data.label === "Supabase AI Agent" ||
+        node.data.label === "Multi Agent (BaseAgent)"
+      );
+      
+      if (agentNode?.data.label === "AI Agent") {
+        checkWorkflowStatus();
+      } else if (agentNode?.data.label === "Supabase AI Agent") {
+        checkSupabaseWorkflowStatus();
+      } else if (agentNode?.data.label === "Multi Agent (BaseAgent)") {
+        checkMultiAgentWorkflowStatus(); // Call the new function
+      } else {
+        // If no specific agent node type relevant to status checking is found, set to idle
         setWorkflowStatus('idle'); 
       }
     }
-  }, [workflowId, createdWorkflowId, isReady, nodes]);
+  }, [workflowId, createdWorkflowId, isReady, nodes]); // Ensure all dependencies are correct
 
   // Existing useEffect for clean up timeout on unmount
   useEffect(() => {
@@ -573,6 +628,29 @@ export function WorkflowCanvas({ isActive, onClose, workflowId, newWorkflowData 
     // Note: Add nodes as a dependency, but be mindful of performance. Deep comparison might be needed.
   }, [nodes, triggerAutoSave]);
 
+  // Cleanup function
+  useEffect(() => {
+    return () => {
+      if (autoSaveTimeoutRef.current) {
+        clearTimeout(autoSaveTimeoutRef.current);
+      }
+    };
+  }, []);
+
+  // Add event listener for manual auto-save triggers
+  useEffect(() => {
+    const handleTriggerAutoSave = () => {
+      console.log('🎯 Received triggerAutoSave event');
+      triggerAutoSave();
+    };
+
+    window.addEventListener('triggerAutoSave', handleTriggerAutoSave);
+    
+    return () => {
+      window.removeEventListener('triggerAutoSave', handleTriggerAutoSave);
+    };
+  }, [triggerAutoSave]);
+
   // --- New useEffect to fitView on tab change --- 
   useEffect(() => {
     if (activeTab === 'canvas' && reactFlowInstance) {
@@ -605,7 +683,7 @@ export function WorkflowCanvas({ isActive, onClose, workflowId, newWorkflowData 
     // Check if at least one AI Agent node exists
     
     const agentNode = nodes.find(node => 
-      node.data.label  == "AI Agent" || node.data.label == "Supabase AI Agent"
+      node.data.label  == "AI Agent" || node.data.label == "Supabase AI Agent" || node.data.label == "Multi Agent (BaseAgent)"
     );
 
     if (agentNode?.data.label == "AI Agent") {
@@ -849,8 +927,229 @@ export function WorkflowCanvas({ isActive, onClose, workflowId, newWorkflowData 
       setWorkflowStatus('idle'); // Reset status if failed
       setIsSupabaseAgentLoading(false); // Reset loading state
     }
-  } else {
-    toast.error('Start workflow aborted: No AI Agent node found.', {
+  } else if (agentNode?.data.label == "Multi Agent (BaseAgent)") {
+    const loadingToast = toast.loading('Starting Multi Agent...', {
+      description: 'This might take a few moments',
+      duration: 20000, // Long duration since we'll dismiss it manually
+    });
+
+    try {
+      // Set the workflow status to running immediately 
+      setWorkflowStatus('running');
+
+      // Get all nodes and edges from the workflow
+      const allNodes = useWorkflowStore.getState().nodes;
+      const allEdges = useWorkflowStore.getState().edges;
+
+      // Find the Multi Agent node
+      const multiAgentNode = allNodes.find(node => node.data.label === 'Multi Agent (BaseAgent)');
+      
+      if (!multiAgentNode || !multiAgentNode.data.multiAgentConfig) {
+        throw new Error('Multi Agent node not properly configured');
+      }
+
+      // Find all LLM Agent nodes connected to the Multi Agent
+      const connectedLLMAgents = allEdges
+        .filter(edge => edge.source === multiAgentNode.id)
+        .map(edge => allNodes.find(node => node.id === edge.target))
+        .filter(node => node && node.data.label === 'LLM Agent');
+
+      console.log('Found connected LLM Agents:', connectedLLMAgents.length);
+
+      // Helper function to get API key value by ID
+      const getApiKeyValue = async (apiKeyId: string): Promise<string> => {
+        try {
+          const keyData = await getApiKeyWithValue(apiKeyId);
+          return keyData?.decrypted_key || '';
+        } catch (error) {
+          console.error(`Error fetching API key ${apiKeyId}:`, error);
+          return '';
+        }
+      };
+
+      // Helper function to get tool API key for a tool node
+      const getToolApiKey = async (toolNodeId: string): Promise<{ toolName: string, apiKey: string, keyName: string }> => {
+        const toolNode = allNodes.find(node => node.id === toolNodeId);
+        if (!toolNode) return { toolName: '', apiKey: '', keyName: '' };
+
+        const toolName = toolNode.data.label;
+        let keyName = '';
+        let apiKey = '';
+
+        // Map tool names to API key names
+        const toolKeyMap: Record<string, string> = {
+          'BraveSearchTool': 'BraveSearchAPIKey',
+          'EXASearchTool': 'EXA_API_KEY',
+          'hyperbrowser_tool': 'HYPERBROWSER_API_KEY',
+          'Serper API': 'SERPER_API_KEY'
+        };
+
+        keyName = toolKeyMap[toolName] || '';
+
+        if (toolNode.data.toolConfig?.apiKeyId) {
+          apiKey = await getApiKeyValue(toolNode.data.toolConfig.apiKeyId);
+        }
+
+        return { toolName, apiKey, keyName };
+      };
+
+      // Build connected agents array
+      const connectedAgents = await Promise.all(
+        connectedLLMAgents.map(async (llmAgent) => {
+          if (!llmAgent || !llmAgent.data.llmAgentConfig) return null;
+
+          const config = llmAgent.data.llmAgentConfig;
+          
+          // Find tools connected to this LLM Agent
+          const connectedToolEdges = allEdges.filter(edge => edge.source === llmAgent.id);
+          const connectedTools = connectedToolEdges
+            .map(edge => allNodes.find(node => node.id === edge.target))
+            .filter((node): node is NonNullable<typeof node> => 
+              node !== undefined && [
+                'Serper API', 'get_price', 'YahooFinanceNewsTool', 
+                'BraveSearchTool', 'ScrapeWebsiteTool', 'EXASearchTool', 
+                'hyperbrowser_tool'
+              ].includes(node.data.label)
+            );
+
+          // Get the primary tool name (first connected tool)
+          const primaryTool = connectedTools[0];
+          let toolName = primaryTool?.data.label || '';
+          
+          // Map tool labels to expected names
+          const toolNameMap: Record<string, string> = {
+            'Serper API': 'serper_tool',
+            'get_price': 'get_price',
+            'YahooFinanceNewsTool': 'YahooFinanceNewsTool',
+            'BraveSearchTool': 'BraveSearchTool',
+            'ScrapeWebsiteTool': 'ScrapeWebsiteTool',
+            'EXASearchTool': 'EXASearchTool',
+            'hyperbrowser_tool': 'hyperbrowser_tool'
+          };
+
+          toolName = toolNameMap[toolName] || toolName;
+
+          // Build the agent object
+          const agentData: any = {
+            id: llmAgent.id,
+            name: config.name || 'unnamed_agent',
+            type: 'LLM Agent',
+            model: config.model || '',
+            provider: config.provider || '',
+            instruction: config.instructions || '',
+            tools: toolName
+          };
+
+          // Add API keys for tools that require them
+          for (const tool of connectedTools) {
+            const { keyName, apiKey } = await getToolApiKey(tool.id);
+            if (keyName && apiKey) {
+              agentData[keyName] = apiKey;
+            }
+          }
+
+          return agentData;
+        })
+      );
+
+      // Filter out null entries
+      const validConnectedAgents = connectedAgents.filter(agent => agent !== null);
+
+      // Get Multi Agent's API key
+      const multiAgentApiKey = multiAgentNode.data.multiAgentConfig.apiKeyId 
+        ? await getApiKeyValue(multiAgentNode.data.multiAgentConfig.apiKeyId)
+        : '';
+
+      // Build the main Multi Agent structure
+      const multiAgentData = {
+        id: multiAgentNode.id,
+        type: 'Multi Agent',
+        name: multiAgentNode.data.multiAgentConfig.name || 'MultiAgent',
+        model: multiAgentNode.data.multiAgentConfig.model || '',
+        apiKey: multiAgentApiKey,
+        provider: multiAgentNode.data.multiAgentConfig.provider || '',
+        description: multiAgentNode.data.multiAgentConfig.description || '',
+        instructions: multiAgentNode.data.multiAgentConfig.instructions ? 
+          multiAgentNode.data.multiAgentConfig.instructions.split('\n').filter(line => line.trim()) :
+          [],
+        connected_agents: validConnectedAgents
+      };
+
+      console.log('Multi Agent workflow data:', JSON.stringify([multiAgentData], null, 2));
+
+      // Get the current user ID
+      const { user, error: userError } = await getCurrentUser();
+      if (userError || !user || !user.id) {
+        throw new Error('User not authenticated. Please log in.');
+      }
+
+      // Send to backend server with user ID in headers
+      const response = await fetch('/api/multi-agent/start', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-User-ID': user.id, // Send user ID in headers
+        },
+        body: JSON.stringify([multiAgentData]),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.message || 'Failed to start Multi Agent workflow');
+      }else{
+        const executionId = uuidv4();
+        console.log(`Generated local execution ID: ${executionId}`);
+        
+        // Insert execution record into Supabase
+        try {
+          const timestamp = new Date().toISOString();
+          
+          const { error: executionError } = await supabase
+            .from('executions')
+            .insert({
+              id: executionId,
+              workflow_id: workflowId || createdWorkflowId,
+              workflow_name: workflowName,
+              status: 'running',
+              started_at: timestamp,
+              triggered_by: 'user'
+            });
+          
+          if (executionError) {
+            console.error('Error saving execution to Supabase:', executionError);
+          } else {
+            console.log('Successfully saved Multi Agent execution to Supabase');
+          }
+        } catch (dbError) {
+          console.error('Exception saving execution to Supabase:', dbError);
+        }
+      }
+
+      const result = await response.json();
+      console.log('Multi Agent workflow started:', result);
+
+      // Generate execution ID locally for database tracking
+
+
+      // Dismiss loading toast and show success
+      toast.dismiss(loadingToast);
+      toast.success('Multi Agent workflow started successfully', {
+        description: `Started with ${validConnectedAgents.length} connected agents`,
+        duration: 3000
+      });
+
+    } catch (error) {
+      console.error('Error starting Multi Agent workflow:', error);
+      toast.dismiss(loadingToast);
+      toast.error('Failed to start Multi Agent workflow', {
+        description: error instanceof Error ? error.message : 'Unknown error',
+        duration: 5000
+      });
+      setWorkflowStatus('idle'); // Reset status if failed
+    }
+  }
+  else {
+    toast.error('Start workflow aborted: No AI Agent node found. :' + agentNode?.data.label, {
       description: 'Please add an AI Agent node to your workflow before starting.',
         duration: 5000
       });
@@ -896,7 +1195,7 @@ export function WorkflowCanvas({ isActive, onClose, workflowId, newWorkflowData 
     // Check if at least one AI Agent node exists
     
     const agentNode = nodes.find(node => 
-      node.data.label  == "AI Agent" || node.data.label == "Supabase AI Agent"
+      node.data.label  == "AI Agent" || node.data.label == "Supabase AI Agent" || node.data.label == "Multi Agent (BaseAgent)"
     );
 
     if (agentNode?.data.label == "AI Agent") {
@@ -1069,7 +1368,102 @@ export function WorkflowCanvas({ isActive, onClose, workflowId, newWorkflowData 
     } catch (error) {
       console.error('Error clearing Supabase agent session data:', error);
     }
-  }
+    }else if(agentNode?.data.label == "Multi Agent (BaseAgent)"){
+      // Reset the workflow status
+      setWorkflowStatus('idle');
+      toast.info('Multi Agent workflow stopped', {
+        description: 'Your Multi Agent workflow has been stopped',
+        duration: 3000
+      });
+
+      // Get the folder name from Multi Agent config
+      const multiAgentNode = nodes.find(node => node.data.label === 'Multi Agent (BaseAgent)');
+      const folderName = multiAgentNode?.data.multiAgentConfig?.name;
+
+      if (folderName) {
+        try {
+          // Get the current user
+          const { user, error: userError } = await getCurrentUser();
+          if (userError || !user || !user.id) {
+            throw new Error('User not authenticated. Please log in.');
+          }
+
+          // Call the stop endpoint with the folder name
+          const response = await fetch('/api/multi-agent/stop', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'X-User-ID': user.id
+            },
+            body: JSON.stringify({
+              folder_name: folderName
+            })
+          });
+
+          if (!response.ok) {
+            const errorData = await response.json();
+            throw new Error(errorData.message || 'Failed to stop Multi Agent workflow');
+          }else{
+            const currentWorkflowId = workflowId || createdWorkflowId;
+      
+            try {
+              // Fetch the execution record to get started_at time
+              const { data: executionData, error: fetchError } = await supabase
+                .from('executions')
+                .select('started_at')
+                .eq('workflow_id', currentWorkflowId)
+                .eq('status', 'running')
+                .single();
+              
+              if (fetchError) {
+                console.error('Error fetching execution record for update:', fetchError);
+                // Don't block UI for this error
+              } else if (executionData && executionData.started_at) {
+                const stoppedAt = new Date();
+                const startedAt = new Date(executionData.started_at);
+                
+                // Calculate run time
+                const runTime = formatDistanceStrict(stoppedAt, startedAt);
+                
+                // Update the record with the correct workflow ID
+                const { error: updateError } = await supabase
+                  .from('executions')
+                  .update({ 
+                    status: 'stopped',
+                    run_time: stoppedAt
+                  })
+                  .eq('workflow_id', currentWorkflowId)
+                  .eq('status', 'running');
+                
+                setWorkflowStatus('idle');
+                if (updateError) {
+                  console.error('Error updating execution record in Supabase:', updateError);
+                } else {
+                  console.log(`Successfully updated execution ${currentWorkflowId} status to stopped with run time: ${runTime}`);
+                }
+              } else {
+                console.warn(`Execution record ${currentWorkflowId} not found or missing started_at time.`);
+              }
+            } catch (dbError) {
+              console.error('Exception updating execution in Supabase:', dbError);
+            }
+          }
+
+          console.log(`Successfully stopped Multi Agent workflow and deleted folder: ${folderName}`);
+        } catch (error) {
+          console.error('Error stopping Multi Agent workflow:', error);
+          toast.error('Error stopping Multi Agent workflow', {
+            description: error instanceof Error ? error.message : 'Unknown error',
+            duration: 5000
+          });
+        }
+      } else {
+        console.warn('No folder name found in Multi Agent config');
+      }
+
+
+
+    }
   };
 
   // --- Determine the current workflow ID to use --- 
@@ -1250,6 +1644,29 @@ export function WorkflowCanvas({ isActive, onClose, workflowId, newWorkflowData 
                     </Button>
                   </Panel>
                   <Panel position="top-right" className="flex gap-2">
+                    {(() => {
+                      // Find Multi-Agent node and check if ADK button should be shown
+                      const multiAgentNode = nodes.find(
+                        node => node.data.label === 'Multi Agent (BaseAgent)' && 
+                        node.data.multiAgentConfig?.name
+                      );
+                      const multiAgentName = multiAgentNode?.data.multiAgentConfig?.name;
+                      const adkWebUrl = process.env.NEXT_PUBLIC_ADK_WEB_URL || process.env.ADK_WEB_URL;
+                      const adkAppUrl = adkWebUrl && multiAgentName ? 
+                        `${adkWebUrl}/?app=${encodeURIComponent(multiAgentName)}` : '';
+
+                      return adkAppUrl ? (
+                        <Button 
+                          size="sm" 
+                          variant="outline" 
+                          onClick={() => window.open(adkAppUrl, '_blank')}
+                          title={`Open ${multiAgentName} in SentientX Testing Ground`}
+                        >
+                          <LinkIcon className="h-4 w-4 mr-1" />
+                          SentientX Testing Ground
+                        </Button>
+                      ) : null;
+                    })()}
                     <Button size="sm" variant="outline" onClick={() => {
                       if (reactFlowInstance) {
                         reactFlowInstance.fitView({

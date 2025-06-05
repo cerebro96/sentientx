@@ -1,4 +1,4 @@
-from fastapi import FastAPI, HTTPException, Body
+from fastapi import FastAPI, HTTPException, Body, Header
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from typing import Dict, List, Any, Optional
@@ -181,6 +181,23 @@ class SupabaseAgentResponse(BaseModel):
     message: Optional[str] = None
     error: Optional[str] = None
     data: Optional[Dict[str, Any]] = None
+
+class MultiAgentInput(BaseModel):
+    """Model for Multi Agent workflow data"""
+    id: str
+    type: str
+    name: str
+    model: str
+    apiKey: str
+    provider: str
+    description: str
+    instructions: List[str]
+    connected_agents: List[Dict[str, Any]]
+
+class MultiAgentResponse(BaseModel):
+    status: str
+    message: str
+    workflow_id: Optional[str] = None
 
 # --- API Endpoints --- 
 
@@ -398,6 +415,133 @@ async def resume_workflow(workflow_id: str):
         return WorkflowResponse(status="running", execution_id=workflow_id, message="Workflow resumed.")
     status = workflow_status.get(workflow_id, "not found")
     raise HTTPException(status_code=400, detail=f"Workflow not in paused state (status: {status}).")
+
+@app.post("/api/multi-agent/start", response_model=MultiAgentResponse)
+async def start_multi_agent_workflow(
+    multi_agent_data: List[MultiAgentInput],
+    x_user_id: str = Header(..., alias="X-User-ID")
+):
+    """Start a Multi Agent workflow execution and forward to Agent Factory."""
+    try:
+        logger.info(f"Received /api/multi-agent/start request for User ID: {x_user_id}")
+
+        # 1. Convert multi_agent_data to JSON string for embedding
+        # The input `multi_agent_data` is List[MultiAgentInput]
+        # We need to convert this list of Pydantic models to a list of dicts, then to a JSON string.
+        list_of_agent_dicts = [agent.dict() for agent in multi_agent_data]
+        embedded_payload_str = json.dumps(list_of_agent_dicts)
+
+        logger.debug(f"Embedded payload string for Agent Factory: {embedded_payload_str[:500]}...") # Log snippet
+
+        # 2. Get AGENTFACTORY_URL
+        agent_factory_url = os.getenv("AGENTFACTORY_URL")
+        if not agent_factory_url:
+            logger.error("AGENTFACTORY_URL environment variable is not set.")
+            raise HTTPException(status_code=500, detail="Agent Factory URL is not configured internally.")
+
+        # 3. Define session_id for Agent Factory
+        # As per comments, using "agentcrssess". For production, consider dynamic unique IDs.
+        agent_factory_session_id = "agentcrssess" 
+        # Alternatively, for a unique session ID: agent_factory_session_id = str(uuid.uuid4())
+        logger.info(f"Agent Factory session ID: {embedded_payload_str}")
+        # 4. Construct the payload for Agent Factory
+        payload_to_agent_factory = {
+            "app_name": "agent_creator",
+            "user_id":"a5e6b5aa-ef7a-43e6-87e9-a9ad82d9e109",  # User ID from the header
+            "session_id": agent_factory_session_id,
+            "new_message": {
+                "role": "user",
+                "parts": [{"text": embedded_payload_str}]  # Embed the JSON string here
+            }
+        }
+
+        agent_factory_run_endpoint = f"{agent_factory_url}/run"
+        logger.info(f"Forwarding request to Agent Factory endpoint: {agent_factory_run_endpoint}")
+        logger.debug(f"Full payload to Agent Factory: {json.dumps(payload_to_agent_factory)}")
+
+        # 5. Make HTTP POST request
+        async with httpx.AsyncClient(timeout=60.0) as client:
+            response = await client.post(
+                agent_factory_run_endpoint,
+                json=payload_to_agent_factory,
+                headers={"Content-Type": "application/json"}
+            )
+
+        # 6. Handle Agent Factory response
+        if response.status_code == 200:
+            logger.info(f"Successfully forwarded to Agent Factory. Status: 200. Response: {response.text[:500]}...")
+            
+            # Internal workflow ID for this service (optional, for local tracking)
+            internal_workflow_id = f"multi-agent-job-{x_user_id[:8]}-{uuid.uuid4().hex[:8]}"
+            
+            return MultiAgentResponse(
+                status="success",
+                message=f"Multi-agent workflow initiated and successfully forwarded to Agent Factory for user {x_user_id}.",
+                workflow_id=internal_workflow_id
+            )
+        else:
+            error_text_from_factory = await response.text()
+            logger.error(f"Error from Agent Factory. Status: {response.status_code}. Response: {error_text_from_factory}")
+            raise HTTPException(
+                status_code=response.status_code, # Forward the status code from Agent Factory
+                detail=f"Error from Agent Factory: {error_text_from_factory}"
+            )
+
+    except httpx.RequestError as e:
+        logger.error(f"HTTP request error when calling Agent Factory for user {x_user_id}: {str(e)}", exc_info=True)
+        raise HTTPException(status_code=503, detail=f"Service Unavailable: Could not connect to Agent Factory. {str(e)}")
+    except Exception as e:
+        logger.error(f"Unexpected error in /api/multi-agent/start for user {x_user_id}: {str(e)}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"Internal server error while processing multi-agent start request: {str(e)}")
+
+@app.post("/api/multi-agent/stop", response_model=MultiAgentResponse)
+async def stop_multi_agent_workflow(
+    folder_name: str = Body(..., embed=True),
+    x_user_id: str = Header(..., alias="X-User-ID")
+):
+    """Stop a Multi Agent workflow by deleting its folder in Agent Factory."""
+    try:
+        logger.info(f"Received /api/multi-agent/stop request for User ID: {x_user_id}, folder: {folder_name}")
+
+        # Get AGENTFACTORY_URL from environment
+        agent_factory_url = os.getenv("AGENTFACTORY_URL")
+        if not agent_factory_url:
+            logger.error("AGENTFACTORY_URL environment variable is not set.")
+            raise HTTPException(status_code=500, detail="Agent Factory URL is not configured internally.")
+
+        # Construct the delete folder endpoint URL
+        delete_folder_endpoint = f"{agent_factory_url}/delete_folder/{folder_name}"
+        logger.info(f"Calling Agent Factory delete folder endpoint: {delete_folder_endpoint}")
+
+        # Make HTTP DELETE request to Agent Factory
+        async with httpx.AsyncClient(timeout=30.0) as client:
+            response = await client.delete(
+                delete_folder_endpoint
+                # headers={"Content-Type": "application/json"}
+            )
+
+        # Handle Agent Factory response
+        if response.status_code == 200:
+            logger.info(f"Successfully stopped multi-agent workflow. Folder {folder_name} deleted.")
+            return MultiAgentResponse(
+                status="success",
+                message=f"Multi-agent workflow stopped successfully. Folder {folder_name} has been deleted.",
+                workflow_id=None
+            )
+        else:
+            error_text = await response.text()
+            logger.error(f"Error from Agent Factory. Status: {response.status_code}. Response: {error_text}")
+            raise HTTPException(
+                status_code=response.status_code,
+                detail=f"Error from Agent Factory while stopping workflow: {error_text}"
+            )
+
+    except httpx.RequestError as e:
+        logger.error(f"HTTP request error when calling Agent Factory for user {x_user_id}: {str(e)}", exc_info=True)
+        raise HTTPException(status_code=503, detail=f"Service Unavailable: Could not connect to Agent Factory. {str(e)}")
+    except Exception as e:
+        logger.error(f"Unexpected error in /api/multi-agent/stop for user {x_user_id}: {str(e)}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"Internal server error while processing multi-agent stop request: {str(e)}")
 
 # --- Supabase Agent Endpoints ---
 

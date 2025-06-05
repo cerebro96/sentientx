@@ -3,7 +3,7 @@
 import { memo, useState } from 'react';
 import { Handle, Position, NodeProps } from 'reactflow';
 import { NodeData } from '@/lib/store/workflow';
-import { CircleIcon, AlertTriangle, Bot, MessageCircle, Plus, BrainCircuit, DatabaseZap, Webhook, Globe, FileJson, MessageSquare } from 'lucide-react';
+import { CircleIcon, AlertTriangle, Bot, MessageCircle, Plus, BrainCircuit, DatabaseZap, Webhook, Globe, FileJson, MessageSquare, Wrench } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import { toast } from 'sonner';
@@ -24,6 +24,9 @@ import { Textarea } from '@/components/ui/textarea';
 import { Input } from '@/components/ui/input';
 import { SupabaseAgentModal } from '../supabase-agent-modal';
 import { getCurrentUser } from '@/lib/auth';
+import { MultiAgentModal } from '../multi-agent-modal';
+import { LlmAgentModal } from '../llm-agent-modal';
+import { ToolsModal } from '../tools-modal';
 
 // Simple chat message interface
 interface ChatMessage {
@@ -50,6 +53,9 @@ function ActionNodeComponent({ id, data, selected }: NodeProps<NodeData>) {
   const [isAiAgentModalOpen, setIsAiAgentModalOpen] = useState(false);
   const [isWebhookResponseModalOpen, setIsWebhookResponseModalOpen] = useState(false);
   const [isSupabaseModalOpen, setIsSupabaseModalOpen] = useState(false);
+  const [isMultiAgentModalOpen, setIsMultiAgentModalOpen] = useState(false);
+  const [isLlmAgentModalOpen, setIsLlmAgentModalOpen] = useState(false);
+  const [isToolModalOpen, setIsToolModalOpen] = useState(false);
   const [llmProvider, setLlmProvider] = useState<string>('');
   
   // Chat session state
@@ -76,12 +82,26 @@ function ActionNodeComponent({ id, data, selected }: NodeProps<NodeData>) {
   const isHttpRequest = data.label === 'HTTP Request';
   const isTransformData = data.label === 'Transform Data';
   const isSupabaseAgent = data.label === 'Supabase AI Agent';
-  
+  const isLLMAgent = data.label === 'LLM Agent';
+  const isSequentialAgent = data.label === 'Sequential agent';
+  const isParallelAgent = data.label === 'Parallel agent';
+  const isLoopAgent = data.label === 'Loop agent';
+  const isMultiAgent = data.label === 'Multi Agent (BaseAgent)';
+  const isSerperApi = data.label === 'Serper API';
+  const isGetPrice = data.label === 'get_price';
+  const isYahooFinanceNewsTool = data.label === 'YahooFinanceNewsTool';
+  const isBraveSearchTool = data.label === 'BraveSearchTool';
+  const isScrapeWebsiteTool = data.label === 'ScrapeWebsiteTool';
+  const isEXASearchTool = data.label === 'EXASearchTool';
+  const isHyperbrowserTool = data.label === 'hyperbrowser_tool';
+  const isToolNode = isSerperApi || isGetPrice || isYahooFinanceNewsTool || 
+    isBraveSearchTool || isScrapeWebsiteTool || isEXASearchTool || isHyperbrowserTool;
   // Handle icon selection based on node type
   let IconComponent;
   
   // Select the appropriate icon based on node type using the label
-  if (isAIAgent || isSupabaseAgent) { // Handle both generic and Supabase AI agents
+  if (isAIAgent || isSupabaseAgent || isLLMAgent ||
+     isSequentialAgent || isParallelAgent || isLoopAgent || isMultiAgent) { // Handle both generic and Supabase AI agents
     IconComponent = Bot;
   } else if (isButtonNode) {
     IconComponent = MessageCircle;
@@ -97,6 +117,8 @@ function ActionNodeComponent({ id, data, selected }: NodeProps<NodeData>) {
     IconComponent = Globe;
   } else if (isTransformData) {
     IconComponent = FileJson;
+  } else if (isToolNode) {
+    IconComponent = Wrench;
   } else {
     IconComponent = CircleIcon;
   }
@@ -131,6 +153,50 @@ function ActionNodeComponent({ id, data, selected }: NodeProps<NodeData>) {
   
   const handleOpenSupabaseConfig = () => {
     setIsSupabaseModalOpen(true);
+  };
+  
+  const handleOpenMultiAgentConfig = () => {
+    setIsMultiAgentModalOpen(true);
+  };
+  
+  const handleOpenLlmAgentConfig = () => {
+    setIsLlmAgentModalOpen(true);
+  };
+  
+  const triggerAutoSave = () => {
+    // Get the current workflow canvas instance and trigger auto-save
+    const event = new CustomEvent('triggerAutoSave');
+    window.dispatchEvent(event);
+  };
+  
+  const handleToolConfigSave = (configData: { apiKeyId: string }) => {
+    if (id) {
+      const updateNodeData = useWorkflowStore.getState().updateNodeData;
+      console.log('💾 Saving Tool configuration in node:', id, configData);
+      console.log('🔍 Current node data before save:', data);
+      
+      updateNodeData(id, {
+        toolConfig: {
+          apiKeyId: configData.apiKeyId
+        }
+      });
+      
+      // Explicitly trigger auto-save to ensure persistence
+      setTimeout(() => {
+        const event = new CustomEvent('triggerAutoSave');
+        window.dispatchEvent(event);
+        console.log('🚀 Triggered auto-save after tool config update');
+      }, 100);
+      
+      // Debug: Check if the data was saved correctly
+      setTimeout(() => {
+        const updatedNode = useWorkflowStore.getState().nodes.find(n => n.id === id);
+        console.log('✅ Tool configuration saved. Updated node data:', updatedNode?.data);
+        console.log('🔑 Saved toolConfig:', updatedNode?.data.toolConfig);
+      }, 200);
+      
+      toast.success('Tool configuration updated');
+    }
   };
   
   const handleChatButtonClick = (e: React.MouseEvent) => {
@@ -461,6 +527,67 @@ function ActionNodeComponent({ id, data, selected }: NodeProps<NodeData>) {
     }
   };
   
+  const handleMultiAgentConfigSave = (configData: { 
+    name: string; 
+    model: string;
+    description: string;
+    instructions: string;
+    provider: string;
+    apiKeyId?: string;
+    connectedNodes: {
+      id: string;
+      label: string;
+      type: string;
+      direction: 'input' | 'output';
+      description?: string;
+    }[];
+  }) => {
+    if (id) {
+      const updateNodeData = useWorkflowStore.getState().updateNodeData;
+      
+      console.log('Saving Multi Agent configuration in node:', configData);
+      
+      updateNodeData(id, {
+        multiAgentConfig: {
+          name: configData.name,
+          model: configData.model,
+          description: configData.description,
+          instructions: configData.instructions,
+          provider: configData.provider,
+          apiKeyId: configData.apiKeyId,
+          connectedNodes: configData.connectedNodes
+        }
+      });
+      
+      toast.success('Multi Agent configuration updated');
+    }
+  };
+  
+  const handleLlmAgentConfigSave = (configData: { 
+    name: string; 
+    model: string;
+    description: string;
+    instructions: string;
+    apiKeyId: string;
+    provider: string;
+  }) => {
+    if (id) {
+      const updateNodeData = useWorkflowStore.getState().updateNodeData;
+      console.log('Saving LLM Agent configuration in node:', configData);
+      updateNodeData(id, {
+        llmAgentConfig: {
+          name: configData.name,
+          model: configData.model,
+          description: configData.description,
+          instructions: configData.instructions,
+          apiKeyId: configData.apiKeyId,
+          provider: configData.provider
+        }
+      });
+      toast.success('LLM Agent configuration updated');
+    }
+  };
+  
   // If it's a button style node, render a button
   if (isButtonNode) {
     return (
@@ -480,7 +607,13 @@ function ActionNodeComponent({ id, data, selected }: NodeProps<NodeData>) {
         className={cn(
           "p-4 rounded-lg border-2 bg-slate-800 flex flex-col min-w-[180px] transition-all duration-200 relative",
           isAIAgent ? "min-w-[280px] min-h-[240px]" : "",
-          isSupabaseAgent
+          (isSerperApi || isGetPrice || isYahooFinanceNewsTool || isBraveSearchTool 
+            || isScrapeWebsiteTool || isEXASearchTool || isHyperbrowserTool) ? "rounded-full !min-w-[120px] !min-h-[120px] flex items-center justify-center" : "",
+          isMultiAgent
+            ? selected 
+              ? "border-yellow-500 shadow-[0_0_20px_-5px_rgba(234,179,8,0.7)]" 
+              : "border-yellow-600 shadow-[0_0_10px_-5px_rgba(234,179,8,0.3)]"
+            : isSupabaseAgent
             ? selected
               ? "border-green-500 shadow-[0_0_20px_-5px_rgba(34,197,94,0.7)]"
               : "border-green-600 shadow-[0_0_10px_-5px_rgba(34,197,94,0.3)]"
@@ -505,6 +638,12 @@ function ActionNodeComponent({ id, data, selected }: NodeProps<NodeData>) {
                     ? handleOpenWebhookResponse
                     : isSupabaseAgent
                       ? handleOpenSupabaseConfig
+                    : isMultiAgent
+                      ? handleOpenMultiAgentConfig
+                    : isLLMAgent
+                      ? handleOpenLlmAgentConfig
+                    : isToolNode
+                      ? () => setIsToolModalOpen(true)
                     : undefined
         }
         style={(
@@ -513,44 +652,93 @@ function ActionNodeComponent({ id, data, selected }: NodeProps<NodeData>) {
           isMemoryNode || 
           isAIAgent || 
           isWebhookResponse || 
-          isSupabaseAgent
+          isSupabaseAgent ||
+          isMultiAgent ||
+          isLLMAgent ||
+          isToolNode
         ) ? { cursor: 'pointer' } : undefined}
       >
         {/* Gradient glow effect */}
         <div className={cn(
           "absolute inset-0 rounded-lg opacity-50 blur-sm",
-          isSupabaseAgent
+          isMultiAgent 
+            ? "bg-gradient-to-r from-yellow-600 to-amber-600 animate-pulse-slow"
+            : isSupabaseAgent
             ? "bg-gradient-to-r from-green-600 to-emerald-600 animate-pulse-slow"
             : isAIAgent
             ? "bg-gradient-to-r from-pink-600 to-fuchsia-600 animate-pulse-slow" 
             : "bg-gradient-to-r from-blue-600 to-indigo-600 animate-pulse-slow"
         )} />
         
-        <div className="relative w-full flex flex-col items-center mb-2 z-10">
+        <div className="relative w-full flex flex-col items-center z-10">
+          {isMultiAgent && data.multiAgentConfig?.name && (
+            <div className="text-xs font-semibold text-yellow-400 mb-1 text-center break-all px-1">
+              {data.multiAgentConfig.name}
+            </div>
+          )}
+          {(isLLMAgent && data.llmAgentConfig?.name) && (
+            <div className="text-xs font-semibold text-blue-400 mb-1 text-center break-all px-1">
+              {data.llmAgentConfig.name}
+            </div>
+          )}
           <div className={cn(
             "flex-shrink-0 p-3 rounded-full mb-2 transition-all",
-            isSupabaseAgent
+            isSerperApi || isGetPrice || isYahooFinanceNewsTool || isBraveSearchTool || isScrapeWebsiteTool || isEXASearchTool || isHyperbrowserTool
+              ? "bg-slate-700 text-orange-400 !mb-1"
+              : isMultiAgent
+              ? "bg-slate-700 text-yellow-400"
+              : isSupabaseAgent
               ? "bg-slate-700 text-green-400"
               : isAIAgent
               ? "bg-slate-700 text-pink-400" 
               : "bg-slate-700 text-blue-400"
           )}>
-            <IconComponent className="h-6 w-6" />
+            <IconComponent className={cn("h-6 w-6", (isSerperApi || isGetPrice || isYahooFinanceNewsTool || isBraveSearchTool || 
+              isScrapeWebsiteTool || isEXASearchTool || isHyperbrowserTool) && "h-8 w-8")} />
           </div>
-          <div className="font-medium text-center text-white">{data.label}</div>
-          {isAIAgent && (
-            <div className="text-xs text-slate-300 text-center mt-1">{data.description}</div>
-          )}
+          <div className={cn(
+            "font-medium text-center text-white",
+            (isSerperApi || isGetPrice || isYahooFinanceNewsTool || isBraveSearchTool || isScrapeWebsiteTool || isEXASearchTool || isHyperbrowserTool) && "text-sm"
+          )}>{data.label}</div>
+          
+          {/* Display node description logic */}
+          {isMultiAgent ? (
+            data.multiAgentConfig?.description ? (
+              <div className="text-xs text-slate-300 text-center mt-1 px-1 break-words">
+                {data.multiAgentConfig.description}
+              </div>
+            ) : data.description ? (
+              <div className="text-xs text-slate-300 text-center mt-1 px-1 break-words">
+                {data.description}
+              </div>
+            ) : null
+          ) : isLLMAgent ? (
+            data.llmAgentConfig?.description ? (
+              <div className="text-xs text-slate-300 text-center mt-1 px-1 break-words">
+                {data.llmAgentConfig.description}
+              </div>
+            ) : data.description ? (
+              <div className="text-xs text-slate-300 text-center mt-1 px-1 break-words">
+                {data.description}
+              </div>
+            ) : null
+          ) : isAIAgent && data.description ? (
+            <div className="text-xs text-slate-300 text-center mt-1 px-1 break-words">
+              {data.description}
+            </div>
+          ) : !isAIAgent && !isMultiAgent && !isLLMAgent && !isSerperApi && !isGetPrice && !isYahooFinanceNewsTool && 
+          !isBraveSearchTool && !isScrapeWebsiteTool && !isEXASearchTool && !isHyperbrowserTool && data.description ? (
+            <div className="text-xs text-slate-300 text-center mt-1 mb-1 px-1 break-words">
+              {data.description}
+            </div>
+          ) : null}
+
           {data.hasError && (
             <div className="absolute top-2 right-2 animate-pulse">
               <AlertTriangle className="h-5 w-5 text-pink-500" />
             </div>
           )}
         </div>
-        
-        {!isAIAgent && data.description && (
-          <div className="relative z-10 text-xs text-slate-300 text-center mt-1 mb-1">{data.description}</div>
-        )}
         
         {/* Chat button that appears only for Chat Trigger nodes */}
         {isChatTrigger && (
@@ -595,15 +783,17 @@ function ActionNodeComponent({ id, data, selected }: NodeProps<NodeData>) {
         )}
         
         {/* Input handles */}
-        {/* Top input handle - Hide for Chat Trigger, Webhooks, HTTP, Transform, AI Agent, and Supabase Agent */}
-        {(!isChatTrigger && !isWebhookTrigger && !isWebhookResponse && !isHttpRequest && !isTransformData && !isAIAgent && !isSupabaseAgent) && (
+        {/* Top input handle - Hide for Chat Trigger, Webhooks, HTTP, Transform, AI Agent, Supabase Agent, and Multi Agent */}
+        {(!isChatTrigger && !isWebhookTrigger && !isWebhookResponse && !isHttpRequest && !isTransformData && !isAIAgent && !isSupabaseAgent && !isMultiAgent) && (
           <Handle 
             id="input-top"
             type="target" 
             position={Position.Top} 
             className={cn(
               "!transition-all hover:!w-4 hover:!h-4",
-              isSupabaseAgent
+              isMultiAgent
+                ? "!bg-yellow-500 !border-yellow-400 !w-3 !h-3 hover:!bg-yellow-400 hover:!shadow-[0_0_10px_rgba(234,179,8,0.8)]"
+                : isSupabaseAgent
                 ? "!bg-green-500 !border-green-400 !w-3 !h-3 hover:!bg-green-400 hover:!shadow-[0_0_10px_rgba(34,197,94,0.8)]"
                 : isAIAgent
                 ? "!bg-pink-500 !border-pink-400 !w-3 !h-3 hover:!bg-pink-400 hover:!shadow-[0_0_10px_rgba(236,72,153,0.8)]" 
@@ -612,8 +802,9 @@ function ActionNodeComponent({ id, data, selected }: NodeProps<NodeData>) {
           />
         )}
         
-        {/* Left input handle - not shown for LLM, Memory, or Chat Trigger nodes */}
-        {(!isChatTrigger && !isLLMNode && !isMemoryNode && !isWebhookTrigger) && (
+        {/* Left input handle - not shown for LLM, Memory, Chat Trigger nodes, or Multi Agent */}
+        {(!isChatTrigger && !isLLMNode && !isMemoryNode && !isWebhookTrigger && !isMultiAgent && !isLLMAgent && !isSequentialAgent && !isParallelAgent && !isLoopAgent && !isSerperApi && !isGetPrice && !isYahooFinanceNewsTool 
+        && !isBraveSearchTool && !isScrapeWebsiteTool && !isEXASearchTool && !isHyperbrowserTool) && (
           <Handle 
             id="input-left"
             type="target" 
@@ -629,8 +820,9 @@ function ActionNodeComponent({ id, data, selected }: NodeProps<NodeData>) {
           />
         )}
         
-        {/* Right output handle - for Chat Trigger, Webhook nodes, HTTP Request, Transform Data, and all nodes except LLM and Memory */}
-        {(isChatTrigger || isWebhookTrigger || isWebhookResponse || isHttpRequest || isTransformData || (!isLLMNode && !isMemoryNode)) && (
+        {/* Right output handle - for Chat Trigger, Webhook nodes, HTTP Request, Transform Data, and all nodes except LLM, Memory, and Multi Agent */}
+        {(isChatTrigger || isWebhookTrigger || isWebhookResponse || isHttpRequest || isTransformData || (!isLLMNode && !isMemoryNode && !isMultiAgent && !isLLMAgent && !isSequentialAgent && !isParallelAgent && !isLoopAgent 
+        && !isSerperApi && !isGetPrice && !isYahooFinanceNewsTool && !isBraveSearchTool && !isScrapeWebsiteTool && !isEXASearchTool && !isHyperbrowserTool)) && (
           <Handle 
             id="output-right"
             type="source" 
@@ -646,15 +838,18 @@ function ActionNodeComponent({ id, data, selected }: NodeProps<NodeData>) {
           />
         )}
         
-        {/* Bottom output handle - Hide for Chat/Webhook Triggers, HTTP, Transform, LLM, Memory, AI Agent, and Supabase Agent */}
-        {(!isChatTrigger && !isWebhookTrigger && !isWebhookResponse && !isHttpRequest && !isTransformData && !isLLMNode && !isMemoryNode && !isAIAgent && !isSupabaseAgent) && (
+        {/* Bottom output handle - Keep this for Multi Agent */}
+        {((!isChatTrigger && !isWebhookTrigger && !isWebhookResponse && !isHttpRequest && !isTransformData && !isLLMNode && !isMemoryNode && !isAIAgent && !isSupabaseAgent && !isSerperApi && !isGetPrice && !isYahooFinanceNewsTool && !isBraveSearchTool 
+        && !isScrapeWebsiteTool && !isEXASearchTool && !isHyperbrowserTool) || isMultiAgent) && (
           <Handle 
             id="output-bottom"
             type="source" 
             position={Position.Bottom} 
             className={cn(
               "!transition-all hover:!w-4 hover:!h-4",
-              isSupabaseAgent
+              isMultiAgent
+                ? "!bg-yellow-500 !border-yellow-400 !w-3 !h-3 hover:!bg-yellow-400 hover:!shadow-[0_0_10px_rgba(234,179,8,0.8)]"
+                : isSupabaseAgent
                 ? "!bg-green-500 !border-green-400 !w-3 !h-3 hover:!bg-green-400 hover:!shadow-[0_0_10px_rgba(34,197,94,0.8)]"
                 : isAIAgent
                 ? "!bg-pink-500 !border-pink-400 !w-3 !h-3 hover:!bg-pink-400 hover:!shadow-[0_0_10px_rgba(236,72,153,0.8)]" 
@@ -728,6 +923,28 @@ function ActionNodeComponent({ id, data, selected }: NodeProps<NodeData>) {
         />
       )}
       
+      {/* Multi Agent Configuration Modal */}
+      {isMultiAgent && (
+        <MultiAgentModal
+          isOpen={isMultiAgentModalOpen}
+          onClose={() => setIsMultiAgentModalOpen(false)}
+          nodeId={id}
+          nodeData={data.multiAgentConfig}
+          onSave={handleMultiAgentConfigSave}
+        />
+      )}
+      
+      {/* LLM Agent Configuration Modal */}
+      {isLLMAgent && (
+        <LlmAgentModal
+          isOpen={isLlmAgentModalOpen}
+          onClose={() => setIsLlmAgentModalOpen(false)}
+          nodeId={id}
+          nodeData={data.llmAgentConfig}
+          onSave={handleLlmAgentConfigSave}
+        />
+      )}
+      
       {/* Chat Session Modal */}
       <Dialog open={isChatSessionOpen} onOpenChange={(open) => !open && setIsChatSessionOpen(false)}>
         <DialogContent className="sm:max-w-[600px] max-h-[80vh] overflow-hidden flex flex-col">
@@ -774,6 +991,18 @@ function ActionNodeComponent({ id, data, selected }: NodeProps<NodeData>) {
           </div>
         </DialogContent>
       </Dialog>
+
+      {/* Tools Configuration Modal */}
+      {isToolNode && (
+        <ToolsModal
+          isOpen={isToolModalOpen}
+          onClose={() => setIsToolModalOpen(false)}
+          nodeId={id}
+          toolType={data.label}
+          nodeData={data.toolConfig}
+          onSave={handleToolConfigSave}
+        />
+      )}
     </>
   );
 }
