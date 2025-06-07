@@ -13,6 +13,7 @@ from google.cloud import pubsub_v1
 from google.oauth2 import service_account
 from datetime import datetime, timezone
 import httpx  # Add httpx for making HTTP requests
+import asyncio
 
 # Import the AI Builder functionality
 from ai_builder import initialize_ai_builder_model, generate_builder_response, BuilderChatInput, BuilderChatResponse
@@ -40,6 +41,7 @@ topic_path: Optional[str] = None
 # ... llm_agent, session_service, runner, etc. ...
 
 # --- Helper Functions --- 
+agent_factory_request_lock = asyncio.Lock()
 
 def initialize_gemini_model(api_key: str, model_name: str, settings: Dict[str, Any]):
     """Initialize a Gemini model for a RUNNING workflow."""
@@ -461,12 +463,13 @@ async def start_multi_agent_workflow(
         logger.debug(f"Full payload to Agent Factory: {json.dumps(payload_to_agent_factory)}")
 
         # 5. Make HTTP POST request
-        async with httpx.AsyncClient(timeout=60.0) as client:
-            response = await client.post(
-                agent_factory_run_endpoint,
-                json=payload_to_agent_factory,
-                headers={"Content-Type": "application/json"}
-            )
+        async with agent_factory_request_lock:
+            async with httpx.AsyncClient(timeout=60.0) as client:
+                response = await client.post(
+                    agent_factory_run_endpoint,
+                    json=payload_to_agent_factory,
+                    headers={"Content-Type": "application/json"}
+                )
 
         # 6. Handle Agent Factory response
         if response.status_code == 200:
