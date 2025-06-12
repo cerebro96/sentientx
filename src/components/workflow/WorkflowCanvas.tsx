@@ -38,6 +38,24 @@ import { ExecutionDetailsView } from './ExecutionDetailsView';
 import { callSupabaseAgent, generateSupabaseAgentSessionId, runSupabaseAgent } from '@/lib/supabase-agent';
 import { getCurrentUser } from '@/lib/auth';
 
+// Function to generate a valid agent name from UUID
+function generateValidAgentName(): string {
+  const rawUuid = uuidv4(); // e.g., 'f47ac10b-58cc-4372-a567-0e02b2c3d479'
+
+  // 1. Remove hyphens
+  let transformedUuid = rawUuid.replace(/-/g, ''); // e.g., 'f47ac10b58cc4372a5670e02b2c3d479'
+
+  // 2. Check if it starts with a digit and prepend if necessary
+  // The first character of a standard UUID v4 after removing hyphens should be hex (0-9, a-f)
+  // If it's a digit, we need to prepend to make it a valid identifier.
+  const firstChar = transformedUuid.charAt(0);
+  if (!isNaN(parseInt(firstChar, 10)) || firstChar.match(/[^a-zA-Z_]/)) {
+    transformedUuid = '_' + transformedUuid; // Prepend with an underscore
+  }
+
+  return transformedUuid;
+}
+
 interface WorkflowCanvasProps {
   isActive: boolean;
   onClose?: () => void;
@@ -73,6 +91,7 @@ export function WorkflowCanvas({ isActive, onClose, workflowId, newWorkflowData 
   const [isPanelVisible, setIsPanelVisible] = useState(true);
   const [workflowStatus, setWorkflowStatus] = useState<'idle' | 'running' | 'paused'>('idle');
   const [isCreatingWorkflow, setIsCreatingWorkflow] = useState(false);
+  const [activeAgentName, setActiveAgentName] = useState<string | null>(null);
   
   // Add debounce for auto-saving
   const autoSaveTimeoutRef = useRef<NodeJS.Timeout | null>(null);
@@ -368,6 +387,7 @@ export function WorkflowCanvas({ isActive, onClose, workflowId, newWorkflowData 
       const currentWorkflowId = workflowId || createdWorkflowId;
       if (!currentWorkflowId) {
         setWorkflowStatus('idle');
+        setActiveAgentName(null);
         console.log('Multi Agent status check: No workflow ID, setting to idle.');
         return;
       }
@@ -385,19 +405,42 @@ export function WorkflowCanvas({ isActive, onClose, workflowId, newWorkflowData 
           if (error) {
             console.error('Error fetching Supabase execution status:', error);
             setWorkflowStatus('idle');
+            setActiveAgentName(null);
             return;
           }
         
           if (runningExecutions && runningExecutions.length > 0) {
-            console.log(`Found running execution for workflow ${currentWorkflowId}. Status: ${runningExecutions[0].status}`);
+            const runningExecution = runningExecutions[0];
+            console.log(`Found running execution for workflow ${currentWorkflowId}. Status: ${runningExecution.status}`);
             setWorkflowStatus('running');
+
+            // Now, query agentfactory table for the agent_name
+            const { data: agentFactoryData, error: agentFactoryError } = await supabase
+              .from('agentfactory')
+              .select('agent_name')
+              .eq('execution_id', runningExecution.id)
+              .eq('status', 'active')
+              .single();
+
+            if (agentFactoryError) {
+              console.error('Error fetching agent name from agentfactory:', agentFactoryError);
+              setActiveAgentName(null);
+            } else if (agentFactoryData) {
+              console.log(`Found active agent name: ${agentFactoryData.agent_name}`);
+              setActiveAgentName(agentFactoryData.agent_name);
+            } else {
+              console.warn(`No active agent found in agentfactory for execution ID: ${runningExecution.id}`);
+              setActiveAgentName(null);
+            }
           } else {
             console.log(`No running execution found for workflow ${currentWorkflowId}.`);
             setWorkflowStatus('idle');
+            setActiveAgentName(null);
           }
       } catch (error) {
         console.error('Exception checking Multi Agent workflow status:', error);
         setWorkflowStatus('idle');
+        setActiveAgentName(null);
       }
     };
 
@@ -1062,11 +1105,13 @@ export function WorkflowCanvas({ isActive, onClose, workflowId, newWorkflowData 
         ? await getApiKeyValue(multiAgentNode.data.multiAgentConfig.apiKeyId)
         : '';
 
+      const agentName = generateValidAgentName();
       // Build the main Multi Agent structure
       const multiAgentData = {
         id: multiAgentNode.id,
         type: 'Multi Agent',
-        name: multiAgentNode.data.multiAgentConfig.name || 'MultiAgent',
+        // name: multiAgentNode.data.multiAgentConfig.name || 'MultiAgent' || "_f47ac10b58cc4372a5670e02b2c3d479",
+        name: agentName,
         model: multiAgentNode.data.multiAgentConfig.model || '',
         apiKey: multiAgentApiKey,
         provider: multiAgentNode.data.multiAgentConfig.provider || '',
@@ -1121,6 +1166,24 @@ export function WorkflowCanvas({ isActive, onClose, workflowId, newWorkflowData 
             console.error('Error saving execution to Supabase:', executionError);
           } else {
             console.log('Successfully saved Multi Agent execution to Supabase');
+
+            // NOW INSERT INTO AGENTFACTORY TABLE
+            const { error: agentFactoryError } = await supabase
+              .from('agentfactory')
+              .insert({
+                agent_name: agentName, // agentName is available here
+                workflow_id: workflowId || createdWorkflowId,
+                execution_id: executionId,
+                status: 'active'
+              });
+            
+            if (agentFactoryError) {
+              console.error('Error saving to agentfactory table:', agentFactoryError);
+            } else {
+              console.log(`Successfully saved agent ${agentName} to agentfactory.`);
+              // Also set the active agent name in the state
+              setActiveAgentName(agentName);
+            }
           }
         } catch (dbError) {
           console.error('Exception saving execution to Supabase:', dbError);
@@ -1373,14 +1436,16 @@ export function WorkflowCanvas({ isActive, onClose, workflowId, newWorkflowData 
     }else if(agentNode?.data.label == "Multi Agent (BaseAgent)"){
       // Reset the workflow status
       setWorkflowStatus('idle');
+      setActiveAgentName(null);
       toast.info('Multi Agent workflow stopped', {
         description: 'Your Multi Agent workflow has been stopped',
         duration: 3000
       });
 
       // Get the folder name from Multi Agent config
-      const multiAgentNode = nodes.find(node => node.data.label === 'Multi Agent (BaseAgent)');
-      const folderName = multiAgentNode?.data.multiAgentConfig?.name;
+      //const multiAgentNode = nodes.find(node => node.data.label === 'Multi Agent (BaseAgent)');
+      //const folderName = multiAgentNode?.data.multiAgentConfig?.name;
+      const folderName = activeAgentName;
 
       if (folderName) {
         try {
@@ -1412,7 +1477,7 @@ export function WorkflowCanvas({ isActive, onClose, workflowId, newWorkflowData 
               // Fetch the execution record to get started_at time
               const { data: executionData, error: fetchError } = await supabase
                 .from('executions')
-                .select('started_at')
+                .select('id, started_at')
                 .eq('workflow_id', currentWorkflowId)
                 .eq('status', 'running')
                 .single();
@@ -1436,6 +1501,20 @@ export function WorkflowCanvas({ isActive, onClose, workflowId, newWorkflowData 
                   })
                   .eq('workflow_id', currentWorkflowId)
                   .eq('status', 'running');
+                
+                if (!updateError) {
+                  // Also update the agentfactory record
+                  const { error: agentFactoryUpdateError } = await supabase
+                    .from('agentfactory')
+                    .update({ status: 'deleted', deleted_at: new Date().toISOString() })
+                    .eq('execution_id', executionData.id);
+
+                  if (agentFactoryUpdateError) {
+                    console.error('Error updating agentfactory record to deleted:', agentFactoryUpdateError);
+                  } else {
+                    console.log(`Successfully marked agentfactory record as deleted for execution ${executionData.id}`);
+                  }
+                }
                 
                 setWorkflowStatus('idle');
                 if (updateError) {
@@ -1648,21 +1727,23 @@ export function WorkflowCanvas({ isActive, onClose, workflowId, newWorkflowData 
                   <Panel position="top-right" className="flex gap-2">
                     {(() => {
                       // Find Multi-Agent node and check if ADK button should be shown
-                      const multiAgentNode = nodes.find(
-                        node => node.data.label === 'Multi Agent (BaseAgent)' && 
-                        node.data.multiAgentConfig?.name
-                      );
-                      const multiAgentName = multiAgentNode?.data.multiAgentConfig?.name;
+                      const multiAgentNodeExists = nodes.some(node => node.data.label === 'Multi Agent (BaseAgent)');
+                      
                       const adkWebUrl = process.env.NEXT_PUBLIC_ADK_WEB_URL || process.env.ADK_WEB_URL;
-                      const adkAppUrl = adkWebUrl && multiAgentName ? 
-                        `${adkWebUrl}/?app=${encodeURIComponent(multiAgentName)}` : '';
+                      const adkAppUrl = adkWebUrl && activeAgentName ? 
+                        `${adkWebUrl}/?app=${encodeURIComponent(activeAgentName)}` : '';
 
-                      return adkAppUrl ? (
+                      return multiAgentNodeExists ? (
                         <Button 
                           size="sm" 
-                          variant="outline" 
-                          onClick={() => window.open(adkAppUrl, '_blank')}
-                          title={`Open ${multiAgentName} in SentientX Testing Ground`}
+                          variant="outline"
+                          disabled={workflowStatus !== 'running' || !adkAppUrl}
+                          onClick={() => {
+                            if (adkAppUrl) {
+                              window.open(adkAppUrl, '_blank')
+                            }
+                          }}
+                          title={workflowStatus === 'running' && activeAgentName ? `Open ${activeAgentName} in SentientX Testing Ground` : 'Start the workflow to open in Testing Ground'}
                         >
                           <LinkIcon className="h-4 w-4 mr-1" />
                           SentientX Testing Ground
