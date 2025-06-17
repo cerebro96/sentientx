@@ -559,6 +559,12 @@ function ActionNodeComponent({ id, data, selected }: NodeProps<NodeData>) {
         }
       });
       
+      // Trigger auto-save to persist changes
+      setTimeout(() => {
+        triggerAutoSave();
+        console.log('Auto-save triggered for Multi Agent node.');
+      }, 100);
+      
       toast.success('Multi Agent configuration updated');
     }
   };
@@ -584,6 +590,12 @@ function ActionNodeComponent({ id, data, selected }: NodeProps<NodeData>) {
           provider: configData.provider
         }
       });
+
+      // Trigger auto-save to persist changes
+      setTimeout(() => {
+        triggerAutoSave();
+        console.log('Auto-save triggered for LLM Agent node.');
+      }, 100);
       toast.success('LLM Agent configuration updated');
     }
   };
