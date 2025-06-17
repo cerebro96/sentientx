@@ -20,6 +20,9 @@ export function SettingsDialog({ isOpen, onClose, currentTheme, onThemeChange }:
   const handleThemeChange = (value: string) => {
     setTheme(value);
     onThemeChange(value);
+    setTimeout(() => {
+      window.location.reload();
+    }, 100);
   };
 
   return (

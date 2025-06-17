@@ -57,7 +57,7 @@ export function WorkflowTabs({
   const [isLoading, setIsLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
   const [workflowToDelete, setWorkflowToDelete] = useState<string | null>(null);
-  const [currentTab, setCurrentTab] = useState('all');
+  const [currentTab, setCurrentTab] = useState('active');
 
   useEffect(() => {
     loadWorkflows();
@@ -178,9 +178,9 @@ export function WorkflowTabs({
 
       <Tabs defaultValue="all" value={currentTab} onValueChange={setCurrentTab}>
         <TabsList>
-          <TabsTrigger value="all">All</TabsTrigger>
           <TabsTrigger value="active">Active</TabsTrigger>
           <TabsTrigger value="inactive">Inactive</TabsTrigger>
+          <TabsTrigger value="all">All</TabsTrigger>
         </TabsList>
 
         <TabsContent value={currentTab} className="mt-6">
