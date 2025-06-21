@@ -709,6 +709,12 @@ export function WorkflowCanvas({ isActive, onClose, workflowId, newWorkflowData 
     }
   }, [activeTab, reactFlowInstance]);
 
+  // Update workflow status in the UI
+  useEffect(() => {
+    // Make workflow status available globally for child components
+    (window as any).__workflowStatus = workflowStatus;
+  }, [workflowStatus]);
+
   // Workflow control handlers
   const handleStartWorkflow = async () => {
     // --- Add Check for Active Status --- 
