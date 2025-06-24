@@ -1507,8 +1507,15 @@ export function WorkflowCanvas({ isActive, onClose, workflowId, newWorkflowData 
                   })
                   .eq('workflow_id', currentWorkflowId)
                   .eq('status', 'running');
+
+                  // Delete SenClient
+                  const { error: DeleteError } = await supabase
+                  .from('sentientxclient')
+                  .delete()
+                  .eq('app_id', folderName);
+                  // End Delete SenClient
                 
-                if (!updateError) {
+                if (!updateError || !DeleteError) {
                   // Also update the agentfactory record
                   const { error: agentFactoryUpdateError } = await supabase
                     .from('agentfactory')
