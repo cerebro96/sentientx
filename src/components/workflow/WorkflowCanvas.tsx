@@ -709,6 +709,12 @@ export function WorkflowCanvas({ isActive, onClose, workflowId, newWorkflowData 
     }
   }, [activeTab, reactFlowInstance]);
 
+  // Update workflow status in the UI
+  useEffect(() => {
+    // Make workflow status available globally for child components
+    (window as any).__workflowStatus = workflowStatus;
+  }, [workflowStatus]);
+
   // Workflow control handlers
   const handleStartWorkflow = async () => {
     // --- Add Check for Active Status --- 
@@ -1501,8 +1507,15 @@ export function WorkflowCanvas({ isActive, onClose, workflowId, newWorkflowData 
                   })
                   .eq('workflow_id', currentWorkflowId)
                   .eq('status', 'running');
+
+                  // Delete SenClient
+                  const { error: DeleteError } = await supabase
+                  .from('sentientxclient')
+                  .delete()
+                  .eq('app_id', folderName);
+                  // End Delete SenClient
                 
-                if (!updateError) {
+                if (!updateError || !DeleteError) {
                   // Also update the agentfactory record
                   const { error: agentFactoryUpdateError } = await supabase
                     .from('agentfactory')

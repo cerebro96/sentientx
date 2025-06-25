@@ -18,7 +18,8 @@ import {
   DialogContent,
   DialogHeader,
   DialogTitle,
-  DialogFooter
+  DialogFooter,
+  DialogDescription
 } from "@/components/ui/dialog";
 import { Textarea } from '@/components/ui/textarea';
 import { Input } from '@/components/ui/input';
@@ -57,6 +58,8 @@ function ActionNodeComponent({ id, data, selected }: NodeProps<NodeData>) {
   const [isLlmAgentModalOpen, setIsLlmAgentModalOpen] = useState(false);
   const [isToolModalOpen, setIsToolModalOpen] = useState(false);
   const [llmProvider, setLlmProvider] = useState<string>('');
+  const [showWorkflowRunningWarning, setShowWorkflowRunningWarning] = useState(false);
+  const [pendingModalType, setPendingModalType] = useState<'multiagent' | 'llmagent' | null>(null);
   
   // Chat session state
   const [isChatSessionOpen, setIsChatSessionOpen] = useState(false);
@@ -156,11 +159,42 @@ function ActionNodeComponent({ id, data, selected }: NodeProps<NodeData>) {
   };
   
   const handleOpenMultiAgentConfig = () => {
-    setIsMultiAgentModalOpen(true);
+    // Get workflow status from parent component (WorkflowHeader)
+    const workflowStatus = (window as any).__workflowStatus || 'idle';
+    
+    if (workflowStatus === 'running') {
+      setPendingModalType('multiagent');
+      setShowWorkflowRunningWarning(true);
+    } else {
+      setIsMultiAgentModalOpen(true);
+    }
   };
   
   const handleOpenLlmAgentConfig = () => {
-    setIsLlmAgentModalOpen(true);
+    // Get workflow status from parent component (WorkflowHeader)
+    const workflowStatus = (window as any).__workflowStatus || 'idle';
+    
+    if (workflowStatus === 'running') {
+      setPendingModalType('llmagent');
+      setShowWorkflowRunningWarning(true);
+    } else {
+      setIsLlmAgentModalOpen(true);
+    }
+  };
+  
+  const handleWarningProceed = () => {
+    setShowWorkflowRunningWarning(false);
+    if (pendingModalType === 'multiagent') {
+      setIsMultiAgentModalOpen(true);
+    } else if (pendingModalType === 'llmagent') {
+      setIsLlmAgentModalOpen(true);
+    }
+    setPendingModalType(null);
+  };
+  
+  const handleWarningCancel = () => {
+    setShowWorkflowRunningWarning(false);
+    setPendingModalType(null);
   };
   
   const triggerAutoSave = () => {
@@ -1015,6 +1049,29 @@ function ActionNodeComponent({ id, data, selected }: NodeProps<NodeData>) {
           onSave={handleToolConfigSave}
         />
       )}
+
+      {/* Workflow Running Warning Dialog */}
+      <Dialog open={showWorkflowRunningWarning} onOpenChange={setShowWorkflowRunningWarning}>
+        <DialogContent className="sm:max-w-[425px]">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <AlertTriangle className="h-5 w-5 text-yellow-500" />
+              Workflow is Running
+            </DialogTitle>
+            <DialogDescription className="pt-2">
+              The workflow is currently running. To apply changes to this {pendingModalType === 'multiagent' ? 'Multi Agent' : 'LLM Agent'} node, you need to stop the workflow first and then restart it.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter className="flex gap-2">
+            <Button variant="outline" onClick={handleWarningCancel}>
+              Cancel
+            </Button>
+            <Button onClick={handleWarningProceed}>
+              Continue Anyway
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </>
   );
 }

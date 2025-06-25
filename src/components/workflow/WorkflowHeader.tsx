@@ -13,6 +13,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { updateWorkflow } from '@/lib/workflows';
 import { toast } from 'sonner';
+import { SenXClientModal } from './senx-client-modal';
 
 interface WorkflowHeaderProps {
   name: string;
@@ -50,11 +51,29 @@ export function WorkflowHeader({
   const [isTagInputOpen, setIsTagInputOpen] = useState(false);
   const [tagInput, setTagInput] = useState('');
   const [workflowTags, setWorkflowTags] = useState<string[]>(tags);
+  const [isSenXClientModalOpen, setIsSenXClientModalOpen] = useState(false);
+  const [globalWorkflowStatus, setGlobalWorkflowStatus] = useState<string>('idle');
 
   // Update local tags when props change
   useEffect(() => {
     setWorkflowTags(tags);
   }, [tags]);
+
+  // Monitor global workflow status
+  useEffect(() => {
+    const checkGlobalStatus = () => {
+      const status = (window as any).__workflowStatus || 'idle';
+      setGlobalWorkflowStatus(status);
+    };
+
+    // Check initially
+    checkGlobalStatus();
+
+    // Set up interval to check periodically
+    const interval = setInterval(checkGlobalStatus, 500);
+
+    return () => clearInterval(interval);
+  }, []);
 
   const handleNameSubmit = () => {
     if (editedName.trim()) {
@@ -267,9 +286,16 @@ export function WorkflowHeader({
         </div>
 
         <div className="flex items-center gap-2">
-          <Button variant="outline" size="sm" className="h-7">
-            <Share2 className="h-4 w-4 mr-1" />
-            Share
+          <Button 
+            variant="outline" 
+            size="sm" 
+            className="h-7" 
+            onClick={() => setIsSenXClientModalOpen(true)}
+            disabled={globalWorkflowStatus !== 'running'}
+            title={globalWorkflowStatus !== 'running' ? 'Start the workflow to enable SenX Client' : 'Open SenX Client'}
+          >
+            {/* <Share2 className="h-4 w-4 mr-1" /> */}
+            SenX Client
           </Button>
           {/* <Button size="sm" className="h-7">
             Save
@@ -289,6 +315,12 @@ export function WorkflowHeader({
           </DropdownMenu>
         </div>
       </div>
+
+      {/* SenX Client Modal */}
+      <SenXClientModal
+        isOpen={isSenXClientModalOpen}
+        onClose={() => setIsSenXClientModalOpen(false)}
+      />
     </div>
   );
 } 
