@@ -14,7 +14,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
-import { Eye, EyeOff, MoreVertical, Plus, Copy, Key, Trash2, Edit2, Search, ArrowUpDown, ChevronDown, ChevronUp, Filter } from 'lucide-react';
+import { Eye, EyeOff, MoreVertical, Plus, Copy, Key, Trash2, Edit2, Search, ArrowUpDown, ChevronDown, ChevronUp, Filter, ChevronLeft, ChevronRight, ArrowDown, ArrowUp } from 'lucide-react';
 import { toast } from 'sonner';
 import { ProtectedRoute } from "@/components/auth/ProtectedRoute";
 import { createApiKey, getApiKeys, getApiKeyWithValue, deleteApiKey } from "@/lib/api-keys";
@@ -36,6 +36,14 @@ import {
   DropdownMenuSeparator,
   DropdownMenuLabel,
 } from "@/components/ui/dropdown-menu";
+import { Checkbox } from "@/components/ui/checkbox";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 
 // Define UI-specific API key type
 type UIApiKey = {
@@ -46,6 +54,127 @@ type UIApiKey = {
   created: string;
   lastUsed: string | null;
 };
+
+// Pagination component
+interface PaginationProps {
+  currentPage: number
+  totalPages: number
+  totalItems: number
+  itemsPerPage: number
+  onPageChange: (page: number) => void
+  onItemsPerPageChange: (itemsPerPage: number) => void
+}
+
+function Pagination({ 
+  currentPage, 
+  totalPages, 
+  totalItems, 
+  itemsPerPage, 
+  onPageChange, 
+  onItemsPerPageChange 
+}: PaginationProps) {
+  const startItem = (currentPage - 1) * itemsPerPage + 1
+  const endItem = Math.min(currentPage * itemsPerPage, totalItems)
+
+  const getVisiblePages = () => {
+    const delta = 2
+    const pages = []
+    const rangeStart = Math.max(2, currentPage - delta)
+    const rangeEnd = Math.min(totalPages - 1, currentPage + delta)
+
+    if (totalPages <= 1) return []
+
+    // Always show first page
+    pages.push(1)
+
+    if (rangeStart > 2) {
+      pages.push('...')
+    }
+
+    for (let i = rangeStart; i <= rangeEnd; i++) {
+      pages.push(i)
+    }
+
+    if (rangeEnd < totalPages - 1) {
+      pages.push('...')
+    }
+
+    // Always show last page (if not already included)
+    if (totalPages > 1) {
+      pages.push(totalPages)
+    }
+
+    return pages
+  }
+
+  return (
+    <div className="flex items-center justify-between px-2 py-4 border-t">
+      <div className="flex items-center space-x-2">
+        <p className="text-sm text-muted-foreground">
+          Showing {startItem} to {endItem} of {totalItems} results
+        </p>
+        <div className="flex items-center space-x-2">
+          <p className="text-sm text-muted-foreground">Rows per page:</p>
+          <Select
+            value={itemsPerPage.toString()}
+            onValueChange={(value) => onItemsPerPageChange(parseInt(value))}
+          >
+            <SelectTrigger className="h-8 w-16">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="10">10</SelectItem>
+              <SelectItem value="25">25</SelectItem>
+              <SelectItem value="50">50</SelectItem>
+              <SelectItem value="100">100</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+      </div>
+      
+      <div className="flex items-center space-x-2">
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={() => onPageChange(currentPage - 1)}
+          disabled={currentPage <= 1}
+        >
+          <ChevronLeft className="h-4 w-4" />
+          Previous
+        </Button>
+        
+        <div className="flex items-center space-x-1">
+          {getVisiblePages().map((page, index) => (
+            <div key={index}>
+              {page === '...' ? (
+                <span className="px-2 py-1 text-sm text-muted-foreground">...</span>
+              ) : (
+                <Button
+                  variant={currentPage === page ? "default" : "outline"}
+                  size="sm"
+                  className="h-8 w-8 p-0"
+                  onClick={() => onPageChange(page as number)}
+                >
+                  {page}
+                </Button>
+              )}
+            </div>
+          ))}
+        </div>
+        
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={() => onPageChange(currentPage + 1)}
+          disabled={currentPage >= totalPages}
+        >
+          Next
+          <ChevronRight className="h-4 w-4" />
+        </Button>
+      </div>
+    </div>
+  )
+}
 
 // Helper functions used across components
 const formatDate = (dateString: string | null) => {
@@ -77,6 +206,7 @@ interface ApiKeysTableProps {
   searchQuery?: string;
   typeFilters: string[];
   onClearFilters: () => void;
+  totalCount: number;
 }
 
 function ApiKeysTable({
@@ -89,16 +219,17 @@ function ApiKeysTable({
   onDeleteKey,
   searchQuery,
   typeFilters,
-  onClearFilters
+  onClearFilters,
+  totalCount
 }: ApiKeysTableProps) {
   const getSortIcon = (key: keyof UIApiKey) => {
     if (sortConfig.key !== key) {
       return <ArrowUpDown className="h-4 w-4" />;
     }
     return sortConfig.direction === 'asc' ? (
-      <ChevronUp className="h-4 w-4" />
+      <ArrowUp className="ml-1 h-4 w-4" />
     ) : (
-      <ChevronDown className="h-4 w-4" />
+      <ArrowDown className="ml-1 h-4 w-4" />
     );
   };
 
@@ -114,7 +245,7 @@ function ApiKeysTable({
               >
                 <div className="flex items-center">
                   Name
-                  <span className="ml-1">{getSortIcon('name')}</span>
+                  {getSortIcon('name')}
                 </div>
               </th>
               <th 
@@ -123,7 +254,7 @@ function ApiKeysTable({
               >
                 <div className="flex items-center">
                   Type
-                  <span className="ml-1">{getSortIcon('type')}</span>
+                  {getSortIcon('type')}
                 </div>
               </th>
               <th className="h-10 px-4 text-left font-medium text-muted-foreground">
@@ -135,7 +266,7 @@ function ApiKeysTable({
               >
                 <div className="flex items-center">
                   Created
-                  <span className="ml-1">{getSortIcon('created')}</span>
+                  {getSortIcon('created')}
                 </div>
               </th>
               <th 
@@ -144,7 +275,7 @@ function ApiKeysTable({
               >
                 <div className="flex items-center">
                   Last Used
-                  <span className="ml-1">{getSortIcon('lastUsed')}</span>
+                  {getSortIcon('lastUsed')}
                 </div>
               </th>
               <th className="h-10 px-4 text-left font-medium text-muted-foreground w-[50px]"></th>
@@ -166,6 +297,7 @@ function ApiKeysTable({
                       <Button
                         variant="ghost"
                         size="icon"
+                        className="h-8 w-8"
                         onClick={() => {
                           if (!visibleKeys.has(apiKey.id)) {
                             onViewKey(apiKey.id);
@@ -183,6 +315,7 @@ function ApiKeysTable({
                       <Button
                         variant="ghost"
                         size="icon"
+                        className="h-8 w-8"
                         onClick={() => {
                           navigator.clipboard.writeText(apiKey.key);
                           toast.success('API key copied to clipboard');
@@ -229,15 +362,11 @@ function ApiKeysTable({
                       <Key className="h-10 w-10 text-muted-foreground/60" />
                     </div>
                     <div className="space-y-1.5">
-                      <p className="text-xl font-medium">
-                        {apiKeys.length === 0 && !searchQuery && typeFilters.length === 0 
-                          ? "No API keys found" 
-                          : "No results found"}
-                      </p>
+                      <p className="text-xl font-medium">No API keys</p>
                       <p className="text-muted-foreground">
                         {searchQuery || typeFilters.length > 0 ? (
                           <>
-                            No API keys match your search criteria.{" "}
+                            No results found.{" "}
                             <button 
                               onClick={onClearFilters}
                               className="text-primary underline"
@@ -246,7 +375,7 @@ function ApiKeysTable({
                             </button>
                           </>
                         ) : (
-                          "You haven't added any API keys yet. Add your first API key to get started."
+                          "Add your first API key to get started."
                         )}
                       </p>
                     </div>
@@ -283,6 +412,15 @@ export default function CredentialsPage() {
   const [customServiceName, setCustomServiceName] = useState('');
   const [isCustomService, setIsCustomService] = useState(false);
 
+  // Pagination state
+  const [currentPage, setCurrentPage] = useState(1)
+  const [itemsPerPage, setItemsPerPage] = useState(25)
+
+  // Reset to first page when filters change
+  useEffect(() => {
+    setCurrentPage(1)
+  }, [searchQuery, typeFilters])
+
   // Get unique key types from apiKeys
   const availableTypes = useMemo(() => {
     const types = new Set(apiKeys.map(key => key.type));
@@ -309,43 +447,67 @@ export default function CredentialsPage() {
     setSortConfig({ key, direction });
   };
 
-  // Filter and sort API keys
-  const filteredAndSortedApiKeys = apiKeys
-    .filter(key => {
-      // Search filter
-      if (searchQuery.trim()) {
-        const query = searchQuery.toLowerCase();
-        const matchesSearch = 
-          key.name.toLowerCase().includes(query) ||
-          key.type.toLowerCase().includes(query);
+  const handlePageChange = (page: number) => {
+    setCurrentPage(page)
+  }
+
+  const handleItemsPerPageChange = (newItemsPerPage: number) => {
+    setItemsPerPage(newItemsPerPage)
+    setCurrentPage(1) // Reset to first page when changing items per page
+  }
+
+  // Filter, sort, and paginate API keys
+  const { filteredApiKeys, paginatedApiKeys, totalPages } = useMemo(() => {
+    let result = apiKeys
+      .filter(key => {
+        // Search filter
+        if (searchQuery.trim()) {
+          const query = searchQuery.toLowerCase();
+          const matchesSearch = 
+            key.name.toLowerCase().includes(query) ||
+            key.type.toLowerCase().includes(query);
+          
+          if (!matchesSearch) return false;
+        }
         
-        if (!matchesSearch) return false;
-      }
-      
-      // Type filter - only apply if filters are actually selected
-      if (typeFilters.length > 0 && !typeFilters.includes(key.type)) {
-        return false;
-      }
-      
-      return true;
-    })
-    .sort((a, b) => {
-      if (!sortConfig.key) return 0;
-      
-      const aValue = a[sortConfig.key];
-      const bValue = b[sortConfig.key];
-      
-      if (aValue === null) return 1;
-      if (bValue === null) return -1;
-      
-      if (aValue < bValue) {
-        return sortConfig.direction === 'asc' ? -1 : 1;
-      }
-      if (aValue > bValue) {
-        return sortConfig.direction === 'asc' ? 1 : -1;
-      }
-      return 0;
-    });
+        // Type filter - only apply if filters are actually selected
+        if (typeFilters.length > 0 && !typeFilters.includes(key.type)) {
+          return false;
+        }
+        
+        return true;
+      })
+      .sort((a, b) => {
+        if (!sortConfig.key) return 0;
+        
+        const aValue = a[sortConfig.key];
+        const bValue = b[sortConfig.key];
+        
+        if (aValue === null) return 1;
+        if (bValue === null) return -1;
+        
+        if (aValue < bValue) {
+          return sortConfig.direction === 'asc' ? -1 : 1;
+        }
+        if (aValue > bValue) {
+          return sortConfig.direction === 'asc' ? 1 : -1;
+        }
+        return 0;
+      });
+
+    // Calculate pagination
+    const totalFilteredItems = result.length
+    const totalPages = Math.ceil(totalFilteredItems / itemsPerPage)
+    const startIndex = (currentPage - 1) * itemsPerPage
+    const endIndex = startIndex + itemsPerPage
+    const paginatedResults = result.slice(startIndex, endIndex)
+
+    return {
+      filteredApiKeys: result,
+      paginatedApiKeys: paginatedResults,
+      totalPages
+    }
+  }, [apiKeys, searchQuery, typeFilters, sortConfig, currentPage, itemsPerPage]);
 
   const toggleKeyVisibility = (keyId: string) => {
     setVisibleKeys(prev => {
@@ -480,197 +642,201 @@ export default function CredentialsPage() {
   return (
     <ProtectedRoute>
       <CredentialLayout>
-        <div className="flex justify-between items-center mb-6">
-          <div>
-            <h1 className="text-3xl font-bold visually-hidden">API Credentials</h1>
+        <div className="p-6 space-y-6">
+          <div className="flex justify-between items-center">
+            <h1 className="text-3xl font-bold">API Credentials</h1>
+            <Button onClick={() => setIsAddKeyDialogOpen(true)}>
+              <Plus className="mr-2 h-4 w-4" />
+              Add New Key
+            </Button>
           </div>
-          <Button onClick={() => setIsAddKeyDialogOpen(true)}>
-            <Plus className="mr-2 h-4 w-4" />
-            Add New Key
-          </Button>
-        </div>
 
-        <Card>
-          <CardHeader>
-            <div className="flex justify-between items-center">
-              <div>
-                <CardTitle>Your Keys</CardTitle>
-                <CardDescription>
-                  These keys are used to authenticate your requests to external APIs
-                </CardDescription>
+          {isLoadingKeys ? (
+            <div className="flex justify-center items-center py-16">
+              <div className="flex flex-col items-center gap-4">
+                <div className="h-8 w-8 animate-spin rounded-full border-4 border-primary border-t-transparent"></div>
+                <p className="text-sm text-muted-foreground">Loading API keys...</p>
               </div>
-              <div className="flex items-center gap-2">
+            </div>
+          ) : (
+            <>
+              <div className="flex items-center justify-between">
                 <div className="relative w-72">
-                  <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
+                  <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
                   <Input
+                    type="search"
                     placeholder="Search API keys..."
-                    className="pl-8"
+                    className="w-full bg-background pl-8"
                     value={searchQuery}
                     onChange={(e) => setSearchQuery(e.target.value)}
                   />
                 </div>
-                <DropdownMenu>
-                  <DropdownMenuTrigger asChild>
-                    <Button variant="outline" size="sm" className="ml-auto h-8 gap-1">
-                      <Filter className="h-4 w-4" />
-                      Filter
-                      {typeFilters.length > 0 && (
-                        <span className="ml-1 rounded-full bg-primary w-5 h-5 text-primary-foreground flex items-center justify-center text-xs">
-                          {typeFilters.length}
-                        </span>
-                      )}
-                    </Button>
-                  </DropdownMenuTrigger>
-                  <DropdownMenuContent align="end" className="w-48">
-                    <DropdownMenuLabel>Filter by Type</DropdownMenuLabel>
-                    <DropdownMenuSeparator />
-                    {availableTypes.map(type => (
-                      <DropdownMenuCheckboxItem
-                        key={type}
-                        checked={typeFilters.includes(type)}
-                        onCheckedChange={() => toggleTypeFilter(type)}
-                      >
-                        {type}
-                      </DropdownMenuCheckboxItem>
-                    ))}
-                    {typeFilters.length > 0 && (
-                      <>
-                        <DropdownMenuSeparator />
-                        <DropdownMenuItem onClick={clearFilters}>
-                          Clear Filters
-                        </DropdownMenuItem>
-                      </>
-                    )}
-                  </DropdownMenuContent>
-                </DropdownMenu>
-              </div>
-            </div>
-          </CardHeader>
-          <CardContent>
-            {isLoadingKeys ? (
-              <div className="flex justify-center items-center py-8">
-                <div className="flex flex-col items-center gap-2">
-                  <div className="h-8 w-8 animate-spin rounded-full border-4 border-primary border-t-transparent"></div>
-                  <p className="text-sm text-muted-foreground">Loading API keys...</p>
+                <div className="flex items-center space-x-4">
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                      <Button variant="outline" size="sm" className="h-9">
+                        <Filter className="mr-2 h-4 w-4" />
+                        Filters
+                        {typeFilters.length > 0 && (
+                          <Badge variant="secondary" className="ml-2 rounded-sm px-1">
+                            {typeFilters.length}
+                          </Badge>
+                        )}
+                      </Button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="end" className="w-56">
+                      <div className="p-2">
+                        <div className="font-medium mb-2">Type</div>
+                        <div className="space-y-2">
+                          {availableTypes.map((type) => (
+                            <div key={type} className="flex items-center space-x-2">
+                              <Checkbox
+                                id={`type-${type}`}
+                                checked={typeFilters.includes(type)}
+                                onCheckedChange={() => toggleTypeFilter(type)}
+                              />
+                              <Label htmlFor={`type-${type}`} className="flex items-center">
+                                {type}
+                              </Label>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    </DropdownMenuContent>
+                  </DropdownMenu>
                 </div>
               </div>
-            ) : (
-              <ApiKeysTable 
-                apiKeys={filteredAndSortedApiKeys}
-                sortConfig={sortConfig}
-                onSort={requestSort}
-                visibleKeys={visibleKeys}
-                onToggleKeyVisibility={toggleKeyVisibility}
-                onViewKey={handleViewKey}
-                onDeleteKey={handleDeleteKey}
-                searchQuery={searchQuery}
-                typeFilters={typeFilters}
-                onClearFilters={clearFilters}
-              />
-            )}
-          </CardContent>
-        </Card>
 
-        <Dialog open={isAddKeyDialogOpen} onOpenChange={setIsAddKeyDialogOpen}>
-          <DialogContent className="sm:max-w-[425px]">
-            <DialogHeader>
-              <DialogTitle>Add New Key</DialogTitle>
-              <DialogDescription>
-                Add a new API key to be securely stored. Only you will be able to view this key.
-              </DialogDescription>
-            </DialogHeader>
-            <form onSubmit={handleAddKey}>
-              <div className="grid gap-4 py-4">
-                <div className="grid grid-cols-4 items-center gap-4">
-                  <Label htmlFor="name" className="text-right">
-                    Name
-                  </Label>
-                  <Input
-                    id="name"
-                    value={newKeyName}
-                    onChange={(e) => setNewKeyName(e.target.value)}
-                    className="col-span-3"
-                    placeholder="My API Key"
-                    required
+              <div className="space-y-4">
+                <ApiKeysTable 
+                  apiKeys={paginatedApiKeys}
+                  sortConfig={sortConfig}
+                  onSort={requestSort}
+                  visibleKeys={visibleKeys}
+                  onToggleKeyVisibility={toggleKeyVisibility}
+                  onViewKey={handleViewKey}
+                  onDeleteKey={handleDeleteKey}
+                  searchQuery={searchQuery}
+                  typeFilters={typeFilters}
+                  onClearFilters={clearFilters}
+                  totalCount={filteredApiKeys.length}
+                />
+                
+                {filteredApiKeys.length > 0 && (
+                  <Pagination
+                    currentPage={currentPage}
+                    totalPages={totalPages}
+                    totalItems={filteredApiKeys.length}
+                    itemsPerPage={itemsPerPage}
+                    onPageChange={handlePageChange}
+                    onItemsPerPageChange={handleItemsPerPageChange}
                   />
-                </div>
-                <div className="grid grid-cols-4 items-center gap-4">
-                  <Label htmlFor="service" className="text-right">
-                    Service
-                  </Label>
-                  <div className="col-span-3">
-                    <select
-                      id="service"
-                      value={newKeyService}
-                      onChange={handleServiceChange}
-                      className="w-full rounded-md border border-input bg-background px-3 py-2"
-                      required
-                    >
-                      <option value="OpenAI">OpenAI</option>
-                      <option value="Google Gemini">Google Gemini</option>
-                      <option value="Anthropic">Anthropic</option>
-                      <option value="Deepseek">Deepseek</option>
-                      <option value="GitHub">GitHub</option>
-                      <option value="Custom">Custom</option>
-                    </select>
-                  </div>
-                </div>
-                {isCustomService && (
-                  <div className="grid grid-cols-4 items-center gap-4">
-                    <Label htmlFor="customServiceName" className="text-right">
-                      Custom Service Name
-                    </Label>
-                    <div className="col-span-3">
-                      <Input
-                        id="customServiceName"
-                        value={customServiceName}
-                        onChange={(e) => setCustomServiceName(e.target.value)}
-                        className="col-span-3"
-                        placeholder="Enter custom service name"
-                        required={isCustomService}
-                      />
-                    </div>
-                  </div>
                 )}
-                <div className="grid grid-cols-4 items-center gap-4">
-                  <Label htmlFor="key" className="text-right">
-                    API Key
-                  </Label>
-                  <div className="col-span-3 relative">
+              </div>
+            </>
+          )}
+
+          <Dialog open={isAddKeyDialogOpen} onOpenChange={setIsAddKeyDialogOpen}>
+            <DialogContent className="sm:max-w-[425px]">
+              <DialogHeader>
+                <DialogTitle>Add New Key</DialogTitle>
+                <DialogDescription>
+                  Add a new API key to be securely stored. Only you will be able to view this key.
+                </DialogDescription>
+              </DialogHeader>
+              <form onSubmit={handleAddKey}>
+                <div className="grid gap-4 py-4">
+                  <div className="grid grid-cols-4 items-center gap-4">
+                    <Label htmlFor="name" className="text-right">
+                      Name
+                    </Label>
                     <Input
-                      id="key"
-                      type={showKey ? "text" : "password"}
-                      value={newKeyValue}
-                      onChange={(e) => setNewKeyValue(e.target.value)}
-                      className="pr-9"
-                      placeholder="Enter your API key"
+                      id="name"
+                      value={newKeyName}
+                      onChange={(e) => setNewKeyName(e.target.value)}
+                      className="col-span-3"
+                      placeholder="My API Key"
                       required
                     />
-                    <button
-                      type="button"
-                      onClick={() => setShowKey(!showKey)}
-                      className="absolute inset-y-0 right-0 pr-3 flex items-center"
-                    >
-                      {showKey ? (
-                        <EyeOff className="h-4 w-4 text-muted-foreground" />
-                      ) : (
-                        <Eye className="h-4 w-4 text-muted-foreground" />
-                      )}
-                    </button>
+                  </div>
+                  <div className="grid grid-cols-4 items-center gap-4">
+                    <Label htmlFor="service" className="text-right">
+                      Service
+                    </Label>
+                    <div className="col-span-3">
+                      <select
+                        id="service"
+                        value={newKeyService}
+                        onChange={handleServiceChange}
+                        className="w-full rounded-md border border-input bg-background px-3 py-2"
+                        required
+                      >
+                        <option value="OpenAI">OpenAI</option>
+                        <option value="Google Gemini">Google Gemini</option>
+                        <option value="Anthropic">Anthropic</option>
+                        <option value="Deepseek">Deepseek</option>
+                        <option value="GitHub">GitHub</option>
+                        <option value="Custom">Custom</option>
+                      </select>
+                    </div>
+                  </div>
+                  {isCustomService && (
+                    <div className="grid grid-cols-4 items-center gap-4">
+                      <Label htmlFor="customServiceName" className="text-right">
+                        Custom Service Name
+                      </Label>
+                      <div className="col-span-3">
+                        <Input
+                          id="customServiceName"
+                          value={customServiceName}
+                          onChange={(e) => setCustomServiceName(e.target.value)}
+                          className="col-span-3"
+                          placeholder="Enter custom service name"
+                          required={isCustomService}
+                        />
+                      </div>
+                    </div>
+                  )}
+                  <div className="grid grid-cols-4 items-center gap-4">
+                    <Label htmlFor="key" className="text-right">
+                      API Key
+                    </Label>
+                    <div className="col-span-3 relative">
+                      <Input
+                        id="key"
+                        type={showKey ? "text" : "password"}
+                        value={newKeyValue}
+                        onChange={(e) => setNewKeyValue(e.target.value)}
+                        className="pr-9"
+                        placeholder="Enter your API key"
+                        required
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setShowKey(!showKey)}
+                        className="absolute inset-y-0 right-0 pr-3 flex items-center"
+                      >
+                        {showKey ? (
+                          <EyeOff className="h-4 w-4 text-muted-foreground" />
+                        ) : (
+                          <Eye className="h-4 w-4 text-muted-foreground" />
+                        )}
+                      </button>
+                    </div>
                   </div>
                 </div>
-              </div>
-              <DialogFooter>
-                <Button type="button" variant="outline" onClick={() => setIsAddKeyDialogOpen(false)}>
-                  Cancel
-                </Button>
-                <Button type="submit" disabled={isSubmitting}>
-                  {isSubmitting ? "Saving..." : "Save Key"}
-                </Button>
-              </DialogFooter>
-            </form>
-          </DialogContent>
-        </Dialog>
+                <DialogFooter>
+                  <Button type="button" variant="outline" onClick={() => setIsAddKeyDialogOpen(false)}>
+                    Cancel
+                  </Button>
+                  <Button type="submit" disabled={isSubmitting}>
+                    {isSubmitting ? "Saving..." : "Save Key"}
+                  </Button>
+                </DialogFooter>
+              </form>
+            </DialogContent>
+          </Dialog>
+        </div>
       </CredentialLayout>
     </ProtectedRoute>
   );

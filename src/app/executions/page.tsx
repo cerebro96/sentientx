@@ -7,13 +7,20 @@ import { Badge } from "@/components/ui/badge"
 import { Switch } from "@/components/ui/switch"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Label } from "@/components/ui/label"
-import { Filter, MoreVertical, Plus, RefreshCw, Search, Check, X, ArrowDown, ArrowUp, Activity, AlertCircle } from "lucide-react"
+import { Filter, MoreVertical, Plus, RefreshCw, Search, Check, X, ArrowDown, ArrowUp, Activity, AlertCircle, ChevronLeft, ChevronRight } from "lucide-react"
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select"
 import { ProtectedRoute } from "@/components/auth/ProtectedRoute"
 import { ExecutionLayout } from "@/components/layout/execution-layout"
 import { useExecutions } from "@/hooks/use-executions"
@@ -36,6 +43,127 @@ interface ExecutionsTableProps {
   statusFilter: string[]
   onClearFilters: () => void
   onViewWorkflow: (workflowId: string) => void
+  totalCount: number
+}
+
+interface PaginationProps {
+  currentPage: number
+  totalPages: number
+  totalItems: number
+  itemsPerPage: number
+  onPageChange: (page: number) => void
+  onItemsPerPageChange: (itemsPerPage: number) => void
+}
+
+function Pagination({ 
+  currentPage, 
+  totalPages, 
+  totalItems, 
+  itemsPerPage, 
+  onPageChange, 
+  onItemsPerPageChange 
+}: PaginationProps) {
+  const startItem = (currentPage - 1) * itemsPerPage + 1
+  const endItem = Math.min(currentPage * itemsPerPage, totalItems)
+
+  const getVisiblePages = () => {
+    const delta = 2
+    const pages = []
+    const rangeStart = Math.max(2, currentPage - delta)
+    const rangeEnd = Math.min(totalPages - 1, currentPage + delta)
+
+    if (totalPages <= 1) return []
+
+    // Always show first page
+    pages.push(1)
+
+    if (rangeStart > 2) {
+      pages.push('...')
+    }
+
+    for (let i = rangeStart; i <= rangeEnd; i++) {
+      pages.push(i)
+    }
+
+    if (rangeEnd < totalPages - 1) {
+      pages.push('...')
+    }
+
+    // Always show last page (if not already included)
+    if (totalPages > 1) {
+      pages.push(totalPages)
+    }
+
+    return pages
+  }
+
+  return (
+    <div className="flex items-center justify-between px-2 py-4 border-t">
+      <div className="flex items-center space-x-2">
+        <p className="text-sm text-muted-foreground">
+          Showing {startItem} to {endItem} of {totalItems} results
+        </p>
+        <div className="flex items-center space-x-2">
+          <p className="text-sm text-muted-foreground">Rows per page:</p>
+          <Select
+            value={itemsPerPage.toString()}
+            onValueChange={(value) => onItemsPerPageChange(parseInt(value))}
+          >
+            <SelectTrigger className="h-8 w-16">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="10">10</SelectItem>
+              <SelectItem value="25">25</SelectItem>
+              <SelectItem value="50">50</SelectItem>
+              <SelectItem value="100">100</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+      </div>
+      
+      <div className="flex items-center space-x-2">
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={() => onPageChange(currentPage - 1)}
+          disabled={currentPage <= 1}
+        >
+          <ChevronLeft className="h-4 w-4" />
+          Previous
+        </Button>
+        
+        <div className="flex items-center space-x-1">
+          {getVisiblePages().map((page, index) => (
+            <div key={index}>
+              {page === '...' ? (
+                <span className="px-2 py-1 text-sm text-muted-foreground">...</span>
+              ) : (
+                <Button
+                  variant={currentPage === page ? "default" : "outline"}
+                  size="sm"
+                  className="h-8 w-8 p-0"
+                  onClick={() => onPageChange(page as number)}
+                >
+                  {page}
+                </Button>
+              )}
+            </div>
+          ))}
+        </div>
+        
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={() => onPageChange(currentPage + 1)}
+          disabled={currentPage >= totalPages}
+        >
+          Next
+          <ChevronRight className="h-4 w-4" />
+        </Button>
+      </div>
+    </div>
+  )
 }
 
 function ExecutionsTable({ 
@@ -47,7 +175,8 @@ function ExecutionsTable({
   searchQuery,
   statusFilter,
   onClearFilters,
-  onViewWorkflow
+  onViewWorkflow,
+  totalCount
 }: ExecutionsTableProps) {
   return (
     <div className="rounded-md border">
@@ -343,6 +472,10 @@ export default function ExecutionsPage() {
   })
   const [isEditorOpen, setIsEditorOpen] = useState(false);
   const [editingWorkflowId, setEditingWorkflowId] = useState<string | null>(null);
+  
+  // Pagination state
+  const [currentPage, setCurrentPage] = useState(1)
+  const [itemsPerPage, setItemsPerPage] = useState(25)
 
   useEffect(() => {
     let intervalId: NodeJS.Timeout | null = null
@@ -356,6 +489,11 @@ export default function ExecutionsPage() {
       if (intervalId) clearInterval(intervalId)
     }
   }, [autoRefresh, refresh])
+
+  // Reset to first page when filters change
+  useEffect(() => {
+    setCurrentPage(1)
+  }, [searchQuery, statusFilter])
 
   const handleSort = (key: keyof Execution) => {
     setSortConfig(prev => ({
@@ -407,7 +545,16 @@ export default function ExecutionsPage() {
     setIsEditorOpen(true);
   };
 
-  const filteredAndSortedExecutions = useMemo(() => {
+  const handlePageChange = (page: number) => {
+    setCurrentPage(page)
+  }
+
+  const handleItemsPerPageChange = (newItemsPerPage: number) => {
+    setItemsPerPage(newItemsPerPage)
+    setCurrentPage(1) // Reset to first page when changing items per page
+  }
+
+  const { filteredExecutions, paginatedExecutions, totalPages } = useMemo(() => {
     let result = [...executions]
 
     // Apply search filter
@@ -437,8 +584,19 @@ export default function ExecutionsPage() {
       })
     }
 
-    return result
-  }, [executions, searchQuery, statusFilter, sortConfig])
+    // Calculate pagination
+    const totalFilteredItems = result.length
+    const totalPages = Math.ceil(totalFilteredItems / itemsPerPage)
+    const startIndex = (currentPage - 1) * itemsPerPage
+    const endIndex = startIndex + itemsPerPage
+    const paginatedResults = result.slice(startIndex, endIndex)
+
+    return {
+      filteredExecutions: result,
+      paginatedExecutions: paginatedResults,
+      totalPages
+    }
+  }, [executions, searchQuery, statusFilter, sortConfig, currentPage, itemsPerPage])
 
   if (isEditorOpen && editingWorkflowId) {
     return (
@@ -551,8 +709,9 @@ export default function ExecutionsPage() {
                   </div>
                 </div>
                 
+                <div className="space-y-4">
                 <ExecutionsTable 
-                  executions={filteredAndSortedExecutions}
+                    executions={paginatedExecutions}
                   onExecutionSelect={handleExecutionSelect}
                   selectedExecutions={selectedExecutions}
                   sortConfig={sortConfig}
@@ -561,7 +720,20 @@ export default function ExecutionsPage() {
                   statusFilter={statusFilter}
                   onClearFilters={clearFilters}
                   onViewWorkflow={handleViewWorkflow}
-                />
+                    totalCount={filteredExecutions.length}
+                  />
+                  
+                  {filteredExecutions.length > 0 && (
+                    <Pagination
+                      currentPage={currentPage}
+                      totalPages={totalPages}
+                      totalItems={filteredExecutions.length}
+                      itemsPerPage={itemsPerPage}
+                      onPageChange={handlePageChange}
+                      onItemsPerPageChange={handleItemsPerPageChange}
+                    />
+                  )}
+                </div>
               </>
             )}
           </div>
