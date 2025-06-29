@@ -21,6 +21,7 @@ export function CredentialHeader() {
   const [initials, setInitials] = useState('');
   const [isProfileOpen, setIsProfileOpen] = useState(false);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
+  const [isDropdownOpen, setIsDropdownOpen] = useState(false);
 
   useEffect(() => {
     const fetchUserData = async () => {
@@ -75,6 +76,22 @@ export function CredentialHeader() {
     }
   };
 
+  const handleOpenProfile = () => {
+    setIsDropdownOpen(false);
+    // Add small delay to allow dropdown to close properly
+    setTimeout(() => {
+      setIsProfileOpen(true);
+    }, 100);
+  };
+
+  const handleOpenSettings = () => {
+    setIsDropdownOpen(false);
+    // Add small delay to allow dropdown to close properly
+    setTimeout(() => {
+      setIsSettingsOpen(true);
+    }, 100);
+  };
+
   return (
     <header className="border-b">
       <div className="flex h-16 items-center justify-between px-6">
@@ -86,7 +103,7 @@ export function CredentialHeader() {
           </p>
         </div>
         <div className="flex items-center gap-4">
-          <DropdownMenu>
+          <DropdownMenu open={isDropdownOpen} onOpenChange={setIsDropdownOpen}>
             <DropdownMenuTrigger asChild>
               <Button variant="ghost" className="relative h-8 w-8 rounded-full">
                 <Avatar className="h-8 w-8">
@@ -107,8 +124,8 @@ export function CredentialHeader() {
                 </div>
               </DropdownMenuLabel>
               <DropdownMenuSeparator />
-              <DropdownMenuItem onClick={() => setIsProfileOpen(true)}>Profile</DropdownMenuItem>
-              <DropdownMenuItem onClick={() => setIsSettingsOpen(true)}>Settings</DropdownMenuItem>
+              <DropdownMenuItem onClick={handleOpenProfile}>Profile</DropdownMenuItem>
+              <DropdownMenuItem onClick={handleOpenSettings}>Settings</DropdownMenuItem>
               <DropdownMenuItem onClick={handleSignOut}>Sign out</DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
