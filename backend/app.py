@@ -458,7 +458,7 @@ async def start_multi_agent_workflow(
             "streaming": False
         }
 
-        agent_factory_run_endpoint = f"{agent_factory_url}/run_sse"
+        agent_factory_run_endpoint = f"{agent_factory_url}/agent_creator"
         logger.info(f"Forwarding request to Agent Factory endpoint: {agent_factory_run_endpoint}")
         logger.debug(f"Full payload to Agent Factory: {json.dumps(payload_to_agent_factory)}")
 
