@@ -11,9 +11,10 @@ import { cn } from '@/lib/utils';
 
 export interface NodePanelProps {
   onToggle?: () => void;
+  agentType?: string;
 }
 
-export function NodePanel({ onToggle }: NodePanelProps) {
+export function NodePanel({ onToggle, agentType }: NodePanelProps) {
   const [searchQuery, setSearchQuery] = useState('');
   const [collapsedCategories, setCollapsedCategories] = useState<Record<string, boolean>>({});
   const addNode = useWorkflowStore((state) => state.addNode);
@@ -21,9 +22,26 @@ export function NodePanel({ onToggle }: NodePanelProps) {
   // Filter nodeCatalog to only include non-hidden nodes
   const availableNodes = nodeCatalog.filter(node => !node.hidden);
 
-  // Get unique categories from available nodes
-  const categories = [...new Set(availableNodes.map(node => node.category))];
-  
+  // Define category mappings based on agent type
+  const getCategoriesForAgentType = (agentType?: string): string[] => {
+    switch (agentType) {
+      case 'multi_agent':
+        return ['Multi Agentic', 'Tools'];
+      case 'prebuild_agents':
+        return ['Pre-Built Agents','Triggers'];
+      case 'single_agent':
+      default:
+        return ['LLM APIs', 'Triggers', 'AI', 'Webhook'];
+    }
+  };
+
+  // Get allowed categories based on agent type
+  const allowedCategories = getCategoriesForAgentType(agentType);
+
+  // Get unique categories from available nodes, filtered by agent type
+  const categories = [...new Set(availableNodes.map(node => node.category))]
+    .filter(category => allowedCategories.includes(category));
+
   // Initialize all categories as collapsed on first render
   useEffect(() => {
     const initialCollapsedState = categories.reduce((acc, category) => {
@@ -32,15 +50,16 @@ export function NodePanel({ onToggle }: NodePanelProps) {
     }, {} as Record<string, boolean>);
     
     setCollapsedCategories(initialCollapsedState);
-  }, []);
+  }, [categories.join(',')]); // Update when categories change
 
-  // Filter nodes based on search query. Search *all* nodes if query exists.
+  // Filter nodes based on search query and agent type
   const filteredNodes = searchQuery.trim() 
-    ? nodeCatalog.filter(node => // Search the full catalog
-        node.label.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        node.description.toLowerCase().includes(searchQuery.toLowerCase())
+    ? nodeCatalog.filter(node => // Search the full catalog but filter by agent type
+        (node.label.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        node.description.toLowerCase().includes(searchQuery.toLowerCase())) &&
+        allowedCategories.includes(node.category)
       )
-    : availableNodes; // Default to non-hidden nodes
+    : availableNodes.filter(node => allowedCategories.includes(node.category)); // Filter by agent type
 
   // Determine categories based on whether we are searching or not
   const currentCategories = searchQuery.trim()
