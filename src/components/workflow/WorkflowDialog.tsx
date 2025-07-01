@@ -7,6 +7,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Switch } from "@/components/ui/switch";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { toast } from 'sonner';
 import { createWorkflow } from '@/lib/workflows';
 import { Tag, X, Plus, Send, MessageSquare, Bot } from 'lucide-react';
@@ -17,6 +18,7 @@ import { v4 as uuidv4 } from 'uuid';
 export interface WorkflowFormData {
   name: string;
   description: string;
+  agentType: string;
   isActive: boolean;
   tags: string[];
   systemPrompt?: string;
@@ -35,9 +37,16 @@ interface WorkflowDialogProps {
   onWorkflowCreated: (formData: WorkflowFormData) => void;
 }
 
+const agentTypeOptions = [
+  { value: 'single_agent', label: 'Single Agent', description: 'Simple workflows with one AI agent' },
+  { value: 'multi_agent', label: 'Multi Agent', description: 'Complex workflows with multiple coordinated agents' },
+  { value: 'prebuild_agents', label: 'Prebuild Agents', description: 'Pre-configured agent templates and solutions' }
+];
+
 export function WorkflowDialog({ isOpen, onClose, onWorkflowCreated }: WorkflowDialogProps) {
   const [name, setName] = useState('');
   const [description, setDescription] = useState('');
+  const [agentType, setAgentType] = useState('');
   const [isActive, setIsActive] = useState(true);
   const [tags, setTags] = useState<string[]>([]);
   const [tagInput, setTagInput] = useState('');
@@ -58,6 +67,16 @@ export function WorkflowDialog({ isOpen, onClose, onWorkflowCreated }: WorkflowD
       setChatHistory([]);
       setIsReadyToCreate(false);
       setFinalWorkflowData(null);
+      // Reset form
+      setName('');
+      setDescription('');
+      setAgentType('');
+      setTags([]);
+      setTagInput('');
+      setIsLoading(false); // Reset loading state when dialog opens
+    } else {
+      // Reset loading state when dialog closes
+      setIsLoading(false);
     }
   }, [isOpen]);
   
@@ -91,38 +110,73 @@ export function WorkflowDialog({ isOpen, onClose, onWorkflowCreated }: WorkflowD
       return;
     }
     
+    if (isLoading) {
+      return; // Prevent double submission
+    }
+    
     console.log("Populating form with AI data:", finalWorkflowData);
     
-    setName(finalWorkflowData.name || '');
-    setDescription(finalWorkflowData.description || '');
-    setTags(finalWorkflowData.tags || []);
+    setIsLoading(true);
     
-    onWorkflowCreated({
-      name: finalWorkflowData.name || '',
-      description: finalWorkflowData.description || '',
-      isActive,
-      tags: finalWorkflowData.tags || [],
-      systemPrompt: finalWorkflowData.system_prompt,
-      model: finalWorkflowData.model,
-      apiKeyId: finalWorkflowData.apiKeyId
-    });
-    
-    toast.info("Form populated with AI suggestions. Review and click 'Create Workflow'.");
+    try {
+      setName(finalWorkflowData.name || '');
+      setDescription(finalWorkflowData.description || '');
+      setTags(finalWorkflowData.tags || []);
+      // Set default agent type from AI if not specified
+      setAgentType(finalWorkflowData.agentType || 'single_agent');
+      
+      onWorkflowCreated({
+        name: finalWorkflowData.name || '',
+        description: finalWorkflowData.description || '',
+        agentType: finalWorkflowData.agentType || 'single_agent',
+        isActive,
+        tags: finalWorkflowData.tags || [],
+        systemPrompt: finalWorkflowData.system_prompt,
+        model: finalWorkflowData.model,
+        apiKeyId: finalWorkflowData.apiKeyId
+      });
+      
+      toast.info("Creating workflow from AI suggestions...");
+    } catch (error) {
+      console.error("Error creating workflow from chat:", error);
+      setIsLoading(false);
+    }
   };
   
   const handleManualSubmit = (e: React.FormEvent) => {
-     e.preventDefault();
-     if (!name.trim()) {
-       toast.error("Workflow name is required");
-       return;
-     }
+    e.preventDefault();
+    
+    // Prevent double submission
+    if (isLoading) {
+      return;
+    }
+    
+    // Validation
+    if (!name.trim()) {
+      toast.error("Workflow name is required");
+      return;
+    }
+    
+    if (!agentType) {
+      toast.error("Agent type is required");
+      return;
+    }
+    
+    setIsLoading(true);
+    
+    try {
       onWorkflowCreated({
         name: name.trim(),
         description: description.trim(),
+        agentType,
         isActive,
         tags
       });
-   };
+    } catch (error) {
+      console.error("Error creating workflow:", error);
+      setIsLoading(false);
+    }
+  };
 
   const sendBuilderMessage = async (messageToSend: string, currentSessionId: string) => {
     if (!messageToSend.trim() || !currentSessionId) return;
@@ -169,6 +223,8 @@ export function WorkflowDialog({ isOpen, onClose, onWorkflowCreated }: WorkflowD
       }
   };
 
+  const isFormValid = name.trim() && agentType;
+
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
       <DialogContent className="sm:max-w-4xl p-0 flex flex-col h-[70vh]">
@@ -183,7 +239,9 @@ export function WorkflowDialog({ isOpen, onClose, onWorkflowCreated }: WorkflowD
               </DialogHeader>
               <div className="grid gap-4 py-4 flex-grow">
                 <div className="grid gap-2">
-                  <Label htmlFor="name">Name</Label>
+                  <Label htmlFor="name">
+                    Name <span className="text-destructive">*</span>
+                  </Label>
                   <Input
                     id="name"
                     value={name}
@@ -204,6 +262,31 @@ export function WorkflowDialog({ isOpen, onClose, onWorkflowCreated }: WorkflowD
                     autoComplete="off"
                     rows={3}
                   />
+                </div>
+                <div className="grid gap-2">
+                  <Label htmlFor="agentType">
+                    Agent Type <span className="text-destructive">*</span>
+                  </Label>
+                  <Select value={agentType} onValueChange={setAgentType} required>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select agent type" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {agentTypeOptions.map((option) => (
+                        <SelectItem key={option.value} value={option.value}>
+                          <div className="flex flex-col">
+                            <span className="font-medium">{option.label}</span>
+                            <span className="text-sm text-muted-foreground">{option.description}</span>
+                          </div>
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  {!agentType && (
+                    <p className="text-sm text-muted-foreground">
+                      Choose the type of agent system for your workflow
+                    </p>
+                  )}
                 </div>
                 <div className="grid gap-2">
                   <Label htmlFor="tags">Tags</Label>
@@ -254,7 +337,7 @@ export function WorkflowDialog({ isOpen, onClose, onWorkflowCreated }: WorkflowD
                 >
                   Cancel
                 </Button>
-                <Button type="submit" disabled={isLoading || !name.trim()}>
+                <Button type="submit" disabled={isLoading || !isFormValid}>
                   {isLoading ? "Saving..." : "Create Workflow"}
                 </Button>
               </DialogFooter>
@@ -290,9 +373,9 @@ export function WorkflowDialog({ isOpen, onClose, onWorkflowCreated }: WorkflowD
               )}
               {isReadyToCreate && (
                  <div className="mt-4 text-center">
-                    <Button onClick={createWorkflowFromChat} size="sm">
+                    <Button onClick={createWorkflowFromChat} size="sm" disabled={isLoading}>
                        <Bot className="mr-2 h-4 w-4" />
-                       Create Workflow from Chat
+                       {isLoading ? "Creating..." : "Create Workflow from Chat"}
                     </Button>
                  </div>
               )}

@@ -29,6 +29,7 @@ interface WorkflowHeaderProps {
   onPauseWorkflow?: () => void;
   workflowStatus?: 'idle' | 'running' | 'paused';
   isSupabaseAgentLoading?: boolean;
+  nodes?: any[];
 }
 
 export function WorkflowHeader({ 
@@ -44,7 +45,8 @@ export function WorkflowHeader({
   onStopWorkflow,
   onPauseWorkflow,
   workflowStatus,
-  isSupabaseAgentLoading = false
+  isSupabaseAgentLoading = false,
+  nodes = []
 }: WorkflowHeaderProps) {
   const [isEditing, setIsEditing] = useState(false);
   const [editedName, setEditedName] = useState(name);
@@ -53,6 +55,21 @@ export function WorkflowHeader({
   const [workflowTags, setWorkflowTags] = useState<string[]>(tags);
   const [isSenXClientModalOpen, setIsSenXClientModalOpen] = useState(false);
   const [globalWorkflowStatus, setGlobalWorkflowStatus] = useState<string>('idle');
+
+  // Check if workflow has agent nodes
+  const hasAgentNodes = () => {
+    const agentTypes = [
+      // 'AI Agent',
+      // 'Supabase AI Agent', 
+      'Multi Agent (BaseAgent)',
+      'LLM Agent',
+      'Sequential agent',
+      'Loop agent',
+      'Parallel agent'
+    ];
+    
+    return nodes.some(node => agentTypes.includes(node?.data?.label));
+  };
 
   // Update local tags when props change
   useEffect(() => {
@@ -291,8 +308,14 @@ export function WorkflowHeader({
             size="sm" 
             className="h-7" 
             onClick={() => setIsSenXClientModalOpen(true)}
-            disabled={globalWorkflowStatus !== 'running'}
-            title={globalWorkflowStatus !== 'running' ? 'Start the workflow to enable SenX Client' : 'Open SenX Client'}
+            disabled={globalWorkflowStatus !== 'running' || !hasAgentNodes()}
+            title={
+              globalWorkflowStatus !== 'running' 
+                ? 'Start the workflow to enable SenX Client' 
+                : !hasAgentNodes()
+                ? 'Add Multi Agent or LLM Agent nodes to enable SenX Client'
+                : 'Open SenX Client'
+            }
           >
             {/* <Share2 className="h-4 w-4 mr-1" /> */}
             SenX Client

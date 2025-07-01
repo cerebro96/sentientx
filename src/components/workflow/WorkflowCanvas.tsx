@@ -86,6 +86,7 @@ export function WorkflowCanvas({ isActive, onClose, workflowId, newWorkflowData 
   const [workflowName, setWorkflowName] = useState(newWorkflowData?.name || 'My workflow');
   const [isWorkflowActive, setIsWorkflowActive] = useState(newWorkflowData?.isActive || false);
   const [tags, setTags] = useState<string[]>(newWorkflowData?.tags || []);
+  const [agentType, setAgentType] = useState<string>(newWorkflowData?.agentType || 'single_agent');
   const [createdWorkflowId, setCreatedWorkflowId] = useState<string | undefined>(undefined);
   const [activeTab, setActiveTab] = useState('canvas');
   const [isPanelVisible, setIsPanelVisible] = useState(true);
@@ -184,6 +185,7 @@ export function WorkflowCanvas({ isActive, onClose, workflowId, newWorkflowData 
         const newWorkflow = await createWorkflow({
           ...flowData,
           description: newWorkflowData?.description || undefined, // Add description if available
+          agent_type: newWorkflowData?.agentType || 'single_agent', // Add required agent_type
         });
         
         if (newWorkflow && newWorkflow.id) {
@@ -507,6 +509,7 @@ export function WorkflowCanvas({ isActive, onClose, workflowId, newWorkflowData 
       setWorkflowName(newWorkflowData.name);
       setIsWorkflowActive(newWorkflowData.isActive);
       setTags(newWorkflowData.tags || []);
+      setAgentType(newWorkflowData.agentType || 'single_agent');
     }
   }, [newWorkflowData, workflowId]);
 
@@ -563,6 +566,7 @@ export function WorkflowCanvas({ isActive, onClose, workflowId, newWorkflowData 
           setWorkflowName(data.name);
           setIsWorkflowActive(data.is_active);
           setTags(data.tags || []);
+          setAgentType(data.agent_type || 'single_agent');
           
           // Store the workflow ID in the global state for components to access
           setWorkflowId(workflowId);
@@ -1639,6 +1643,7 @@ export function WorkflowCanvas({ isActive, onClose, workflowId, newWorkflowData 
         onStopWorkflow={handleStopWorkflow}
         workflowStatus={workflowStatus}
         isSupabaseAgentLoading={isSupabaseAgentLoading}
+        nodes={nodes}
       />
       
       <div className="flex-1 flex overflow-hidden">
@@ -1646,7 +1651,7 @@ export function WorkflowCanvas({ isActive, onClose, workflowId, newWorkflowData 
           <>
             <div className={`h-full transition-all duration-300 ${isPanelVisible ? 'w-64' : 'w-0'} relative overflow-hidden flex-shrink-0`}>
               {isPanelVisible && (
-                <NodePanel onToggle={() => setIsPanelVisible(false)} />
+                <NodePanel onToggle={() => setIsPanelVisible(false)} agentType={agentType} />
               )}
               <Button 
                 variant="ghost" 
