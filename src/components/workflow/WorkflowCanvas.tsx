@@ -184,6 +184,7 @@ export function WorkflowCanvas({ isActive, onClose, workflowId, newWorkflowData 
         const newWorkflow = await createWorkflow({
           ...flowData,
           description: newWorkflowData?.description || undefined, // Add description if available
+          agent_type: newWorkflowData?.agentType || 'single_agent', // Add required agent_type
         });
         
         if (newWorkflow && newWorkflow.id) {

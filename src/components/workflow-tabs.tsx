@@ -4,7 +4,7 @@ import { useState, useEffect, useMemo } from "react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Separator } from "@/components/ui/separator";
 import { Button } from "@/components/ui/button";
-import { Plus, ChevronDown, Search, MoreHorizontal, PenSquare, Copy, Trash2, Tag, AlertCircle, Calendar, Activity, Play, Grid3X3, Table2, ChevronLeft, ChevronRight } from "lucide-react";
+import { Plus, ChevronDown, Search, MoreHorizontal, PenSquare, Copy, Trash2, Tag, AlertCircle, Calendar, Activity, Play, Grid3X3, Table2, ChevronLeft, ChevronRight, Bot } from "lucide-react";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
@@ -214,12 +214,26 @@ export function WorkflowTabs({
     }
   };
 
+  const formatAgentType = (agentType: string) => {
+    switch (agentType) {
+      case 'single_agent':
+        return 'Single Agent';
+      case 'multi_agent':
+        return 'Multi Agent';
+      case 'prebuild_agents':
+        return 'Prebuild Agents';
+      default:
+        return agentType;
+    }
+  };
+
   const handleCreateWorkflowSuccess = async (formData: WorkflowFormData) => {
     try {
       // Create the workflow in the database
-      await createWorkflow({
+      const createdWorkflow = await createWorkflow({
         name: formData.name,
         description: formData.description || undefined,
+        agent_type: formData.agentType,
         is_active: formData.isActive,
         tags: formData.tags,
         nodes: [],
@@ -229,14 +243,23 @@ export function WorkflowTabs({
       // Success notification
       toast.success("Workflow created successfully");
       
-      // Send to canvas for editing
+      // Close dialog first
       setIsWorkflowDialogOpen(false);
-      onCreateWorkflow(formData);
+      
+      // Navigate to canvas with the CREATED WORKFLOW ID instead of creating a new one
+      if (createdWorkflow && createdWorkflow.id) {
+        // Pass the actual workflow ID for editing instead of newWorkflowData
+        onEditWorkflow(createdWorkflow.id);
+      } else {
+        // Fallback: if no ID returned, create as new (this shouldn't happen)
+        onCreateWorkflow(formData);
+      }
       
       // Refresh the list (optional, as user will be in canvas)
       loadWorkflows();
     } catch (error) {
       console.error("Failed to create workflow:", error);
+      // Keep dialog open so user can retry
       // Error toast is handled in createWorkflow function
     }
   };
@@ -266,9 +289,10 @@ export function WorkflowTabs({
       });
       
       // Prepare the rest of the duplicated data
-      const duplicatedWorkflowData: Partial<Workflow> & Pick<Workflow, 'name' | 'nodes' | 'edges' | 'tags'> = {
+      const duplicatedWorkflowData: Partial<Workflow> & Pick<Workflow, 'name' | 'nodes' | 'edges' | 'tags' | 'agent_type'> = {
         name: `${workflow.name} (Copy)`,
         description: workflow.description || undefined,
+        agent_type: workflow.agent_type,
         is_active: false, // Start inactive
         tags: workflow.tags || [],
         nodes: nodesCopy, // Use the modified nodes
@@ -390,6 +414,10 @@ export function WorkflowTabs({
                 <span className="text-sm text-muted-foreground">No tags</span>
               )}
             </div>
+            <div className="flex items-center text-sm text-muted-foreground mb-2">
+              <Bot className="h-4 w-4 mr-1" />
+              <span>{formatAgentType(workflow.agent_type)}</span>
+            </div>
             <div className="flex items-center text-sm text-muted-foreground">
               <Calendar className="h-4 w-4 mr-1" />
               <span>Created {formatDistanceToNow(new Date(workflow.created_at), { addSuffix: true })}</span>
@@ -421,6 +449,7 @@ export function WorkflowTabs({
             <thead className="border-b bg-muted/50">
               <tr>
                 <th className="h-10 px-4 text-left font-medium text-muted-foreground">Name</th>
+                <th className="h-10 px-4 text-left font-medium text-muted-foreground">Agent Type</th>
                 <th className="h-10 px-4 text-left font-medium text-muted-foreground">Description</th>
                 <th className="h-10 px-4 text-left font-medium text-muted-foreground">Status</th>
                 <th className="h-10 px-4 text-left font-medium text-muted-foreground">Tags</th>
@@ -435,6 +464,11 @@ export function WorkflowTabs({
                     <td className="p-4 font-medium">
                       <div className="max-w-[200px] truncate" title={workflow.name}>
                         {workflow.name}
+                      </div>
+                    </td>
+                    <td className="p-4">
+                      <div className="max-w-[300px] truncate" title={workflow.agent_type}>
+                        {formatAgentType(workflow.agent_type)}
                       </div>
                     </td>
                     <td className="p-4">
@@ -500,7 +534,7 @@ export function WorkflowTabs({
                 ))
               ) : (
                 <tr>
-                  <td colSpan={6} className="py-16 text-center">
+                  <td colSpan={7} className="py-16 text-center">
                     <div className="flex flex-col items-center justify-center space-y-3">
                       <div className="relative flex h-24 w-24 items-center justify-center rounded-full bg-muted">
                         <AlertCircle className="h-10 w-10 text-muted-foreground/60" />
@@ -564,6 +598,7 @@ export function WorkflowTabs({
             <TableHeader>
               <TableRow>
                 <TableHead>Name</TableHead>
+                <TableHead>Agent Type</TableHead>
                 <TableHead>Description</TableHead>
                 <TableHead>Status</TableHead>
                 <TableHead>Tags</TableHead>
@@ -659,10 +694,7 @@ export function WorkflowTabs({
       <WorkflowDialog
         isOpen={isWorkflowDialogOpen}
         onClose={() => setIsWorkflowDialogOpen(false)}
-        onWorkflowCreated={(formData) => {
-          setIsWorkflowDialogOpen(false);
-          onCreateWorkflow(formData);
-        }}
+        onWorkflowCreated={handleCreateWorkflowSuccess}
       />
 
       <AlertDialog open={!!workflowToDelete} onOpenChange={(open) => !open && setWorkflowToDelete(null)}>

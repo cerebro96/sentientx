@@ -6,6 +6,7 @@ export interface Workflow {
   user_id: string;
   name: string;
   description: string | null;
+  agent_type: string;
   is_active: boolean;
   tags: string[];
   nodes: any[];
@@ -17,6 +18,7 @@ export interface Workflow {
 export interface CreateWorkflowParams {
   name: string;
   description?: string;
+  agent_type: string;
   tags?: string[];
   is_active?: boolean;
   nodes?: any[];
@@ -35,6 +37,7 @@ export async function createWorkflow(params: CreateWorkflowParams) {
         user_id: userData.user.id,
         name: params.name,
         description: params.description || null,
+        agent_type: params.agent_type,
         is_active: params.is_active !== undefined ? params.is_active : true,
         tags: params.tags || [],
         nodes: params.nodes || [],
