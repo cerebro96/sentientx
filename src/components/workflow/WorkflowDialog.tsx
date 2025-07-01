@@ -227,7 +227,7 @@ export function WorkflowDialog({ isOpen, onClose, onWorkflowCreated }: WorkflowD
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="sm:max-w-4xl p-0 flex flex-col h-[70vh]">
+      <DialogContent className="sm:max-w-6xl p-0 flex flex-col h-[85vh]">
         <div className="flex flex-1 overflow-hidden">
           <div className="w-1/2 p-6 border-r overflow-y-auto flex flex-col">
             <form onSubmit={handleManualSubmit} className="flex flex-col h-full">
