@@ -1639,6 +1639,7 @@ export function WorkflowCanvas({ isActive, onClose, workflowId, newWorkflowData 
         onStopWorkflow={handleStopWorkflow}
         workflowStatus={workflowStatus}
         isSupabaseAgentLoading={isSupabaseAgentLoading}
+        nodes={nodes}
       />
       
       <div className="flex-1 flex overflow-hidden">
