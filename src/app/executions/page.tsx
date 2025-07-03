@@ -27,6 +27,7 @@ import { useExecutions } from "@/hooks/use-executions"
 import type { Execution } from "@/lib/data-fetching"
 import Loading from "./loading"
 import { WorkflowCanvas } from "@/components/workflow/WorkflowCanvas"
+import { formatToUserTimezone} from "@/lib/utils"
 
 interface SortConfig {
   key: keyof Execution | null
@@ -44,6 +45,7 @@ interface ExecutionsTableProps {
   onClearFilters: () => void
   onViewWorkflow: (workflowId: string) => void
   totalCount: number
+  use24Hour: boolean
 }
 
 interface PaginationProps {
@@ -176,7 +178,8 @@ function ExecutionsTable({
   statusFilter,
   onClearFilters,
   onViewWorkflow,
-  totalCount
+  totalCount,
+  use24Hour
 }: ExecutionsTableProps) {
   return (
     <div className="rounded-md border">
@@ -312,8 +315,8 @@ function ExecutionsTable({
                       )}
                     </div>
                   </td>
-                  <td className="p-4">{new Date(execution.started_at).toLocaleString()}</td>
-                  <td className="p-4">{execution.run_time || ''}</td>
+                  <td className="p-4">{formatToUserTimezone(execution.started_at, undefined, use24Hour)}</td>
+                  <td className="p-4">{execution.run_time ? formatToUserTimezone(execution.run_time, undefined, use24Hour) : ''}</td>
                   <td className="p-4">
                     <code className="rounded bg-muted px-1 py-0.5 font-mono text-sm">
                       {execution.id.substring(0, 8)}
@@ -375,13 +378,15 @@ function ExecutionsTable({
   )
 }
 
-function ExecutionFilters({ searchQuery, onSearchChange, statusFilter, onStatusFilterChange, autoRefresh, onAutoRefreshChange }: {
+function ExecutionFilters({ searchQuery, onSearchChange, statusFilter, onStatusFilterChange, autoRefresh, onAutoRefreshChange, use24Hour, onTimeFormatChange }: {
   searchQuery: string
   onSearchChange: (query: string) => void
   statusFilter: string[]
   onStatusFilterChange: (status: string) => void
   autoRefresh: boolean
   onAutoRefreshChange: (enabled: boolean) => void
+  use24Hour: boolean
+  onTimeFormatChange: (use24Hour: boolean) => void
 }) {
   return (
     <div className="flex items-center justify-between">
@@ -436,6 +441,17 @@ function ExecutionFilters({ searchQuery, onSearchChange, statusFilter, onStatusF
         
         <div className="flex items-center space-x-2">
           <Switch
+            id="time-format"
+            checked={use24Hour}
+            onCheckedChange={onTimeFormatChange}
+          />
+          <Label htmlFor="time-format" className="font-medium">
+            {use24Hour ? '24h' : '12h'}
+          </Label>
+        </div>
+        
+        <div className="flex items-center space-x-2">
+          <Switch
             id="auto-refresh"
             checked={autoRefresh}
             onCheckedChange={onAutoRefreshChange}
@@ -472,6 +488,7 @@ export default function ExecutionsPage() {
   })
   const [isEditorOpen, setIsEditorOpen] = useState(false);
   const [editingWorkflowId, setEditingWorkflowId] = useState<string | null>(null);
+  const [use24Hour, setUse24Hour] = useState(false);
   
   // Pagination state
   const [currentPage, setCurrentPage] = useState(1)
@@ -689,6 +706,17 @@ export default function ExecutionsPage() {
                     
                     <div className="flex items-center space-x-2">
                       <Switch
+                        id="time-format"
+                        checked={use24Hour}
+                        onCheckedChange={setUse24Hour}
+                      />
+                      <Label htmlFor="time-format" className="font-medium">
+                        {use24Hour ? '24h' : '12h'}
+                      </Label>
+                    </div>
+                    
+                    <div className="flex items-center space-x-2">
+                      <Switch
                         id="auto-refresh"
                         checked={autoRefresh}
                         onCheckedChange={setAutoRefresh}
@@ -721,6 +749,7 @@ export default function ExecutionsPage() {
                   onClearFilters={clearFilters}
                   onViewWorkflow={handleViewWorkflow}
                     totalCount={filteredExecutions.length}
+                  use24Hour={use24Hour}
                   />
                   
                   {filteredExecutions.length > 0 && (
