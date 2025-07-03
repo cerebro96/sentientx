@@ -3,7 +3,7 @@ CREATE TABLE executions (
     workflow_id VARCHAR(36) NOT NULL,
     workflow_name VARCHAR(255) NOT NULL,
     status VARCHAR(50) NOT NULL,
-    started_at TIMESTAMP NOT NULL,
+    started_at VARCHAR(50) NOT NULL,
     run_time VARCHAR(50),
     triggered_by VARCHAR(255),
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
