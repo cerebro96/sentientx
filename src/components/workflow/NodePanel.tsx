@@ -54,7 +54,7 @@ export function NodePanel({ onToggle, agentType }: NodePanelProps) {
 
   // Filter nodes based on search query and agent type
   const filteredNodes = searchQuery.trim() 
-    ? nodeCatalog.filter(node => // Search the full catalog but filter by agent type
+    ? availableNodes.filter(node => // Search only available nodes (excluding hidden ones)
         (node.label.toLowerCase().includes(searchQuery.toLowerCase()) ||
         node.description.toLowerCase().includes(searchQuery.toLowerCase())) &&
         allowedCategories.includes(node.category)

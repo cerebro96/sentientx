@@ -147,9 +147,9 @@ export function AiAgentModal({ isOpen, onClose, nodeId }: AiAgentModalProps) {
           <TabsList className="grid grid-cols-6 mb-6">
             <TabsTrigger value="overview">Overview</TabsTrigger>
             <TabsTrigger value="llm">LLM {getConnectionStatusIcon(connectedLLMs)}</TabsTrigger>
-            <TabsTrigger value="memory">Memory {getConnectionStatusIcon(connectedMemory)}</TabsTrigger>
+            {/* <TabsTrigger value="memory">Memory {getConnectionStatusIcon(connectedMemory)}</TabsTrigger>
             <TabsTrigger value="tools">Tools {getConnectionStatusIcon(connectedTools)}</TabsTrigger>
-            <TabsTrigger value="parser">Parser {getConnectionStatusIcon(connectedParsers)}</TabsTrigger>
+            <TabsTrigger value="parser">Parser {getConnectionStatusIcon(connectedParsers)}</TabsTrigger> */}
             <TabsTrigger value="connections">Connections</TabsTrigger>
           </TabsList>
           
@@ -164,27 +164,27 @@ export function AiAgentModal({ isOpen, onClose, nodeId }: AiAgentModalProps) {
                     <div className="text-xs text-muted-foreground">{connectedLLMs.length} connected</div>
                   </div>
                 </div>
-                <div className="flex items-center">
+                {/* <div className="flex items-center">
                   <Database className="h-5 w-5 mr-2 text-purple-500" />
                   <div>
                     <div className="text-sm font-medium">Memory</div>
                     <div className="text-xs text-muted-foreground">{connectedMemory.length} connected</div>
                   </div>
-                </div>
-                <div className="flex items-center">
+                </div> */}
+                {/* <div className="flex items-center">
                   <Wrench className="h-5 w-5 mr-2 text-yellow-500" />
                   <div>
                     <div className="text-sm font-medium">Tools</div>
                     <div className="text-xs text-muted-foreground">{connectedTools.length} connected</div>
                   </div>
-                </div>
-                <div className="flex items-center">
+                </div> */}
+                {/* <div className="flex items-center">
                   <FileCode className="h-5 w-5 mr-2 text-green-500" />
                   <div>
                     <div className="text-sm font-medium">Parser</div>
                     <div className="text-xs text-muted-foreground">{connectedParsers.length} connected</div>
                   </div>
-                </div>
+                </div> */}
               </div>
             </div>
             
@@ -257,7 +257,7 @@ export function AiAgentModal({ isOpen, onClose, nodeId }: AiAgentModalProps) {
             </div>
           </TabsContent>
           
-          <TabsContent value="memory" className="space-y-4">
+          {/* <TabsContent value="memory" className="space-y-4">
             <div className="space-y-2">
               <h3 className="text-lg font-medium">Memory</h3>
               <p className="text-sm text-muted-foreground mb-4">
@@ -266,9 +266,9 @@ export function AiAgentModal({ isOpen, onClose, nodeId }: AiAgentModalProps) {
               
               {renderConnectedNodeDetails(connectedMemory, 'Memory')}
             </div>
-          </TabsContent>
+          </TabsContent> */}
           
-          <TabsContent value="tools" className="space-y-4">
+          {/* <TabsContent value="tools" className="space-y-4">
             <div className="space-y-2">
               <h3 className="text-lg font-medium">Tools</h3>
               <p className="text-sm text-muted-foreground mb-4">
@@ -277,9 +277,9 @@ export function AiAgentModal({ isOpen, onClose, nodeId }: AiAgentModalProps) {
               
               {renderConnectedNodeDetails(connectedTools, 'Tools')}
             </div>
-          </TabsContent>
+          </TabsContent> */}
           
-          <TabsContent value="parser" className="space-y-4">
+          {/* <TabsContent value="parser" className="space-y-4">
             <div className="space-y-2">
               <h3 className="text-lg font-medium">Parser</h3>
               <p className="text-sm text-muted-foreground mb-4">
@@ -288,7 +288,7 @@ export function AiAgentModal({ isOpen, onClose, nodeId }: AiAgentModalProps) {
               
               {renderConnectedNodeDetails(connectedParsers, 'Parser')}
             </div>
-          </TabsContent>
+          </TabsContent> */}
           
           <TabsContent value="connections" className="space-y-4">
             <div className="space-y-6">

@@ -105,7 +105,7 @@ export const nodeCatalog = [
       { label: 'Tool', type: 'connection' },
       { label: 'Parser', type: 'connection' }
     ],
-    hidden: false,
+    hidden: true,
   },
   {
     type: 'action',
