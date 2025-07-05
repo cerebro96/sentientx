@@ -229,6 +229,32 @@ export function WorkflowTabs({
 
   const handleCreateWorkflowSuccess = async (formData: WorkflowFormData) => {
     try {
+      // Create initial nodes array
+      let initialNodes: any[] = [];
+
+      // If creating a single agent workflow, add an AI Agent node in the center
+      if (formData.agentType === 'single_agent') {
+        const aiAgentNode = {
+          id: `ai-agent-${Date.now()}`,
+          type: 'action',
+          position: { x: 400, y: 200 }, // Center position on canvas
+          data: {
+            label: 'AI Agent',
+            description: 'AI-Powered Automation',
+            type: 'action',
+            icon: 'Bot', // You might need to adjust this based on how icons are handled
+            hasError: false,
+            childNodes: [
+              { label: 'LLM', type: 'connection' },
+              // { label: 'Memory', type: 'connection' },
+              // { label: 'Tool', type: 'connection' },
+              // { label: 'Parser', type: 'connection' }
+            ]
+          }
+        };
+        initialNodes = [aiAgentNode];
+      }
+
       // Create the workflow in the database
       const createdWorkflow = await createWorkflow({
         name: formData.name,
@@ -236,8 +262,8 @@ export function WorkflowTabs({
         agent_type: formData.agentType,
         is_active: formData.isActive,
         tags: formData.tags,
-        nodes: [],
-        edges: []
+        nodes: initialNodes, // Pass the initial nodes
+        edges: [] // No edges initially
       });
       
       // Success notification
@@ -246,9 +272,8 @@ export function WorkflowTabs({
       // Close dialog first
       setIsWorkflowDialogOpen(false);
       
-      // Navigate to canvas with the CREATED WORKFLOW ID instead of creating a new one
+      // Navigate to canvas with the CREATED WORKFLOW ID
       if (createdWorkflow && createdWorkflow.id) {
-        // Pass the actual workflow ID for editing instead of newWorkflowData
         onEditWorkflow(createdWorkflow.id);
       } else {
         // Fallback: if no ID returned, create as new (this shouldn't happen)
