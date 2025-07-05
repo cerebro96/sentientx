@@ -24,64 +24,56 @@ export function ExecutionHeader() {
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
 
   useEffect(() => {
-    async function fetchUserData() {
+    const fetchUserData = async () => {
       try {
-        const { data: { user } } = await supabase.auth.getUser();
+        const { data: { user }, error: userError } = await supabase.auth.getUser();
+        
+        if (userError) {
+          console.error('Error getting current user:', userError);
+          return;
+        }
         
         if (user) {
           setEmail(user.email || '');
+          setFullName(user.user_metadata?.full_name || '');
           
-          const { data: profile, error } = await supabase
-            .from('profiles')
-            .select('*')
-            .eq('id', user.id)
-            .single();
-          
-          if (profile && !error) {
-            setFullName(profile.full_name || '');
-            setAvatarUrl(profile.avatar_url || '');
-          }
-          
-          if (!profile?.full_name) {
-            const emailInitials = user.email?.substring(0, 2).toUpperCase() || 'U';
-            setInitials(emailInitials);
+          // Generate initials from full name or email
+          if (user.user_metadata?.full_name) {
+            const names = user.user_metadata.full_name.split(' ');
+            if (names.length >= 2) {
+              setInitials(`${names[0][0].toUpperCase()}${names[1][0].toUpperCase()}`);
+            } else {
+              setInitials(names[0][0].toUpperCase());
+            }
+          } else if (user.email) {
+            setInitials(user.email[0].toUpperCase());
           } else {
-            generateInitials(profile.full_name);
+            setInitials('U');
           }
         }
       } catch (error) {
-        console.error('Error fetching user data:', error);
+        console.error('Error in fetchUserData:', error);
+        setInitials('U');
       }
-    }
+    };
     
     fetchUserData();
   }, []);
   
-  const generateInitials = (name: string) => {
-    const nameArray = name.split(' ');
-    let initials = '';
-    
-    if (nameArray.length === 1) {
-      initials = nameArray[0].substring(0, 2).toUpperCase();
-    } else {
-      initials = (nameArray[0].charAt(0) + nameArray[nameArray.length - 1].charAt(0)).toUpperCase();
-    }
-    
-    setInitials(initials);
-  };
-
   const handleSignOut = async () => {
-    try {
-      await supabase.auth.signOut();
-      router.push('/auth/login');
-    } catch (error) {
-      console.error('Error signing out:', error);
-    }
+    await signOut();
+    router.push('/auth/login');
   };
 
   const handleNameUpdate = (newName: string) => {
     setFullName(newName);
-    generateInitials(newName);
+    // Update initials
+    const names = newName.split(' ');
+    if (names.length >= 2) {
+      setInitials(`${names[0][0].toUpperCase()}${names[1][0].toUpperCase()}`);
+    } else {
+      setInitials(names[0][0].toUpperCase());
+    }
   };
 
   const handleOpenProfile = () => {
