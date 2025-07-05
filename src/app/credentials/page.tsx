@@ -274,7 +274,7 @@ function ApiKeysTable({
                 onClick={() => onSort('lastUsed')}
               >
                 <div className="flex items-center">
-                  Last Used
+                  Last Updated
                   {getSortIcon('lastUsed')}
                 </div>
               </th>
