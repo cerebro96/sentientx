@@ -28,6 +28,7 @@ import { getCurrentUser } from '@/lib/auth';
 import { MultiAgentModal } from '../multi-agent-modal';
 import { LlmAgentModal } from '../llm-agent-modal';
 import { ToolsModal } from '../tools-modal';
+import { SequentialParallelAgentModal } from '../sequential-parallel-agent-modal';
 
 // Simple chat message interface
 interface ChatMessage {
@@ -57,6 +58,7 @@ function ActionNodeComponent({ id, data, selected }: NodeProps<NodeData>) {
   const [isMultiAgentModalOpen, setIsMultiAgentModalOpen] = useState(false);
   const [isLlmAgentModalOpen, setIsLlmAgentModalOpen] = useState(false);
   const [isToolModalOpen, setIsToolModalOpen] = useState(false);
+  const [isSequentialParallelModalOpen, setIsSequentialParallelModalOpen] = useState(false);
   const [llmProvider, setLlmProvider] = useState<string>('');
   const [showWorkflowRunningWarning, setShowWorkflowRunningWarning] = useState(false);
   const [pendingModalType, setPendingModalType] = useState<'multiagent' | 'llmagent' | null>(null);
@@ -180,6 +182,10 @@ function ActionNodeComponent({ id, data, selected }: NodeProps<NodeData>) {
     } else {
       setIsLlmAgentModalOpen(true);
     }
+  };
+  
+  const handleOpenSequentialParallelConfig = () => {
+    setIsSequentialParallelModalOpen(true);
   };
   
   const handleWarningProceed = () => {
@@ -634,6 +640,37 @@ function ActionNodeComponent({ id, data, selected }: NodeProps<NodeData>) {
     }
   };
   
+  const handleSequentialParallelConfigSave = (configData: { 
+    name: string; 
+    description: string;
+    connectedNodes: {
+      id: string;
+      label: string;
+      type: string;
+      direction: 'input' | 'output';
+      description?: string;
+    }[];
+  }) => {
+    if (id) {
+      const updateNodeData = useWorkflowStore.getState().updateNodeData;
+      console.log('Saving Sequential/Parallel Agent configuration in node:', configData);
+      updateNodeData(id, {
+        sequentialParallelConfig: {
+          name: configData.name,
+          description: configData.description,
+          connectedNodes: configData.connectedNodes
+        }
+      });
+
+      // Trigger auto-save to persist changes
+      setTimeout(() => {
+        triggerAutoSave();
+        console.log('Auto-save triggered for Sequential/Parallel Agent node.');
+      }, 100);
+      toast.success('Sequential/Parallel Agent configuration updated');
+    }
+  };
+  
   // If it's a button style node, render a button
   if (isButtonNode) {
     return (
@@ -667,6 +704,10 @@ function ActionNodeComponent({ id, data, selected }: NodeProps<NodeData>) {
             ? selected 
               ? "border-pink-500 shadow-[0_0_20px_-5px_rgba(236,72,153,0.7)]" 
               : "border-pink-600 shadow-[0_0_10px_-5px_rgba(236,72,153,0.3)]"
+            : (isSequentialAgent || isParallelAgent)
+            ? selected
+              ? "border-black shadow-[0_0_20px_-5px_rgba(0,0,0,0.7)]"
+              : "border-gray-800 shadow-[0_0_10px_-5px_rgba(0,0,0,0.3)]"
             : selected 
               ? "border-blue-500 shadow-[0_0_20px_-5px_rgba(59,130,246,0.7)]" 
               : "border-blue-600 shadow-[0_0_10px_-5px_rgba(59,130,246,0.3)]"
@@ -688,6 +729,8 @@ function ActionNodeComponent({ id, data, selected }: NodeProps<NodeData>) {
                       ? handleOpenMultiAgentConfig
                     : isLLMAgent
                       ? handleOpenLlmAgentConfig
+                    : (isSequentialAgent || isParallelAgent)
+                      ? handleOpenSequentialParallelConfig
                     : isToolNode
                       ? () => setIsToolModalOpen(true)
                     : undefined
@@ -701,6 +744,8 @@ function ActionNodeComponent({ id, data, selected }: NodeProps<NodeData>) {
           isSupabaseAgent ||
           isMultiAgent ||
           isLLMAgent ||
+          isSequentialAgent ||
+          isParallelAgent ||
           isToolNode
         ) ? { cursor: 'pointer' } : undefined}
       >
@@ -713,6 +758,8 @@ function ActionNodeComponent({ id, data, selected }: NodeProps<NodeData>) {
             ? "bg-gradient-to-r from-green-600 to-emerald-600 animate-pulse-slow"
             : isAIAgent
             ? "bg-gradient-to-r from-pink-600 to-fuchsia-600 animate-pulse-slow" 
+            : (isSequentialAgent || isParallelAgent)
+            ? "bg-gradient-to-r from-black to-gray-800 animate-pulse-slow"
             : "bg-gradient-to-r from-blue-600 to-indigo-600 animate-pulse-slow"
         )} />
         
@@ -727,6 +774,11 @@ function ActionNodeComponent({ id, data, selected }: NodeProps<NodeData>) {
               {data.llmAgentConfig.name}
             </div>
           )}
+          {((isSequentialAgent || isParallelAgent) && data.sequentialParallelConfig?.name) && (
+            <div className="text-xs font-semibold text-white mb-1 text-center break-all px-1">
+              {data.sequentialParallelConfig.name}
+            </div>
+          )}
           <div className={cn(
             "flex-shrink-0 p-3 rounded-full mb-2 transition-all",
             isSerperApi || isGetPrice || isYahooFinanceNewsTool || isBraveSearchTool || isScrapeWebsiteTool || isEXASearchTool || isHyperbrowserTool
@@ -737,6 +789,8 @@ function ActionNodeComponent({ id, data, selected }: NodeProps<NodeData>) {
               ? "bg-slate-700 text-green-400"
               : isAIAgent
               ? "bg-slate-700 text-pink-400" 
+              : (isSequentialAgent || isParallelAgent)
+              ? "bg-slate-700 text-white"
               : "bg-slate-700 text-blue-400"
           )}>
             <IconComponent className={cn("h-6 w-6", (isSerperApi || isGetPrice || isYahooFinanceNewsTool || isBraveSearchTool || 
@@ -772,7 +826,7 @@ function ActionNodeComponent({ id, data, selected }: NodeProps<NodeData>) {
             <div className="text-xs text-slate-300 text-center mt-1 px-1 break-words">
               {data.description}
             </div>
-          ) : !isAIAgent && !isMultiAgent && !isLLMAgent && !isSerperApi && !isGetPrice && !isYahooFinanceNewsTool && 
+          ) : !isAIAgent && !isMultiAgent && !isLLMAgent && !isSequentialAgent && !isParallelAgent && !isSerperApi && !isGetPrice && !isYahooFinanceNewsTool && 
           !isBraveSearchTool && !isScrapeWebsiteTool && !isEXASearchTool && !isHyperbrowserTool && data.description ? (
             <div className="text-xs text-slate-300 text-center mt-1 mb-1 px-1 break-words">
               {data.description}
@@ -843,6 +897,8 @@ function ActionNodeComponent({ id, data, selected }: NodeProps<NodeData>) {
                 ? "!bg-green-500 !border-green-400 !w-3 !h-3 hover:!bg-green-400 hover:!shadow-[0_0_10px_rgba(34,197,94,0.8)]"
                 : isAIAgent
                 ? "!bg-pink-500 !border-pink-400 !w-3 !h-3 hover:!bg-pink-400 hover:!shadow-[0_0_10px_rgba(236,72,153,0.8)]" 
+                : (isSequentialAgent || isParallelAgent)
+                ? "!bg-black !border-gray-800 !w-3 !h-3 hover:!bg-gray-800 hover:!shadow-[0_0_10px_rgba(0,0,0,0.8)]"
                 : "!bg-blue-500 !border-blue-400 !w-3 !h-3 hover:!bg-blue-400 hover:!shadow-[0_0_10px_rgba(59,130,246,0.8)]"
             )}
           />
@@ -861,6 +917,8 @@ function ActionNodeComponent({ id, data, selected }: NodeProps<NodeData>) {
                 ? "!bg-green-500 !border-green-400 !w-3 !h-3 hover:!bg-green-400 hover:!shadow-[0_0_10px_rgba(34,197,94,0.8)]"
                 : isAIAgent
                 ? "!bg-pink-500 !border-pink-400 !w-3 !h-3 hover:!bg-pink-400 hover:!shadow-[0_0_10px_rgba(236,72,153,0.8)]" 
+                : (isSequentialAgent || isParallelAgent)
+                ? "!bg-black !border-gray-800 !w-3 !h-3 hover:!bg-gray-800 hover:!shadow-[0_0_10px_rgba(0,0,0,0.8)]"
                 : "!bg-blue-500 !border-blue-400 !w-3 !h-3 hover:!bg-blue-400 hover:!shadow-[0_0_10px_rgba(59,130,246,0.8)]"
             )}
           />
@@ -879,6 +937,8 @@ function ActionNodeComponent({ id, data, selected }: NodeProps<NodeData>) {
                 ? "!bg-green-500 !border-green-400 !w-3 !h-3 hover:!bg-green-400 hover:!shadow-[0_0_10px_rgba(34,197,94,0.8)]"
                 : isAIAgent
                 ? "!bg-pink-500 !border-pink-400 !w-3 !h-3 hover:!bg-pink-400 hover:!shadow-[0_0_10px_rgba(236,72,153,0.8)]" 
+                : (isSequentialAgent || isParallelAgent)
+                ? "!bg-black !border-gray-800 !w-3 !h-3 hover:!bg-gray-800 hover:!shadow-[0_0_10px_rgba(0,0,0,0.8)]"
                 : "!bg-blue-500 !border-blue-400 !w-3 !h-3 hover:!bg-blue-400 hover:!shadow-[0_0_10px_rgba(59,130,246,0.8)]"
             )}
           />
@@ -899,6 +959,8 @@ function ActionNodeComponent({ id, data, selected }: NodeProps<NodeData>) {
                 ? "!bg-green-500 !border-green-400 !w-3 !h-3 hover:!bg-green-400 hover:!shadow-[0_0_10px_rgba(34,197,94,0.8)]"
                 : isAIAgent
                 ? "!bg-pink-500 !border-pink-400 !w-3 !h-3 hover:!bg-pink-400 hover:!shadow-[0_0_10px_rgba(236,72,153,0.8)]" 
+                : (isSequentialAgent || isParallelAgent)
+                ? "!bg-black !border-gray-800 !w-3 !h-3 hover:!bg-gray-800 hover:!shadow-[0_0_10px_rgba(0,0,0,0.8)]"
                 : "!bg-blue-500 !border-blue-400 !w-3 !h-3 hover:!bg-blue-400 hover:!shadow-[0_0_10px_rgba(59,130,246,0.8)]"
             )}
           />
@@ -1047,6 +1109,18 @@ function ActionNodeComponent({ id, data, selected }: NodeProps<NodeData>) {
           toolType={data.label}
           nodeData={data.toolConfig}
           onSave={handleToolConfigSave}
+        />
+      )}
+
+      {/* Sequential/Parallel Agent Configuration Modal */}
+      {(isSequentialAgent || isParallelAgent) && (
+        <SequentialParallelAgentModal
+          isOpen={isSequentialParallelModalOpen}
+          onClose={() => setIsSequentialParallelModalOpen(false)}
+          nodeId={id}
+          agentType={isSequentialAgent ? 'sequential' : 'parallel'}
+          nodeData={data.sequentialParallelConfig}
+          onSave={handleSequentialParallelConfigSave}
         />
       )}
 
