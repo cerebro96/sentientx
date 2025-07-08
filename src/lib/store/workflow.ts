@@ -83,6 +83,17 @@ export type NodeData = {
   toolConfig?: {
     apiKeyId?: string;
   };
+  sequentialParallelConfig?: {
+    name?: string;
+    description?: string;
+    connectedNodes?: {
+      id: string;
+      label: string;
+      type: string;
+      direction: 'input' | 'output';
+      description?: string;
+    }[];
+  };
 };
 
 // Define initial nodes with proper types

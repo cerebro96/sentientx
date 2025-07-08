@@ -1110,6 +1110,84 @@ export function WorkflowCanvas({ isActive, onClose, workflowId, newWorkflowData 
       // Filter out null entries
       const validConnectedAgents = connectedAgents.filter(agent => agent !== null);
 
+      // Handle Sequential and Parallel agents data structure
+      const sequentialNodes = nodes.filter(node => node.data.label === 'Sequential agent');
+      const parallelNodes = nodes.filter(node => node.data.label === 'Parallel agent');
+      
+              const createAgentDataStructure = async (agentNode: any) => {
+          // Find LLM agents that are connected FROM this Sequential/Parallel agent (bottom/outgoing connections)
+          const outgoingEdges = edges.filter(edge => edge.source === agentNode.id);
+          const connectedLLMNodes = outgoingEdges
+            .map(edge => nodes.find(n => n.id === edge.target))
+            .filter(node => node && node.data.label === 'LLM Agent');
+
+          // Get connected LLM agents data for this sequential/parallel agent
+          const connectedLLMAgents = await Promise.all(
+            connectedLLMNodes.map(async (llmNode: any) => {
+              // Get tools data for this LLM agent (from connected tool nodes)
+              const connectedToolNodes = edges.filter(edge => edge.source === llmNode.id)
+                .map(edge => nodes.find(n => n.id === edge.target))
+                .filter(node => node && [
+                  'Serper API', 'get_price', 'YahooFinanceNewsTool', 
+                  'BraveSearchTool', 'ScrapeWebsiteTool', 'EXASearchTool', 
+                  'hyperbrowser_tool'
+                ].includes(node.data.label));
+              
+              const toolsString = connectedToolNodes.map((tool: any) => tool.data.label).join(', ');
+              
+              // Check if it's an LLM Agent node (has llmAgentConfig) or regular LLM node (has llmConfig)
+              const isLLMAgentNode = llmNode.data.llmAgentConfig;
+              
+              return {
+                id: llmNode.id,
+                name: isLLMAgentNode 
+                  ? llmNode.data.llmAgentConfig?.name || 'Unnamed LLM Agent'
+                  : 'Unnamed LLM',
+                type: 'LLM Agent',
+                model: isLLMAgentNode 
+                  ? llmNode.data.llmAgentConfig?.model || ''
+                  : llmNode.data.llmConfig?.model || '',
+                provider: isLLMAgentNode
+                  ? llmNode.data.llmAgentConfig?.provider || ''
+                  : llmNode.data.llmConfig?.provider || '',
+                instruction: isLLMAgentNode
+                  ? llmNode.data.llmAgentConfig?.instructions || ''
+                  : '',
+                tools: toolsString
+              };
+            })
+          );
+          
+          return {
+            id: agentNode.id,
+            type: agentNode.data.label,
+            name: agentNode.data.sequentialParallelConfig?.name || 'Unnamed Agent',
+            description: agentNode.data.sequentialParallelConfig?.description || '',
+            connected_agents: connectedLLMAgents
+          };
+        };
+
+      // Create data structures for Sequential agents
+      const sequentialAgentsData = await Promise.all(
+        sequentialNodes.map(node => createAgentDataStructure(node))
+      );
+
+      // Create data structures for Parallel agents  
+      const parallelAgentsData = await Promise.all(
+        parallelNodes.map(node => createAgentDataStructure(node))
+      );
+
+      // Log the Sequential and Parallel agents data
+      if (sequentialAgentsData.length > 0) {
+        console.log('Sequential Agents Data:', JSON.stringify(sequentialAgentsData, null, 2));
+      }
+      if (parallelAgentsData.length > 0) {
+        console.log('Parallel Agents Data:', JSON.stringify(parallelAgentsData, null, 2));
+      }
+
+      // Add Sequential and Parallel agents data to validConnectedAgents
+      validConnectedAgents.push(...sequentialAgentsData, ...parallelAgentsData);
+
       // Get Multi Agent's API key
       const multiAgentApiKey = multiAgentNode.data.multiAgentConfig.apiKeyId 
         ? await getApiKeyValue(multiAgentNode.data.multiAgentConfig.apiKeyId)
