@@ -26,10 +26,11 @@ export interface WorkflowFormData {
   apiKeyId?: string;
 }
 
-interface ChatMessage {
-  role: 'user' | 'assistant';
-  content: string;
-}
+// AI Builder related interfaces - commented out
+// interface ChatMessage {
+//   role: 'user' | 'assistant';
+//   content: string;
+// }
 
 interface WorkflowDialogProps {
   isOpen: boolean;
@@ -51,22 +52,26 @@ export function WorkflowDialog({ isOpen, onClose, onWorkflowCreated }: WorkflowD
   const [tags, setTags] = useState<string[]>([]);
   const [tagInput, setTagInput] = useState('');
   const [isLoading, setIsLoading] = useState(false);
-  const [chatMessage, setChatMessage] = useState('');
-  const [chatHistory, setChatHistory] = useState<ChatMessage[]>([]);
-  const [isChatLoading, setIsChatLoading] = useState(false);
-  const [builderSessionId, setBuilderSessionId] = useState('');
-  const [isReadyToCreate, setIsReadyToCreate] = useState(false);
-  const [finalWorkflowData, setFinalWorkflowData] = useState<any>(null);
-  const scrollAreaRef = useRef<HTMLDivElement>(null);
+  
+  // AI Builder related state - commented out
+  // const [chatMessage, setChatMessage] = useState('');
+  // const [chatHistory, setChatHistory] = useState<ChatMessage[]>([]);
+  // const [isChatLoading, setIsChatLoading] = useState(false);
+  // const [builderSessionId, setBuilderSessionId] = useState('');
+  // const [isReadyToCreate, setIsReadyToCreate] = useState(false);
+  // const [finalWorkflowData, setFinalWorkflowData] = useState<any>(null);
+  // const scrollAreaRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     if (isOpen) {
-      const newSessionId = uuidv4();
-      setBuilderSessionId(newSessionId);
-      sendBuilderMessage('Start', newSessionId);
-      setChatHistory([]);
-      setIsReadyToCreate(false);
-      setFinalWorkflowData(null);
+      // AI Builder session initialization - commented out
+      // const newSessionId = uuidv4();
+      // setBuilderSessionId(newSessionId);
+      // sendBuilderMessage('Start', newSessionId);
+      // setChatHistory([]);
+      // setIsReadyToCreate(false);
+      // setFinalWorkflowData(null);
+      
       // Reset form
       setName('');
       setDescription('');
@@ -80,11 +85,12 @@ export function WorkflowDialog({ isOpen, onClose, onWorkflowCreated }: WorkflowD
     }
   }, [isOpen]);
   
-  useEffect(() => {
-    if (scrollAreaRef.current) {
-      scrollAreaRef.current.scrollTo({ top: scrollAreaRef.current.scrollHeight, behavior: 'smooth' });
-    }
-  }, [chatHistory]);
+  // AI Builder chat scroll effect - commented out
+  // useEffect(() => {
+  //   if (scrollAreaRef.current) {
+  //     scrollAreaRef.current.scrollTo({ top: scrollAreaRef.current.scrollHeight, behavior: 'smooth' });
+  //   }
+  // }, [chatHistory]);
 
   const handleTagInputKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === 'Enter' && tagInput.trim()) {
@@ -104,44 +110,45 @@ export function WorkflowDialog({ isOpen, onClose, onWorkflowCreated }: WorkflowD
     setTags(tags.filter(tag => tag !== tagToRemove));
   };
 
-  const createWorkflowFromChat = () => {
-    if (!finalWorkflowData) {
-      toast.error("Workflow data not ready from AI builder.");
-      return;
-    }
-    
-    if (isLoading) {
-      return; // Prevent double submission
-    }
-    
-    console.log("Populating form with AI data:", finalWorkflowData);
-    
-    setIsLoading(true);
-    
-    try {
-      setName(finalWorkflowData.name || '');
-      setDescription(finalWorkflowData.description || '');
-      setTags(finalWorkflowData.tags || []);
-      // Set default agent type from AI if not specified
-      setAgentType(finalWorkflowData.agentType || 'single_agent');
-      
-      onWorkflowCreated({
-        name: finalWorkflowData.name || '',
-        description: finalWorkflowData.description || '',
-        agentType: finalWorkflowData.agentType || 'single_agent',
-        isActive,
-        tags: finalWorkflowData.tags || [],
-        systemPrompt: finalWorkflowData.system_prompt,
-        model: finalWorkflowData.model,
-        apiKeyId: finalWorkflowData.apiKeyId
-      });
-      
-      toast.info("Creating workflow from AI suggestions...");
-    } catch (error) {
-      console.error("Error creating workflow from chat:", error);
-      setIsLoading(false);
-    }
-  };
+  // AI Builder workflow creation - commented out
+  // const createWorkflowFromChat = () => {
+  //   if (!finalWorkflowData) {
+  //     toast.error("Workflow data not ready from AI builder.");
+  //     return;
+  //   }
+  //   
+  //   if (isLoading) {
+  //     return; // Prevent double submission
+  //   }
+  //   
+  //   console.log("Populating form with AI data:", finalWorkflowData);
+  //   
+  //   setIsLoading(true);
+  //   
+  //   try {
+  //     setName(finalWorkflowData.name || '');
+  //     setDescription(finalWorkflowData.description || '');
+  //     setTags(finalWorkflowData.tags || []);
+  //     // Set default agent type from AI if not specified
+  //     setAgentType(finalWorkflowData.agentType || 'single_agent');
+  //     
+  //     onWorkflowCreated({
+  //       name: finalWorkflowData.name || '',
+  //       description: finalWorkflowData.description || '',
+  //       agentType: finalWorkflowData.agentType || 'single_agent',
+  //       isActive,
+  //       tags: finalWorkflowData.tags || [],
+  //       systemPrompt: finalWorkflowData.system_prompt,
+  //       model: finalWorkflowData.model,
+  //       apiKeyId: finalWorkflowData.apiKeyId
+  //     });
+  //     
+  //     toast.info("Creating workflow from AI suggestions...");
+  //   } catch (error) {
+  //     console.error("Error creating workflow from chat:", error);
+  //     setIsLoading(false);
+  //   }
+  // };
   
   const handleManualSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -178,63 +185,64 @@ export function WorkflowDialog({ isOpen, onClose, onWorkflowCreated }: WorkflowD
     }
   };
 
-  const sendBuilderMessage = async (messageToSend: string, currentSessionId: string) => {
-    if (!messageToSend.trim() || !currentSessionId) return;
+  // AI Builder message sending - commented out
+  // const sendBuilderMessage = async (messageToSend: string, currentSessionId: string) => {
+  //   if (!messageToSend.trim() || !currentSessionId) return;
 
-    setChatHistory(prev => [...prev, { role: 'user', content: messageToSend }]);
-    setIsChatLoading(true);
-    setChatMessage('');
+  //   setChatHistory(prev => [...prev, { role: 'user', content: messageToSend }]);
+  //   setIsChatLoading(true);
+  //   setChatMessage('');
 
-    try {
-      const response = await fetch('/api/builder/chat', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ message: messageToSend, session_id: currentSessionId }),
-      });
+  //   try {
+  //     const response = await fetch('/api/builder/chat', {
+  //       method: 'POST',
+  //       headers: { 'Content-Type': 'application/json' },
+  //       body: JSON.stringify({ message: messageToSend, session_id: currentSessionId }),
+  //     });
 
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.detail || 'Failed to get response from AI builder');
-      }
+  //     if (!response.ok) {
+  //       const errorData = await response.json();
+  //       throw new Error(errorData.detail || 'Failed to get response from AI builder');
+  //     }
 
-      const data = await response.json();
+  //     const data = await response.json();
 
-      setChatHistory(prev => [...prev, { role: 'assistant', content: data.response }]);
+  //     setChatHistory(prev => [...prev, { role: 'assistant', content: data.response }]);
       
-      if (data.state) {
-         setIsReadyToCreate(data.state.ready_to_create || false);
-         if (data.state.ready_to_create && data.state.workflow_data) {
-            setFinalWorkflowData(data.state.workflow_data);
-         }
-      }
+  //     if (data.state) {
+  //        setIsReadyToCreate(data.state.ready_to_create || false);
+  //        if (data.state.ready_to_create && data.state.workflow_data) {
+  //           setFinalWorkflowData(data.state.workflow_data);
+  //        }
+  //     }
       
-    } catch (error: any) {
-      console.error("Error communicating with AI builder:", error);
-      toast.error("Error getting response from AI builder");
-      setChatHistory(prev => [...prev, { role: 'assistant', content: `Error: ${error.message}` }]);
-    } finally {
-      setIsChatLoading(false);
-    }
-  };
+  //   } catch (error: any) {
+  //     console.error("Error communicating with AI builder:", error);
+  //     toast.error("Error getting response from AI builder");
+  //     setChatHistory(prev => [...prev, { role: 'assistant', content: `Error: ${error.message}` }]);
+  //   } finally {
+  //     setIsChatLoading(false);
+  //   }
+  // };
 
-  const handleSendChatMessage = () => {
-      if (chatMessage.trim() && builderSessionId) {
-          sendBuilderMessage(chatMessage, builderSessionId);
-      }
-  };
+  // const handleSendChatMessage = () => {
+  //     if (chatMessage.trim() && builderSessionId) {
+  //         sendBuilderMessage(chatMessage, builderSessionId);
+  //     }
+  // };
 
   const isFormValid = name.trim() && agentType;
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="sm:max-w-6xl p-0 flex flex-col h-[85vh]">
+      <DialogContent className="sm:max-w-2xl p-0 flex flex-col h-[85vh]">
         <div className="flex flex-1 overflow-hidden">
-          <div className="w-1/2 p-6 border-r overflow-y-auto flex flex-col">
+          <div className="w-full p-6 overflow-y-auto flex flex-col">
             <form onSubmit={handleManualSubmit} className="flex flex-col h-full">
               <DialogHeader className="flex-shrink-0">
                 <DialogTitle>Create New Workflow</DialogTitle>
                 <DialogDescription>
-                  Fill in the details manually or use the AI builder on the right.
+                  Fill in the details to create your workflow.
                 </DialogDescription>
               </DialogHeader>
               <div className="grid gap-4 py-4 flex-grow">
@@ -268,13 +276,13 @@ export function WorkflowDialog({ isOpen, onClose, onWorkflowCreated }: WorkflowD
                     Agent Type <span className="text-destructive">*</span>
                   </Label>
                   <Select value={agentType} onValueChange={setAgentType} required>
-                    <SelectTrigger>
+                    <SelectTrigger className="w-96">
                       <SelectValue placeholder="Select agent type" />
                     </SelectTrigger>
                     <SelectContent>
                       {agentTypeOptions.map((option) => (
-                        <SelectItem key={option.value} value={option.value}>
-                          <div className="flex flex-col">
+                        <SelectItem key={option.value} value={option.value} className="flex justify-center">
+                          <div className="flex flex-col items-center text-center w-full">
                             <span className="font-medium">{option.label}</span>
                             <span className="text-sm text-muted-foreground">{option.description}</span>
                           </div>
@@ -344,7 +352,8 @@ export function WorkflowDialog({ isOpen, onClose, onWorkflowCreated }: WorkflowD
             </form>
           </div>
 
-          <div className="w-1/2 p-6 flex flex-col bg-muted/30">
+          {/* AI Workflow Builder UI - commented out */}
+          {/* <div className="w-1/2 p-6 flex flex-col bg-muted/30">
             <div className="flex items-center mb-4">
               <MessageSquare className="h-5 w-5 mr-2 text-primary" />
               <h3 className="text-lg font-semibold">AI Workflow Builder</h3>
@@ -398,7 +407,7 @@ export function WorkflowDialog({ isOpen, onClose, onWorkflowCreated }: WorkflowD
                  )}
               </Button>
             </div>
-          </div>
+          </div> */}
         </div>
       </DialogContent>
     </Dialog>
