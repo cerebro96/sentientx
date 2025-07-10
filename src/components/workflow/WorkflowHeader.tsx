@@ -324,7 +324,7 @@ export function WorkflowHeader({
             Save
           </Button> */}
 
-          <DropdownMenu>
+          {/* <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <Button variant="ghost" size="sm" className="h-7 w-7 p-0">
                 <MoreHorizontal className="h-4 w-4" />
@@ -335,7 +335,7 @@ export function WorkflowHeader({
               <DropdownMenuItem>Export</DropdownMenuItem>
               <DropdownMenuItem className="text-destructive">Delete</DropdownMenuItem>
             </DropdownMenuContent>
-          </DropdownMenu>
+          </DropdownMenu> */}
         </div>
       </div>
 
