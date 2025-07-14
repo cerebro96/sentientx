@@ -24,7 +24,7 @@ import { nodeTypes } from './nodeTypes';
 import { useWorkflowStore } from '@/lib/store/workflow';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Check, Save, ChevronLeft, Trash2, Maximize, Search, PanelLeftClose, Link as LinkIcon } from 'lucide-react';
+import { Check, Save, ChevronLeft, Trash2, Maximize, Search, PanelLeftClose, Link as LinkIcon, Bot } from 'lucide-react';
 import { toast } from 'sonner';
 import { NodeData } from '@/lib/store/workflow';
 import { WorkflowFormData } from './WorkflowDialog';
@@ -1802,6 +1802,7 @@ export function WorkflowCanvas({ isActive, onClose, workflowId, newWorkflowData 
                     style={{ background: '#0f172a' }}
                   />
                   <Panel position="top-left" className="ml-2 mt-2">
+                  <div className="flex gap-2">
                     <Button 
                       size="sm" 
                       variant="outline" 
@@ -1819,6 +1820,19 @@ export function WorkflowCanvas({ isActive, onClose, workflowId, newWorkflowData 
                         </>
                       )}
                     </Button>
+                    {/* AI Builder Button */}
+                    {(agentType === 'single_agent' || agentType === 'multi_agent') && (
+                    <Button 
+                      size="sm" 
+                      variant="outline" 
+                      className="rounded-full h-12 w-12 p-0 bg-gradient-to-r from-cyan-500 to-blue-500 hover:from-cyan-400 hover:to-blue-400 text-white border-2 border-white/30 shadow-lg hover:shadow-cyan-500/50 transition-all duration-300 hover:shadow-xl"
+                      onClick={() => {toast.info('AI Builder is not available yet')}}
+                      title="SentientX AI Builder"
+                    >
+                      <Bot className="h-6 w-6" />
+                    </Button>
+                    )}
+                  </div>
                   </Panel>
                   <Panel position="top-right" className="flex gap-2">
                     {(() => {
