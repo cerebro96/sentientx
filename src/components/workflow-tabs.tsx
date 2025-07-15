@@ -37,6 +37,8 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
+import { getCurrentUser } from '@/lib/auth';
+import { initializeSamplesForUser } from '@/lib/sample-creation';
 
 // Use crypto.randomUUID for more robust ID generation, then truncate
 function generateRandomId() {
@@ -202,6 +204,23 @@ export function WorkflowTabs({
     setCurrentPage(1);
   }, [currentTab]);
 
+  useEffect(() => {
+    const initSamples = async () => {
+      try {
+        const { user } = await getCurrentUser();
+        if (user) {
+          await initializeSamplesForUser(user.id);
+          // Refresh workflows list after creation
+          loadWorkflows();
+        }
+      } catch (error) {
+        console.error('Sample initialization failed:', error);
+      }
+    };
+
+    initSamples();
+  }, []); // Run once on mount
+  
   const loadWorkflows = async () => {
     try {
       setIsLoading(true);
