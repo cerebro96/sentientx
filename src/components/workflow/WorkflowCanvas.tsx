@@ -37,6 +37,7 @@ import { v4 as uuidv4 } from 'uuid';
 import { ExecutionDetailsView } from './ExecutionDetailsView';
 import { callSupabaseAgent, generateSupabaseAgentSessionId, runSupabaseAgent } from '@/lib/supabase-agent';
 import { getCurrentUser } from '@/lib/auth';
+import { AIBuilderModal } from './AIBuilderModal';
 
 // Function to generate a valid agent name from UUID
 function generateValidAgentName(): string {
@@ -93,6 +94,7 @@ export function WorkflowCanvas({ isActive, onClose, workflowId, newWorkflowData 
   const [workflowStatus, setWorkflowStatus] = useState<'idle' | 'running' | 'paused'>('idle');
   const [isCreatingWorkflow, setIsCreatingWorkflow] = useState(false);
   const [activeAgentName, setActiveAgentName] = useState<string | null>(null);
+  const [isAIBuilderModalOpen, setIsAIBuilderModalOpen] = useState(false);
   
   // Add debounce for auto-saving
   const autoSaveTimeoutRef = useRef<NodeJS.Timeout | null>(null);
@@ -622,6 +624,20 @@ export function WorkflowCanvas({ isActive, onClose, workflowId, newWorkflowData 
       resetWorkflow();
     };
   }, [setIsReady, resetWorkflow]);
+
+  // Auto-open AI Builder for new workflows (when canvas is ready and it's a new workflow)
+  useEffect(() => {
+    // Check if this is a new workflow (has newWorkflowData but no workflowId and no existing nodes)
+    if (nodes.length === 0 && agentType === 'multi_agent') {
+      // Add a delay to ensure the canvas is fully loaded and stable
+      const timer = setTimeout(() => {
+        console.log('Auto-opening AI Builder for new workflow');
+        setIsAIBuilderModalOpen(true);
+      }, 500); // 1 second delay to ensure everything is ready
+
+      return () => clearTimeout(timer);
+    }
+  }, [nodes.length, agentType]);
 
   // Setup keyboard handlers for delete operations
   useEffect(() => {
@@ -1821,12 +1837,12 @@ export function WorkflowCanvas({ isActive, onClose, workflowId, newWorkflowData 
                       )}
                     </Button>
                     {/* AI Builder Button */}
-                    {(agentType === 'single_agent' || agentType === 'multi_agent') && (
+                    {(agentType === 'multi_agent') && (
                     <Button 
                       size="sm" 
                       variant="outline" 
                       className="rounded-full h-12 w-12 p-0 bg-gradient-to-r from-cyan-500 to-blue-500 hover:from-cyan-400 hover:to-blue-400 text-white border-2 border-white/30 shadow-lg hover:shadow-cyan-500/50 transition-all duration-300 hover:shadow-xl"
-                      onClick={() => {toast.info('AI Builder is not available yet')}}
+                      onClick={() => setIsAIBuilderModalOpen(true)}
                       title="SentientX AI Builder"
                     >
                       <Bot className="h-6 w-6" />
@@ -1895,6 +1911,55 @@ export function WorkflowCanvas({ isActive, onClose, workflowId, newWorkflowData 
           </div>
         )}
       </div>
+      
+      {/* AI Builder Modal */}
+      <AIBuilderModal
+        isOpen={isAIBuilderModalOpen}
+        onClose={() => setIsAIBuilderModalOpen(false)}
+        workflowId={currentWorkflowIdentifier}
+        onWorkflowGenerated={(workflowData) => {
+          // Handle generated workflow data
+          console.log('Generated workflow:', workflowData);
+          
+          // Refresh the canvas with the new workflow data
+          if (workflowData.workflowData) {
+            setIsReady(false); // Temporarily disable while loading
+            
+            // Update the workflow store with new nodes and edges
+            useWorkflowStore.setState({
+              nodes: workflowData.workflowData.nodes || [],
+              edges: workflowData.workflowData.edges || [],
+              workflowId: workflowData.workflowId
+            });
+            
+            // Update local state with workflow details
+            // setWorkflowName(workflowData.workflowData.name || workflowName);
+            // setIsWorkflowActive(workflowData.workflowData.is_active || true);
+            // setTags(workflowData.workflowData.tags || ['ai-generated']);
+            // setAgentType(workflowData.workflowData.agent_type || 'multi_agent');
+            
+            // Re-enable and trigger view fit
+            setIsReady(true);
+            shouldFitViewRef.current = true;
+            
+            // Fit view after a short delay to ensure nodes are rendered
+            setTimeout(() => {
+              if (reactFlowInstance) {
+                reactFlowInstance.fitView({
+                  padding: 0.5,
+                  includeHiddenNodes: true,
+                  duration: 800
+                });
+              }
+            }, 200);
+          }
+          
+          toast.success('Workflow generated and loaded!', {
+            description: 'Your AI-generated workflow is now ready for customization.',
+            duration: 5000
+          });
+        }}
+      />
     </div>
   );
 } 
