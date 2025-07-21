@@ -37,6 +37,7 @@ import { v4 as uuidv4 } from 'uuid';
 import { ExecutionDetailsView } from './ExecutionDetailsView';
 import { callSupabaseAgent, generateSupabaseAgentSessionId, runSupabaseAgent } from '@/lib/supabase-agent';
 import { getCurrentUser } from '@/lib/auth';
+import { AIBuilderModal } from './AIBuilderModal';
 
 // Function to generate a valid agent name from UUID
 function generateValidAgentName(): string {
@@ -93,6 +94,7 @@ export function WorkflowCanvas({ isActive, onClose, workflowId, newWorkflowData 
   const [workflowStatus, setWorkflowStatus] = useState<'idle' | 'running' | 'paused'>('idle');
   const [isCreatingWorkflow, setIsCreatingWorkflow] = useState(false);
   const [activeAgentName, setActiveAgentName] = useState<string | null>(null);
+  const [isAIBuilderModalOpen, setIsAIBuilderModalOpen] = useState(false);
   
   // Add debounce for auto-saving
   const autoSaveTimeoutRef = useRef<NodeJS.Timeout | null>(null);
@@ -1826,7 +1828,7 @@ export function WorkflowCanvas({ isActive, onClose, workflowId, newWorkflowData 
                       size="sm" 
                       variant="outline" 
                       className="rounded-full h-12 w-12 p-0 bg-gradient-to-r from-cyan-500 to-blue-500 hover:from-cyan-400 hover:to-blue-400 text-white border-2 border-white/30 shadow-lg hover:shadow-cyan-500/50 transition-all duration-300 hover:shadow-xl"
-                      onClick={() => {toast.info('AI Builder is not available yet')}}
+                      onClick={() => setIsAIBuilderModalOpen(true)}
                       title="SentientX AI Builder"
                     >
                       <Bot className="h-6 w-6" />
@@ -1895,6 +1897,18 @@ export function WorkflowCanvas({ isActive, onClose, workflowId, newWorkflowData 
           </div>
         )}
       </div>
+      
+      {/* AI Builder Modal */}
+      <AIBuilderModal
+        isOpen={isAIBuilderModalOpen}
+        onClose={() => setIsAIBuilderModalOpen(false)}
+        workflowId={currentWorkflowIdentifier}
+        onWorkflowGenerated={(workflowData) => {
+          // Handle generated workflow data
+          console.log('Generated workflow:', workflowData);
+          toast.success('Workflow generated! You can now customize it.');
+        }}
+      />
     </div>
   );
 } 

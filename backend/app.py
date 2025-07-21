@@ -815,6 +815,265 @@ async def supabase_agent_message(data: Dict[str, Any] = Body(...)):
         logger.error(f"Error in supabase_agent_message: {str(e)}")
         raise HTTPException(status_code=500, detail=f"Internal server error: {str(e)}")
 
+@app.post("/api/workflowbuilder", response_model=SupabaseAgentResponse)
+async def workflow_builder_message(data: Dict[str, Any] = Body(...)):
+    """Send a message to the Workflow Builder Agent with automatic session creation fallback."""
+    try:
+        user_id = data.get("user_id")
+        session_id = data.get("session_id")
+        message = data.get("message")
+
+        if not all([user_id, session_id, message]):
+            raise HTTPException(status_code=400, detail="Missing required fields: user_id, session_id, and message")
+
+        # Get the base URL from environment variable
+        agent_url = os.getenv("WORKFLOWBUILDER_URL", "http://localhost:8000")
+        
+        # First, try to send message to existing session
+        # Construct the payload for the external /run endpoint
+        payload = {
+            "app_name": "builder_agent",
+            "user_id": user_id,
+            "session_id": session_id,
+            "new_message": {
+                "role": "user",
+                "parts": [{"text": message}]
+            }
+        }
+
+        run_endpoint = f"{agent_url}/run"
+        logger.info(f"Attempting to send message to Builder Agent /run: {run_endpoint} for session {session_id}")
+        logger.debug(f"Payload: {json.dumps(payload)}")
+
+        async with httpx.AsyncClient(timeout=60.0) as client:
+            response = await client.post(
+                run_endpoint,
+                json=payload,
+                headers={"Content-Type": "application/json"}
+            )
+
+        if response.status_code == 200:
+            # Success - process the response
+            response_data = {}
+            try:
+                raw_data = response.json()
+                if isinstance(raw_data, dict):
+                    response_data = raw_data
+                else:
+                    response_data = {"result": raw_data}
+            except Exception as e:
+                logger.warning(f"Failed to parse JSON response from /run: {str(e)}")
+            
+            logger.info(f"Builder Agent response: {response_data}")
+
+            # Extract message using the same logic as supabase agent
+            extracted_message = ""
+            try:
+                for result in response_data['result']:
+                    for part in result['content']['parts']:
+                        if 'text' in part:
+                            text = part['text']
+                            # If the text looks like it contains JSON or code blocks, extract just the content
+                            if text.startswith('```') and text.endswith('```'):
+                                content = text.split('```')[1]
+                                if content.startswith('json\n'):
+                                    content = content[5:]
+                                try:
+                                    parsed_json = json.loads(content.strip())
+                                    if not isinstance(parsed_json, str):
+                                        extracted_message = json.dumps(parsed_json)
+                                    else:
+                                        extracted_message = parsed_json
+                                except json.JSONDecodeError:
+                                    extracted_message = content.strip()
+                            else:
+                                extracted_message = text
+            except Exception as e:
+                logger.warning(f"Error extracting clean content: {str(e)}")
+                if response_data.get('result') and len(response_data['result']) > 0:
+                    first_result = response_data['result'][0]
+                    if 'content' in first_result and 'parts' in first_result['content']:
+                        first_part = first_result['content']['parts'][0]
+                        extracted_message = first_part.get('text', '')
+            
+            # Final check to ensure extracted_message is a string
+            if not isinstance(extracted_message, str):
+                try:
+                    extracted_message = json.dumps(extracted_message)
+                except:
+                    extracted_message = str(extracted_message)
+            
+            return SupabaseAgentResponse(
+                status="success",
+                session_id=session_id,
+                message=extracted_message
+            )
+
+        elif response.status_code == 404:
+            # Session not found - create new session and retry
+            logger.info(f"Session {session_id} not found (404), creating new session for user {user_id}")
+            
+            try:
+                # Create session using the register endpoint pattern
+                register_url = f"{agent_url}/apps/builder_agent/users/{user_id}/sessions/{session_id}"
+                
+                logger.info(f"Creating Builder Agent session: {register_url}")
+                
+                async with httpx.AsyncClient(timeout=30.0) as client:
+                    register_response = await client.post(
+                        register_url,
+                        json={"message": message},
+                        headers={"Content-Type": "application/json"}
+                    )
+                
+                if register_response.status_code != 200:
+                    error_text = await register_response.text()
+                    raise HTTPException(
+                        status_code=register_response.status_code,
+                        detail=f"Error creating Builder Agent session: {error_text}"
+                    )
+                
+                # Parse the registration response
+                register_data = {}
+                try:
+                    raw_data = register_response.json()
+                    if isinstance(raw_data, dict):
+                        register_data = raw_data
+                    else:
+                        register_data = {"result": raw_data}
+                except Exception as e:
+                    logger.warning(f"Failed to parse JSON response from registration: {str(e)}")
+                
+                logger.info(f"Builder Agent session created successfully: {register_data}")
+                
+                # Session created successfully - now retry sending the original message
+                logger.info(f"Session created, now retrying original message: {message}")
+                
+                try:
+                    # Retry the original message with the newly created session
+                    async with httpx.AsyncClient(timeout=60.0) as client:
+                        retry_response = await client.post(
+                            run_endpoint,
+                            json=payload,
+                            headers={"Content-Type": "application/json"}
+                        )
+
+                    if retry_response.status_code == 200:
+                        # Success - process the retry response
+                        retry_data = {}
+                        try:
+                            raw_data = retry_response.json()
+                            if isinstance(raw_data, dict):
+                                retry_data = raw_data
+                            else:
+                                retry_data = {"result": raw_data}
+                        except Exception as e:
+                            logger.warning(f"Failed to parse JSON response from retry: {str(e)}")
+                        
+                        logger.info(f"Builder Agent retry response: {retry_data}")
+
+                        # Extract message using the same logic as the main flow
+                        extracted_message = ""
+                        try:
+                            for result in retry_data['result']:
+                                for part in result['content']['parts']:
+                                    if 'text' in part:
+                                        text = part['text']
+                                        if text.startswith('```') and text.endswith('```'):
+                                            content = text.split('```')[1]
+                                            if content.startswith('json\n'):
+                                                content = content[5:]
+                                            try:
+                                                parsed_json = json.loads(content.strip())
+                                                if not isinstance(parsed_json, str):
+                                                    extracted_message = json.dumps(parsed_json)
+                                                else:
+                                                    extracted_message = parsed_json
+                                            except json.JSONDecodeError:
+                                                extracted_message = content.strip()
+                                        else:
+                                            extracted_message = text
+                        except Exception as e:
+                            logger.warning(f"Error extracting clean content from retry: {str(e)}")
+                            if retry_data.get('result') and len(retry_data['result']) > 0:
+                                first_result = retry_data['result'][0]
+                                if 'content' in first_result and 'parts' in first_result['content']:
+                                    first_part = first_result['content']['parts'][0]
+                                    extracted_message = first_part.get('text', '')
+                        
+                        # Final check to ensure extracted_message is a string
+                        if not isinstance(extracted_message, str):
+                            try:
+                                extracted_message = json.dumps(extracted_message)
+                            except:
+                                extracted_message = str(extracted_message)
+                        
+                        return SupabaseAgentResponse(
+                            status="success",
+                            session_id=session_id,
+                            message=extracted_message
+                        )
+                    else:
+                        # Retry failed, fall back to registration response
+                        logger.warning(f"Retry message failed with status {retry_response.status_code}, using registration response")
+                        
+                except Exception as retry_error:
+                    # Retry failed, fall back to registration response
+                    logger.warning(f"Failed to retry message after session creation: {str(retry_error)}")
+                
+                # Fallback: If retry fails, return a message based on registration response
+                # For registration, we might get a different response format
+                # Try to extract a meaningful message from the registration response
+                extracted_message = ""
+                if register_data.get('result'):
+                    try:
+                        # If result is a list with content structure
+                        if isinstance(register_data['result'], list) and len(register_data['result']) > 0:
+                            for result in register_data['result']:
+                                if isinstance(result, dict) and 'content' in result:
+                                    for part in result['content']['parts']:
+                                        if 'text' in part:
+                                            extracted_message = part['text']
+                                            break
+                        # If result is a simple value
+                        elif isinstance(register_data['result'], str):
+                            extracted_message = register_data['result']
+                        else:
+                            extracted_message = json.dumps(register_data['result'])
+                    except Exception as e:
+                        logger.warning(f"Error extracting registration message: {str(e)}")
+                        extracted_message = "Session created successfully. Please send your message again."
+                else:
+                    extracted_message = "Session created successfully. How can I help you build your workflow?"
+                
+                return SupabaseAgentResponse(
+                    status="success",
+                    session_id=session_id,
+                    message=extracted_message
+                )
+                
+            except Exception as create_error:
+                logger.error(f"Failed to create Builder Agent session: {str(create_error)}")
+                raise HTTPException(
+                    status_code=500, 
+                    detail=f"Failed to create session and send message: {str(create_error)}"
+                )
+        else:
+            # Other error from /run endpoint
+            error_text = await response.text()
+            logger.error(f"Builder Agent /run returned {response.status_code}: {error_text}")
+            raise HTTPException(
+                status_code=response.status_code,
+                detail=f"Error from Builder Agent service: {error_text}"
+            )
+        
+    except httpx.RequestError as e:
+        logger.error(f"Error connecting to Builder Agent: {str(e)}")
+        raise HTTPException(status_code=503, detail=f"Error connecting to Builder Agent service: {str(e)}")
+    except Exception as e:
+        logger.error(f"Error in workflow_builder_message: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Internal server error: {str(e)}")
+
 # --- Main Execution --- 
 if __name__ == "__main__":
     import uvicorn
