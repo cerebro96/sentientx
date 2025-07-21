@@ -701,10 +701,17 @@ Your workflow configuration has been successfully generated and is ready to be c
 
 **What's Next:**
 • Click "Generate Workflow" below to create your workflow
-• The system will automatically configure all agents and tools
-• Your workflow will be added to your dashboard once created
+• **Configure API Keys**: Add API keys to your Multi Agent (BaseAgent) node and tool nodes
+• **Set LLM Models**: Configure the required language models for each agent
+• **Test Configuration**: Ensure all agents and tools have proper credentials
 
-*The AI has designed a complete workflow based on your requirements. Ready when you are!*`;
+**Important Configuration Steps:**
+• **Multi Agent Node**: Click to configure API key and model settings
+• **LLM Agent Nodes**: Set up provider, model, and API keys for each agent
+• **Tool Nodes**: Add required API keys (e.g., search tools, web scrapers)
+• **Test Workflow**: Start the workflow to verify all configurations work
+
+*The AI has designed a complete workflow based on your requirements. Configure the credentials and you're ready to go!*`;
         }
         
         // Create assistant response from API
@@ -1174,12 +1181,12 @@ Your workflow configuration has been successfully generated and is ready to be c
                       <p className="text-muted-foreground text-sm mb-4">
                         Describe what kind of workflow you want to create.
                       </p>
-                      <p className="text-muted-foreground text-xs mb-4">
+                      {/* <p className="text-muted-foreground text-xs mb-4">
                         Click on an example to get started:
-                      </p>
+                      </p> */}
                       <div className="space-y-3">
                         {/* Top row - two buttons left and right */}
-                        <div className="flex justify-center items-center gap-4">
+                        {/* <div className="flex justify-center items-center gap-4">
                           <Button 
                             variant="outline" 
                             size="sm" 
@@ -1198,7 +1205,7 @@ Your workflow configuration has been successfully generated and is ready to be c
                             <Search className="h-3 w-3 mr-2 text-green-500" />
                             <span className="text-sm">Content research workflow</span>
                           </Button>
-                      </div>
+                      </div> */}
                       </div>
                     </div>
                 </div>
