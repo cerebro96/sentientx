@@ -625,6 +625,20 @@ export function WorkflowCanvas({ isActive, onClose, workflowId, newWorkflowData 
     };
   }, [setIsReady, resetWorkflow]);
 
+  // Auto-open AI Builder for new workflows (when canvas is ready and it's a new workflow)
+  useEffect(() => {
+    // Check if this is a new workflow (has newWorkflowData but no workflowId and no existing nodes)
+    if (nodes.length === 0 && agentType === 'multi_agent') {
+      // Add a delay to ensure the canvas is fully loaded and stable
+      const timer = setTimeout(() => {
+        console.log('Auto-opening AI Builder for new workflow');
+        setIsAIBuilderModalOpen(true);
+      }, 500); // 1 second delay to ensure everything is ready
+
+      return () => clearTimeout(timer);
+    }
+  }, [nodes.length, agentType]);
+
   // Setup keyboard handlers for delete operations
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
@@ -1823,7 +1837,7 @@ export function WorkflowCanvas({ isActive, onClose, workflowId, newWorkflowData 
                       )}
                     </Button>
                     {/* AI Builder Button */}
-                    {(agentType === 'single_agent' || agentType === 'multi_agent') && (
+                    {(agentType === 'multi_agent') && (
                     <Button 
                       size="sm" 
                       variant="outline" 
