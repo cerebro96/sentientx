@@ -47,7 +47,7 @@ const agentTypeOptions = [
 export function WorkflowDialog({ isOpen, onClose, onWorkflowCreated }: WorkflowDialogProps) {
   const [name, setName] = useState('');
   const [description, setDescription] = useState('');
-  const [agentType, setAgentType] = useState('');
+  const [agentType, setAgentType] = useState('multi_agent');
   const [isActive, setIsActive] = useState(true);
   const [tags, setTags] = useState<string[]>([]);
   const [tagInput, setTagInput] = useState('');
@@ -75,7 +75,7 @@ export function WorkflowDialog({ isOpen, onClose, onWorkflowCreated }: WorkflowD
       // Reset form
       setName('');
       setDescription('');
-      setAgentType('');
+      setAgentType('multi_agent');
       setTags([]);
       setTagInput('');
       setIsLoading(false); // Reset loading state when dialog opens
