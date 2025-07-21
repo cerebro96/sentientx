@@ -1906,7 +1906,44 @@ export function WorkflowCanvas({ isActive, onClose, workflowId, newWorkflowData 
         onWorkflowGenerated={(workflowData) => {
           // Handle generated workflow data
           console.log('Generated workflow:', workflowData);
-          toast.success('Workflow generated! You can now customize it.');
+          
+          // Refresh the canvas with the new workflow data
+          if (workflowData.workflowData) {
+            setIsReady(false); // Temporarily disable while loading
+            
+            // Update the workflow store with new nodes and edges
+            useWorkflowStore.setState({
+              nodes: workflowData.workflowData.nodes || [],
+              edges: workflowData.workflowData.edges || [],
+              workflowId: workflowData.workflowId
+            });
+            
+            // Update local state with workflow details
+            // setWorkflowName(workflowData.workflowData.name || workflowName);
+            // setIsWorkflowActive(workflowData.workflowData.is_active || true);
+            // setTags(workflowData.workflowData.tags || ['ai-generated']);
+            // setAgentType(workflowData.workflowData.agent_type || 'multi_agent');
+            
+            // Re-enable and trigger view fit
+            setIsReady(true);
+            shouldFitViewRef.current = true;
+            
+            // Fit view after a short delay to ensure nodes are rendered
+            setTimeout(() => {
+              if (reactFlowInstance) {
+                reactFlowInstance.fitView({
+                  padding: 0.5,
+                  includeHiddenNodes: true,
+                  duration: 800
+                });
+              }
+            }, 200);
+          }
+          
+          toast.success('Workflow generated and loaded!', {
+            description: 'Your AI-generated workflow is now ready for customization.',
+            duration: 5000
+          });
         }}
       />
     </div>
