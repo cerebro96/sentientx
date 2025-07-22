@@ -861,8 +861,8 @@ Your workflow configuration has been successfully generated and is ready to be c
             nodeData.multiAgentConfig = {
               name: jsonNode.id,
               model: 'gemini-2.0-flash', // Default model
-              // description: jsonNode.instructions?.split('\n')[0] || 'AI Multi Agent',
-              description:'',
+              description: jsonNode.instructions?.split('\n')[0] || 'AI Multi Agent',
+              //description:'',
               instructions: jsonNode.instructions || '',
               provider: 'gemini',
               apiKeyId: '', // Will need to be configured later
