@@ -802,7 +802,7 @@ function ActionNodeComponent({ id, data, selected }: NodeProps<NodeData>) {
           )}>{data.label}</div>
           
           {/* Display node description logic */}
-          {isMultiAgent ? (
+          {/* {isMultiAgent ? (
             data.multiAgentConfig?.description ? (
               <div className="text-xs text-slate-300 text-center mt-1 px-1 break-words">
                 {data.multiAgentConfig.description}
@@ -822,16 +822,22 @@ function ActionNodeComponent({ id, data, selected }: NodeProps<NodeData>) {
                 {data.description}
               </div>
             ) : null
-          ) : isAIAgent && data.description ? (
+          ) : */ }
+          {isAIAgent && data.description ? (
             <div className="text-xs text-slate-300 text-center mt-1 px-1 break-words">
               {data.description}
             </div>
-          ) : !isAIAgent && !isMultiAgent && !isLLMAgent && !isSequentialAgent && !isParallelAgent && !isSerperApi && !isGetPrice && !isYahooFinanceNewsTool && 
+          ) : isSupabaseAgent && data.description ? (
+            <div className="text-xs text-slate-300 text-center mt-1 px-1 break-words">
+              {data.description}
+            </div>
+          ) : null}
+          {/* : !isAIAgent && !isMultiAgent && !isLLMAgent && !isSequentialAgent && !isParallelAgent && !isSerperApi && !isGetPrice && !isYahooFinanceNewsTool && 
           !isBraveSearchTool && !isScrapeWebsiteTool && !isEXASearchTool && !isHyperbrowserTool && data.description ? (
             <div className="text-xs text-slate-300 text-center mt-1 mb-1 px-1 break-words">
               {data.description}
             </div>
-          ) : null}
+          ) : null */}
 
           {data.hasError && (
             <div className="absolute top-2 right-2 animate-pulse">
