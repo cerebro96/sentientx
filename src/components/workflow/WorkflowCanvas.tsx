@@ -1046,10 +1046,11 @@ export function WorkflowCanvas({ isActive, onClose, workflowId, newWorkflowData 
         // }
     
             // Validate each connected LLM agent
-    connectedLLMAgents.forEach((llmAgent, index) => {
+    for (let index = 0; index < connectedLLMAgents.length; index++) {
+      const llmAgent = connectedLLMAgents[index];
       if (!llmAgent?.data.llmAgentConfig) {
         validationErrors.push(`LLM Agent ${index + 1} is not configured`);
-        return;
+        continue;
       }
 
       const config = llmAgent.data.llmAgentConfig;
@@ -1082,15 +1083,31 @@ export function WorkflowCanvas({ isActive, onClose, workflowId, newWorkflowData 
         );
 
       // Validate tool API keys for tools that require them
-      connectedTools.forEach((tool: any) => {
+      for (const tool of connectedTools) {
         const toolName = tool.data.label;
         const requiresApiKey = ['BraveSearchTool', 'EXASearchTool', 'hyperbrowser_tool', 'Serper API'].includes(toolName);
         
         if (requiresApiKey && !tool.data.toolConfig?.apiKeyId) {
           validationErrors.push(`${toolName} connected to LLM Agent ${agentIdentifier} requires an API key`);
         }
-      });
-    });
+        if (requiresApiKey && tool.data.toolConfig?.apiKeyId) {
+          try {
+            const { data: apiKeyExists, error } = await supabase
+              .from('api_keys')
+              .select('id')
+              .eq('id', tool.data.toolConfig?.apiKeyId)
+              .single();
+            
+            if (error || !apiKeyExists) {
+              validationErrors.push(`${toolName} connected to LLM Agent ${agentIdentifier} API key does not exist in database`);
+            }
+          } catch (dbError) {
+            console.error(`Error checking ${toolName} API key:`, dbError);
+            validationErrors.push(`Unable to verify ${toolName} API key`);
+          }
+        }
+      }
+    }
     
         // Check Sequential and Parallel agents if any
         const sequentialNodes = allNodes.filter((node: any) => node.data.label === 'Sequential agent');
