@@ -249,9 +249,9 @@ export function LlmAgentModal({
     if (!name) {
       toast.error('LLM Agent name is required.'); return;
     }
-    if (currentProvider && !selectedApiKeyId) {
-      toast.error(`Please select or add an API key for ${llmProviderConfigs[currentProvider].displayName}.`); return;
-    }
+    // if (currentProvider && !selectedApiKeyId) {
+    //   toast.error(`Please select or add an API key for ${llmProviderConfigs[currentProvider].displayName}.`); return;
+    // }
     if (currentProvider && !currentModel) {
       toast.error(`Please select a model for ${llmProviderConfigs[currentProvider].displayName}.`); return;
     }

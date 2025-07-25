@@ -997,9 +997,154 @@ export function WorkflowCanvas({ isActive, onClose, workflowId, newWorkflowData 
       setIsSupabaseAgentLoading(false); // Reset loading state
     }
   } else if (agentNode?.data.label == "Multi Agent (BaseAgent)") {
+
+        // Validation for Multi Agent workflow
+        const validationErrors: string[] = [];
+    
+        // Get all nodes and edges from the workflow
+        const allNodes = useWorkflowStore.getState().nodes;
+        const allEdges = useWorkflowStore.getState().edges;
+    
+        // Find the Multi Agent node
+        const multiAgentNode = allNodes.find(node => node.data.label === 'Multi Agent (BaseAgent)');
+        
+        // Check Multi Agent API key and model
+        if (!multiAgentNode?.data.multiAgentConfig?.apiKeyId) {
+          validationErrors.push('Multi Agent API key is not configured');
+        } else {
+          // Check if the API key ID exists in the database
+          try {
+            const { data: apiKeyExists, error } = await supabase
+              .from('api_keys')
+              .select('id')
+              .eq('id', multiAgentNode.data.multiAgentConfig.apiKeyId)
+              .single();
+            
+            if (error || !apiKeyExists) {
+              validationErrors.push('Multi Agent API key does not exist in database');
+            }
+          } catch (dbError) {
+            console.error('Error checking Multi Agent API key:', dbError);
+            validationErrors.push('Unable to verify Multi Agent API key');
+          }
+        }
+        if (!multiAgentNode?.data.multiAgentConfig?.model) {
+          validationErrors.push('Multi Agent model is not selected');
+        }
+        if (!multiAgentNode?.data.multiAgentConfig?.provider) {
+          validationErrors.push('Multi Agent provider is not selected');
+        }
+    
+        // Check connected LLM agents
+        const connectedLLMAgents = allEdges
+          .filter((edge: any) => edge.source === multiAgentNode?.id)
+          .map((edge: any) => allNodes.find((node: any) => node.id === edge.target))
+          .filter((node: any) => node && node.data.label === 'LLM Agent');
+    
+        // if (connectedLLMAgents.length === 0) {
+        //   validationErrors.push('No LLM agents connected to Multi Agent');
+        // }
+    
+            // Validate each connected LLM agent
+    for (let index = 0; index < connectedLLMAgents.length; index++) {
+      const llmAgent = connectedLLMAgents[index];
+      if (!llmAgent?.data.llmAgentConfig) {
+        validationErrors.push(`LLM Agent ${index + 1} is not configured`);
+        continue;
+      }
+
+      const config = llmAgent.data.llmAgentConfig;
+      // Use agent name if available, otherwise use index-based naming
+      const agentIdentifier = config.name ? `"${config.name}"` : `${index + 1}`;
+      
+      // if (!config.name) {
+      //   validationErrors.push(`LLM Agent ${index + 1} name is not set`);
+      // }
+      if (!config.model) {
+        validationErrors.push(`LLM Agent ${agentIdentifier} model is not selected`);
+      }
+      if (!config.provider) {
+        validationErrors.push(`LLM Agent ${agentIdentifier} provider is not selected`);
+      }
+      // if (!config.apiKeyId) {
+      //   validationErrors.push(`LLM Agent ${agentIdentifier} API key is not configured`);
+      // }
+
+      // Check tools connected to this LLM agent
+      const connectedToolEdges = allEdges.filter((edge: any) => edge.source === llmAgent.id);
+      const connectedTools = connectedToolEdges
+        .map((edge: any) => allNodes.find((node: any) => node.id === edge.target))
+        .filter((node: any): node is NonNullable<typeof node> => 
+          node !== undefined && [
+            'Serper API', 'get_price', 'YahooFinanceNewsTool', 
+            'BraveSearchTool', 'ScrapeWebsiteTool', 'EXASearchTool', 
+            'hyperbrowser_tool'
+          ].includes(node.data.label)
+        );
+
+      // Validate tool API keys for tools that require them
+      for (const tool of connectedTools) {
+        const toolName = tool.data.label;
+        const requiresApiKey = ['BraveSearchTool', 'EXASearchTool', 'hyperbrowser_tool', 'Serper API'].includes(toolName);
+        
+        if (requiresApiKey && !tool.data.toolConfig?.apiKeyId) {
+          validationErrors.push(`${toolName} connected to LLM Agent ${agentIdentifier} requires an API key`);
+        }
+        if (requiresApiKey && tool.data.toolConfig?.apiKeyId) {
+          try {
+            const { data: apiKeyExists, error } = await supabase
+              .from('api_keys')
+              .select('id')
+              .eq('id', tool.data.toolConfig?.apiKeyId)
+              .single();
+            
+            if (error || !apiKeyExists) {
+              validationErrors.push(`${toolName} connected to LLM Agent ${agentIdentifier} API key does not exist in database`);
+            }
+          } catch (dbError) {
+            console.error(`Error checking ${toolName} API key:`, dbError);
+            validationErrors.push(`Unable to verify ${toolName} API key`);
+          }
+        }
+      }
+    }
+    
+        // Check Sequential and Parallel agents if any
+        const sequentialNodes = allNodes.filter((node: any) => node.data.label === 'Sequential agent');
+        const parallelNodes = allNodes.filter((node: any) => node.data.label === 'Parallel agent');
+        
+        [...sequentialNodes, ...parallelNodes].forEach((agent: any) => {
+          const agentType = agent.data.label;
+          if (!agent.data.sequentialParallelConfig?.name) {
+            validationErrors.push(`${agentType} name is not configured`);
+          }
+          
+          // Check LLM agents connected to Sequential/Parallel agents
+          const connectedLLMs = allEdges
+            .filter((edge: any) => edge.source === agent.id)
+            .map((edge: any) => allNodes.find((n: any) => n.id === edge.target))
+            .filter((node: any) => node && node.data.label === 'LLM Agent');
+            
+          if (connectedLLMs.length === 0) {
+            validationErrors.push(`${agentType} has no connected LLM agents`);
+          }
+        });
+    
+        // If there are validation errors, show them and return
+        if (validationErrors.length > 0) {
+          toast.error('Workflow Configuration Incomplete', {
+            description: validationErrors.slice(0, 3).join('. ') + (validationErrors.length > 3 ? ` and ${validationErrors.length - 3} more issues.` : '.'),
+            duration: 8000
+          });
+          
+          // Log all errors for debugging
+          //console.error('Multi Agent validation errors:', validationErrors);
+          return;
+        }
+
     const loadingToast = toast.loading('Starting Multi Agent...', {
       description: 'This might take a few moments',
-      duration: 20000, // Long duration since we'll dismiss it manually
+      duration: 5000, // Long duration since we'll dismiss it manually
     });
 
     try {
@@ -1007,8 +1152,8 @@ export function WorkflowCanvas({ isActive, onClose, workflowId, newWorkflowData 
       setWorkflowStatus('running');
 
       // Get all nodes and edges from the workflow
-      const allNodes = useWorkflowStore.getState().nodes;
-      const allEdges = useWorkflowStore.getState().edges;
+      // const allNodes = useWorkflowStore.getState().nodes;
+      // const allEdges = useWorkflowStore.getState().edges;
 
       // Find the Multi Agent node
       const multiAgentNode = allNodes.find(node => node.data.label === 'Multi Agent (BaseAgent)');
