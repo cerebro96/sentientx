@@ -82,11 +82,15 @@ export function LlmAgentModal({
   // Get workflow state to check connections
   const { nodes, edges } = useWorkflowStore();
 
-  // Check if this LLM Agent is connected to a Multi Agent
+  // Check if this LLM Agent is connected to a Multi Agent, Sequential Agent, or Parallel Agent
   const isConnectedToMultiAgent = edges.some(edge => {
     const targetNode = nodes.find(n => n.id === edge.target);
-    return (edge.source === nodeId && targetNode?.data.label === 'Multi Agent (BaseAgent)') ||
-           (edge.target === nodeId && nodes.find(n => n.id === edge.source)?.data.label === 'Multi Agent (BaseAgent)');
+    const sourceNode = nodes.find(n => n.id === edge.source);
+    
+    const connectedLabels = ['Multi Agent (BaseAgent)', 'Sequential agent', 'Parallel agent'];
+    
+    return (edge.source === nodeId && targetNode && connectedLabels.includes(targetNode.data.label)) ||
+           (edge.target === nodeId && sourceNode && connectedLabels.includes(sourceNode.data.label));
   });
 
   // Log nodeData when modal opens for debugging
