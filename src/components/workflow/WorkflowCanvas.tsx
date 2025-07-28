@@ -1044,7 +1044,10 @@ export function WorkflowCanvas({ isActive, onClose, workflowId, newWorkflowData 
         // if (connectedLLMAgents.length === 0) {
         //   validationErrors.push('No LLM agents connected to Multi Agent');
         // }
-    
+
+        // Get Multi Agent provider for comparison
+        const multiAgentProvider = multiAgentNode?.data.multiAgentConfig?.provider;
+
             // Validate each connected LLM agent
     for (let index = 0; index < connectedLLMAgents.length; index++) {
       const llmAgent = connectedLLMAgents[index];
@@ -1066,6 +1069,12 @@ export function WorkflowCanvas({ isActive, onClose, workflowId, newWorkflowData 
       if (!config.provider) {
         validationErrors.push(`LLM Agent ${agentIdentifier} provider is not selected`);
       }
+      
+      // Check if LLM agent provider matches Multi Agent provider
+      if (config.provider && multiAgentProvider && config.provider !== multiAgentProvider) {
+        validationErrors.push(`LLM Agent ${agentIdentifier} provider (${config.provider}) must match Multi Agent provider (${multiAgentProvider})`);
+      }
+      
       // if (!config.apiKeyId) {
       //   validationErrors.push(`LLM Agent ${agentIdentifier} API key is not configured`);
       // }
@@ -1127,6 +1136,22 @@ export function WorkflowCanvas({ isActive, onClose, workflowId, newWorkflowData 
             
           if (connectedLLMs.length === 0) {
             validationErrors.push(`${agentType} has no connected LLM agents`);
+          }
+
+          // Validate provider consistency for connected LLM agents
+          for (let index = 0; index < connectedLLMs.length; index++) {
+            const llmAgent = connectedLLMs[index];
+            if (!llmAgent?.data.llmAgentConfig) {
+              continue; // Skip if not configured
+            }
+
+            const config = llmAgent.data.llmAgentConfig;
+            const agentIdentifier = config.name ? `"${config.name}"` : `LLM Agent ${index + 1}`;
+            
+            // Check if LLM agent provider matches Multi Agent provider
+            if (config.provider && multiAgentProvider && config.provider !== multiAgentProvider) {
+              validationErrors.push(`${agentIdentifier} connected to ${agentType} provider (${config.provider}) must match Multi Agent provider (${multiAgentProvider})`);
+            }
           }
         });
     
