@@ -57,8 +57,12 @@ export const llmProviderConfigs: Record<string, LlmProviderConfig> = {
       { label: 'OpenAI Organization Key', value: 'openai-org-key' }
     ],
     models: [
+      { label: 'GPT-4.1', value: 'gpt-4.1-2025-04-14' },
       { label: 'GPT-4o', value: 'gpt-4o-2024-08-06' },
       { label: 'o1', value: 'o1-2024-12-17' },
+      { label: 'o3', value: 'o3-2025-04-16' },
+      { label: 'o3-pro', value: 'o3-pro-2025-06-10' },
+      { label: 'o4-mini', value: 'o4-mini-2025-04-16' },
       { label: 'o1-pro', value: 'o1-pro-2025-03-19' },
       { label: 'o3-mini', value: 'o3-mini-2025-01-31' },
       { label: 'o1-mini', value: 'o1-mini-2024-09-12' },
@@ -139,6 +143,8 @@ export const llmProviderConfigs: Record<string, LlmProviderConfig> = {
       { label: 'Anthropic API Key', value: 'anthropic-api-key' }
     ],
     models: [
+      { label: 'Claude Opus 4', value: 'claude-opus-4-20250514' },
+      { label: 'Claude Sonnet 4', value: 'claude-sonnet-4-20250514' },
       { label: 'Claude 3.7 Sonnet', value: 'claude-3-7-sonnet-20250219' },
       { label: 'Claude 3.5 Haiku', value: 'claude-3-5-haiku-20241022' },
       { label: 'Claude 3.5 Sonnet v2', value: 'claude-3-5-sonnet-20241022' },
