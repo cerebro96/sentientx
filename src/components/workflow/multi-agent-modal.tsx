@@ -475,7 +475,7 @@ export function MultiAgentModal({
                               <SelectTrigger>
                                 <SelectValue placeholder="Select model..." />
                               </SelectTrigger>
-                              <SelectContent>
+                              <SelectContent className="max-h-[200px] overflow-y-auto">
                                 {modelsForCurrentProvider.length === 0 ? (
                                   <div className="p-2 text-sm text-muted-foreground">
                                     No models available for this provider.
