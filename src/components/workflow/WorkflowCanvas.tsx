@@ -1087,32 +1087,52 @@ export function WorkflowCanvas({ isActive, onClose, workflowId, newWorkflowData 
           node !== undefined && [
             'Serper API', 'get_price', 'YahooFinanceNewsTool', 
             'BraveSearchTool', 'ScrapeWebsiteTool', 'EXASearchTool', 
-            'hyperbrowser_tool'
+            'hyperbrowser_tool', 'MCP Tool'
           ].includes(node.data.label)
         );
 
-      // Validate tool API keys for tools that require them
+      // Validate tool API keys for tools that require them and MCP Tool configuration
       for (const tool of connectedTools) {
         const toolName = tool.data.label;
-        const requiresApiKey = ['BraveSearchTool', 'EXASearchTool', 'hyperbrowser_tool', 'Serper API'].includes(toolName);
         
-        if (requiresApiKey && !tool.data.toolConfig?.apiKeyId) {
-          validationErrors.push(`${toolName} connected to LLM Agent ${agentIdentifier} requires an API key`);
-        }
-        if (requiresApiKey && tool.data.toolConfig?.apiKeyId) {
-          try {
-            const { data: apiKeyExists, error } = await supabase
-              .from('api_keys')
-              .select('id')
-              .eq('id', tool.data.toolConfig?.apiKeyId)
-              .single();
-            
-            if (error || !apiKeyExists) {
-              validationErrors.push(`${toolName} connected to LLM Agent ${agentIdentifier} API key does not exist in database`);
+        if (toolName === 'MCP Tool') {
+          // Validate MCP Tool configuration
+          const mcpConfig = tool.data.toolConfig?.mcpConfig;
+          if (!mcpConfig) {
+            validationErrors.push(`MCP Tool connected to LLM Agent ${agentIdentifier} is not configured`);
+          } else {
+            if (!mcpConfig.name?.trim()) {
+              validationErrors.push(`MCP Tool connected to LLM Agent ${agentIdentifier} requires a name`);
             }
-          } catch (dbError) {
-            console.error(`Error checking ${toolName} API key:`, dbError);
-            validationErrors.push(`Unable to verify ${toolName} API key`);
+            if (!mcpConfig.url?.trim()) {
+              validationErrors.push(`MCP Tool connected to LLM Agent ${agentIdentifier} requires a URL`);
+            }
+            if (mcpConfig.authentication === 'Bearer Token' && !mcpConfig.bearerToken?.trim()) {
+              validationErrors.push(`MCP Tool connected to LLM Agent ${agentIdentifier} requires a bearer token`);
+            }
+          }
+        } else {
+          // Validate regular tools with API keys
+          const requiresApiKey = ['BraveSearchTool', 'EXASearchTool', 'hyperbrowser_tool', 'Serper API'].includes(toolName);
+          
+          if (requiresApiKey && !tool.data.toolConfig?.apiKeyId) {
+            validationErrors.push(`${toolName} connected to LLM Agent ${agentIdentifier} requires an API key`);
+          }
+          if (requiresApiKey && tool.data.toolConfig?.apiKeyId) {
+            try {
+              const { data: apiKeyExists, error } = await supabase
+                .from('api_keys')
+                .select('id')
+                .eq('id', tool.data.toolConfig?.apiKeyId)
+                .single();
+              
+              if (error || !apiKeyExists) {
+                validationErrors.push(`${toolName} connected to LLM Agent ${agentIdentifier} API key does not exist in database`);
+              }
+            } catch (dbError) {
+              console.error(`Error checking ${toolName} API key:`, dbError);
+              validationErrors.push(`Unable to verify ${toolName} API key`);
+            }
           }
         }
       }
@@ -1247,7 +1267,7 @@ export function WorkflowCanvas({ isActive, onClose, workflowId, newWorkflowData 
               node !== undefined && [
                 'Serper API', 'get_price', 'YahooFinanceNewsTool', 
                 'BraveSearchTool', 'ScrapeWebsiteTool', 'EXASearchTool', 
-                'hyperbrowser_tool'
+                'hyperbrowser_tool', 'MCP Tool'
               ].includes(node.data.label)
             );
 
@@ -1259,7 +1279,8 @@ export function WorkflowCanvas({ isActive, onClose, workflowId, newWorkflowData 
             'BraveSearchTool': 'BraveSearchTool',
             'ScrapeWebsiteTool': 'ScrapeWebsiteTool',
             'EXASearchTool': 'EXASearchTool',
-            'hyperbrowser_tool': 'hyperbrowser_tool'
+            'hyperbrowser_tool': 'hyperbrowser_tool',
+            'MCP Tool': 'mcp_tool'
           };
 
           // Get all tool names, map them, and join with a comma
@@ -1281,11 +1302,31 @@ export function WorkflowCanvas({ isActive, onClose, workflowId, newWorkflowData 
             tools: toolsString // Use the comma-separated string of all tool names
           };
 
-          // Add API keys for tools that require them
+          // Add API keys for tools that require them and MCP configuration
           for (const tool of connectedTools) {
-            const { keyName, apiKey } = await getToolApiKey(tool.id);
-            if (keyName && apiKey) {
-              agentData[keyName] = apiKey;
+            if (tool.data.label === 'MCP Tool') {
+              // Handle MCP Tool configuration
+              const mcpConfig = tool.data.toolConfig?.mcpConfig;
+              if (mcpConfig) {
+                agentData.mcp_config = {
+                  name: mcpConfig.name,
+                  description: mcpConfig.description,
+                  url: mcpConfig.url,
+                  transport_protocol: mcpConfig.transportProtocol,
+                  authentication: mcpConfig.authentication
+                };
+                
+                // Add bearer token if authentication is Bearer Token
+                if (mcpConfig.authentication === 'Bearer Token' && mcpConfig.bearerToken) {
+                  agentData.mcp_config.bearer_token = mcpConfig.bearerToken;
+                }
+              }
+            } else {
+              // Handle regular tools with API keys
+              const { keyName, apiKey } = await getToolApiKey(tool.id);
+              if (keyName && apiKey) {
+                agentData[keyName] = apiKey;
+              }
             }
           }
 
@@ -1316,7 +1357,7 @@ export function WorkflowCanvas({ isActive, onClose, workflowId, newWorkflowData 
                 .filter(node => node && [
                   'Serper API', 'get_price', 'YahooFinanceNewsTool', 
                   'BraveSearchTool', 'ScrapeWebsiteTool', 'EXASearchTool', 
-                  'hyperbrowser_tool'
+                  'hyperbrowser_tool', 'MCP Tool'
                 ].includes(node.data.label));
               
               const toolsString = connectedToolNodes.map((tool: any) => tool.data.label).join(', ');

@@ -234,5 +234,13 @@ export const nodeCatalog = [
     icon: Wrench,
     category: 'Tools',
     hidden: false,
+  },
+  {
+    type: 'action',
+    label: 'MCP Tool',
+    description: 'MCP tool to connect to external tools',
+    icon: Wrench,
+    category: 'Tools',
+    hidden: false,
   }
 ]; 

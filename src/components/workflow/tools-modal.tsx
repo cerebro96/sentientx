@@ -12,6 +12,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
 import { toast } from 'sonner';
 import { getApiKeys, createApiKey } from "@/lib/api-keys";
 import { Plus, Eye, EyeOff } from "lucide-react";
@@ -30,9 +31,25 @@ interface ToolsModalProps {
   toolType: string;
   nodeData?: {
     apiKeyId?: string;
+    mcpConfig?: {
+      name?: string;
+      description?: string;
+      url?: string;
+      transportProtocol?: string;
+      authentication?: string;
+      bearerToken?: string;
+    };
   };
   onSave: (configData: { 
-    apiKeyId: string;
+    apiKeyId?: string;
+    mcpConfig?: {
+      name: string;
+      description: string;
+      url: string;
+      transportProtocol: string;
+      authentication: string;
+      bearerToken?: string;
+    };
   }) => void;
 }
 
@@ -56,7 +73,16 @@ export function ToolsModal({
   const [isLoadingKeys, setIsLoadingKeys] = useState(false);
   const [hasInitialized, setHasInitialized] = useState(false);
 
+  // MCP Tool configuration state
+  const [mcpName, setMcpName] = useState('');
+  const [mcpDescription, setMcpDescription] = useState('');
+  const [mcpUrl, setMcpUrl] = useState('https://example.com/mcp');
+  const [mcpTransportProtocol, setMcpTransportProtocol] = useState('HTTP');
+  const [mcpAuthentication, setMcpAuthentication] = useState('No Authentication');
+  const [mcpBearerToken, setMcpBearerToken] = useState('');
+
   const needsApiKey = TOOLS_WITH_API_KEYS.includes(toolType);
+  const isMCPTool = toolType === 'MCP Tool';
 
   const getServiceNameForTool = (tool: string): string => {
     const serviceMap: Record<string, string> = {
@@ -108,14 +134,26 @@ export function ToolsModal({
       console.log("📦 nodeData received:", nodeData);
       console.log("🔑 savedApiKeyId from nodeData:", savedApiKeyId);
       
+      // Initialize MCP Tool configuration if available
+      if (isMCPTool && nodeData?.mcpConfig) {
+        setMcpName(nodeData.mcpConfig.name || '');
+        setMcpDescription(nodeData.mcpConfig.description || '');
+        setMcpUrl(nodeData.mcpConfig.url || 'https://example.com/mcp');
+        setMcpTransportProtocol(nodeData.mcpConfig.transportProtocol || 'HTTP');
+        setMcpAuthentication(nodeData.mcpConfig.authentication || 'No Authentication');
+        setMcpBearerToken(nodeData.mcpConfig.bearerToken || '');
+      }
+      
       setSelectedApiKeyId(savedApiKeyId);
-      fetchApiKeys(savedApiKeyId);
+      if (needsApiKey) {
+        fetchApiKeys(savedApiKeyId);
+      }
       setHasInitialized(true);
     } else if (!isOpen) {
       // Reset when modal closes
       setHasInitialized(false);
     }
-  }, [isOpen, nodeData?.apiKeyId, toolType]);
+  }, [isOpen, nodeData?.apiKeyId, nodeData?.mcpConfig, toolType, isMCPTool, needsApiKey]);
 
   // Debug effect to track nodeData changes
   useEffect(() => {
@@ -152,14 +190,51 @@ export function ToolsModal({
       return;
     }
 
-    console.log("💾 Saving tool config with apiKeyId:", selectedApiKeyId);
-    onSave({
-      apiKeyId: selectedApiKeyId
-    });
+    if (isMCPTool) {
+      // Validate MCP Tool fields
+      if (!mcpName.trim()) {
+        toast.error("Name is required");
+        return;
+      }
+      if (!mcpUrl.trim()) {
+        toast.error("URL is required");
+        return;
+      }
+      if (mcpAuthentication === 'Bearer Token' && !mcpBearerToken.trim()) {
+        toast.error("Bearer token is required");
+        return;
+      }
+
+      console.log("💾 Saving MCP Tool config:", {
+        name: mcpName,
+        description: mcpDescription,
+        url: mcpUrl,
+        transportProtocol: mcpTransportProtocol,
+        authentication: mcpAuthentication,
+        bearerToken: mcpBearerToken
+      });
+
+      onSave({
+        mcpConfig: {
+          name: mcpName.trim(),
+          description: mcpDescription.trim(),
+          url: mcpUrl.trim(),
+          transportProtocol: mcpTransportProtocol,
+          authentication: mcpAuthentication,
+          bearerToken: mcpBearerToken.trim()
+        }
+      });
+    } else {
+      console.log("💾 Saving tool config with apiKeyId:", selectedApiKeyId);
+      onSave({
+        apiKeyId: selectedApiKeyId
+      });
+    }
+    
     onClose();
   };
 
-  if (!needsApiKey) {
+  if (!needsApiKey && !isMCPTool) {
     return (
       <Dialog open={isOpen} onOpenChange={onClose}>
         <DialogContent className="sm:max-w-[425px]">
@@ -178,45 +253,131 @@ export function ToolsModal({
   return (
     <>
       <Dialog open={isOpen} onOpenChange={onClose}>
-        <DialogContent className="sm:max-w-[425px]">
-          <DialogHeader>
+        <DialogContent className="sm:max-w-[500px] max-h-[90vh] overflow-hidden flex flex-col">
+          <DialogHeader className="flex-shrink-0">
             <DialogTitle>{toolType} Configuration</DialogTitle>
-            <DialogDescription>Configure your tool settings.</DialogDescription>
+            <DialogDescription>
+              {isMCPTool ? "Configure your MCP server connection settings." : "Configure your tool settings."}
+            </DialogDescription>
           </DialogHeader>
           
-          <div className="grid gap-4 py-4">
-            <div className="grid gap-2">
-              <Label>API Key *</Label>
-              <div className="flex gap-2">
-                {isLoadingKeys ? (
-                  <div className="flex-1 h-10 flex items-center justify-center rounded-md border border-input animate-pulse">
-                    <span className="text-sm text-muted-foreground">Loading keys...</span>
+          <div className="grid gap-4 py-4 overflow-y-auto flex-1 min-h-0">
+            {isMCPTool ? (
+              <>
+                {/* MCP Tool Configuration */}
+                <div className="grid gap-2">
+                  <Label htmlFor="mcp-name">Name *</Label>
+                  <Input
+                    id="mcp-name"
+                    value={mcpName}
+                    onChange={(e) => setMcpName(e.target.value)}
+                    placeholder="Enter server name"
+                    required
+                  />
+                </div>
+
+                <div className="grid gap-2">
+                  <Label htmlFor="mcp-description">Description</Label>
+                  <Textarea
+                    id="mcp-description"
+                    value={mcpDescription}
+                    onChange={(e) => setMcpDescription(e.target.value)}
+                    placeholder="Enter server description (optional)"
+                    className="min-h-[80px] resize-none"
+                  />
+                </div>
+
+                <div className="grid gap-2">
+                  <Label htmlFor="mcp-url">URL *</Label>
+                  <Input
+                    id="mcp-url"
+                    value={mcpUrl}
+                    onChange={(e) => setMcpUrl(e.target.value)}
+                    placeholder="https://example.com/mcp"
+                    required
+                  />
+                </div>
+
+                <div className="grid gap-2">
+                  <Label htmlFor="mcp-transport">Transport Protocol</Label>
+                  <Select value={mcpTransportProtocol} onValueChange={setMcpTransportProtocol}>
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="HTTP">Streamble HTTP</SelectItem>
+                      <SelectItem value="SSE">SSE</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div className="grid gap-2">
+                  <Label htmlFor="mcp-auth">Authentication</Label>
+                  <Select value={mcpAuthentication} onValueChange={setMcpAuthentication}>
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="No Authentication">No Authentication</SelectItem>
+                      {/* <SelectItem value="API Key">API Key</SelectItem> */}
+                      <SelectItem value="Bearer Token">Bearer Token</SelectItem>
+                      {/* <SelectItem value="Basic Auth">Basic Auth</SelectItem> */}
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                {/* Bearer Token Input - Only show when Bearer Token is selected */}
+                {mcpAuthentication === 'Bearer Token' && (
+                  <div className="grid gap-2">
+                    <Label htmlFor="mcp-bearer-token">Bearer Token *</Label>
+                    <Input
+                      id="mcp-bearer-token"
+                      type="password"
+                      value={mcpBearerToken}
+                      onChange={(e) => setMcpBearerToken(e.target.value)}
+                      placeholder="Enter your bearer token"
+                      required
+                    />
                   </div>
-                ) : (
-                  <>
-                    <Select value={selectedApiKeyId} onValueChange={setSelectedApiKeyId}>
-                      <SelectTrigger className="w-full">
-                        <SelectValue placeholder={`Select ${getServiceNameForTool(toolType)} API key`} />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {availableApiKeys.length > 0 ? 
-                          availableApiKeys.map((key) => (
-                            <SelectItem key={key.id} value={key.id}>{key.name}</SelectItem>
-                          )) :
-                          <div className="p-2 text-sm text-muted-foreground">No keys available. Click + to add.</div>
-                        }
-                      </SelectContent>
-                    </Select>
-                    <Button variant="outline" size="icon" onClick={() => setIsAddKeyDialogOpen(true)} title="Add New API Key">
-                      <Plus className="h-4 w-4" />
-                    </Button>
-                  </>
                 )}
-              </div>
-            </div>
+              </>
+            ) : (
+              <>
+                {/* Regular Tool Configuration */}
+                <div className="grid gap-2">
+                  <Label>API Key *</Label>
+                  <div className="flex gap-2">
+                    {isLoadingKeys ? (
+                      <div className="flex-1 h-10 flex items-center justify-center rounded-md border border-input animate-pulse">
+                        <span className="text-sm text-muted-foreground">Loading keys...</span>
+                      </div>
+                    ) : (
+                      <>
+                        <Select value={selectedApiKeyId} onValueChange={setSelectedApiKeyId}>
+                          <SelectTrigger className="w-full">
+                            <SelectValue placeholder={`Select ${getServiceNameForTool(toolType)} API key`} />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {availableApiKeys.length > 0 ? 
+                              availableApiKeys.map((key) => (
+                                <SelectItem key={key.id} value={key.id}>{key.name}</SelectItem>
+                              )) :
+                              <div className="p-2 text-sm text-muted-foreground">No keys available. Click + to add.</div>
+                            }
+                          </SelectContent>
+                        </Select>
+                        <Button variant="outline" size="icon" onClick={() => setIsAddKeyDialogOpen(true)} title="Add New API Key">
+                          <Plus className="h-4 w-4" />
+                        </Button>
+                      </>
+                    )}
+                  </div>
+                </div>
+              </>
+            )}
           </div>
           
-          <DialogFooter>
+          <DialogFooter className="flex-shrink-0 border-t pt-4 mt-4">
             <Button variant="outline" onClick={onClose}>Cancel</Button>
             <Button onClick={handleSave}>Save Configuration</Button>
           </DialogFooter>

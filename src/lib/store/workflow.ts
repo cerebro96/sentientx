@@ -82,6 +82,14 @@ export type NodeData = {
   };
   toolConfig?: {
     apiKeyId?: string;
+    mcpConfig?: {
+      name: string;
+      description: string;
+      url: string;
+      transportProtocol: string;
+      authentication: string;
+      bearerToken?: string;
+    };
   };
   sequentialParallelConfig?: {
     name?: string;
