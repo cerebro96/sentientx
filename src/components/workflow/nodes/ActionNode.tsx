@@ -99,8 +99,9 @@ function ActionNodeComponent({ id, data, selected }: NodeProps<NodeData>) {
   const isScrapeWebsiteTool = data.label === 'ScrapeWebsiteTool';
   const isEXASearchTool = data.label === 'EXASearchTool';
   const isHyperbrowserTool = data.label === 'hyperbrowser_tool';
+  const isMCPTool = data.label === 'MCP Tool';
   const isToolNode = isSerperApi || isGetPrice || isYahooFinanceNewsTool || 
-    isBraveSearchTool || isScrapeWebsiteTool || isEXASearchTool || isHyperbrowserTool;
+    isBraveSearchTool || isScrapeWebsiteTool || isEXASearchTool || isHyperbrowserTool || isMCPTool;
   // Handle icon selection based on node type
   let IconComponent;
   
@@ -209,17 +210,38 @@ function ActionNodeComponent({ id, data, selected }: NodeProps<NodeData>) {
     window.dispatchEvent(event);
   };
   
-  const handleToolConfigSave = (configData: { apiKeyId: string }) => {
+  const handleToolConfigSave = (configData: { 
+    apiKeyId?: string;
+    mcpConfig?: {
+      name: string;
+      description: string;
+      url: string;
+      transportProtocol: string;
+      authentication: string;
+    };
+  }) => {
     if (id) {
       const updateNodeData = useWorkflowStore.getState().updateNodeData;
       console.log('💾 Saving Tool configuration in node:', id, configData);
       console.log('🔍 Current node data before save:', data);
       
-      updateNodeData(id, {
-        toolConfig: {
-          apiKeyId: configData.apiKeyId
-        }
-      });
+      // Handle MCP Tool configuration
+      if (configData.mcpConfig) {
+        updateNodeData(id, {
+          toolConfig: {
+            mcpConfig: configData.mcpConfig
+          }
+        });
+        toast.success('MCP Tool configuration updated');
+      } else {
+        // Handle regular tool configuration
+        updateNodeData(id, {
+          toolConfig: {
+            apiKeyId: configData.apiKeyId
+          }
+        });
+        toast.success('Tool configuration updated');
+      }
       
       // Explicitly trigger auto-save to ensure persistence
       setTimeout(() => {
@@ -234,8 +256,6 @@ function ActionNodeComponent({ id, data, selected }: NodeProps<NodeData>) {
         console.log('✅ Tool configuration saved. Updated node data:', updatedNode?.data);
         console.log('🔑 Saved toolConfig:', updatedNode?.data.toolConfig);
       }, 200);
-      
-      toast.success('Tool configuration updated');
     }
   };
   
@@ -692,11 +712,12 @@ function ActionNodeComponent({ id, data, selected }: NodeProps<NodeData>) {
           isAIAgent ? "min-w-[280px] min-h-[240px]" : "",
           (isSerperApi || isGetPrice || isYahooFinanceNewsTool || isBraveSearchTool 
             || isScrapeWebsiteTool || isEXASearchTool || isHyperbrowserTool) ? "rounded-full !min-w-[120px] !min-h-[120px] flex items-center justify-center" : "",
+          isMCPTool ? "!min-w-[120px] !min-h-[120px] flex items-center justify-center" : "",
           isMultiAgent
             ? selected 
               ? "border-yellow-500 shadow-[0_0_20px_-5px_rgba(234,179,8,0.7)]" 
               : "border-yellow-600 shadow-[0_0_10px_-5px_rgba(234,179,8,0.3)]"
-            : isSupabaseAgent
+            : (isSupabaseAgent || isMCPTool)
             ? selected
               ? "border-green-500 shadow-[0_0_20px_-5px_rgba(34,197,94,0.7)]"
               : "border-green-600 shadow-[0_0_10px_-5px_rgba(34,197,94,0.3)]"
@@ -754,7 +775,7 @@ function ActionNodeComponent({ id, data, selected }: NodeProps<NodeData>) {
           "absolute inset-0 rounded-lg opacity-50 blur-sm",
           isMultiAgent 
             ? "bg-gradient-to-r from-yellow-600 to-amber-600 animate-pulse-slow"
-            : isSupabaseAgent
+            : (isSupabaseAgent || isMCPTool)
             ? "bg-gradient-to-r from-green-600 to-emerald-600 animate-pulse-slow"
             : isAIAgent
             ? "bg-gradient-to-r from-pink-600 to-fuchsia-600 animate-pulse-slow" 
@@ -779,10 +800,17 @@ function ActionNodeComponent({ id, data, selected }: NodeProps<NodeData>) {
               {data.sequentialParallelConfig.name}
             </div>
           )}
+          {(isMCPTool && data.toolConfig?.mcpConfig?.name) && (
+            <div className="text-xs font-semibold text-green-400 mb-1 text-center break-all px-1">
+              {data.toolConfig.mcpConfig.name}
+            </div>
+          )}
           <div className={cn(
             "flex-shrink-0 p-3 rounded-full mb-2 transition-all",
             isSerperApi || isGetPrice || isYahooFinanceNewsTool || isBraveSearchTool || isScrapeWebsiteTool || isEXASearchTool || isHyperbrowserTool
               ? "bg-slate-700 text-orange-400 !mb-1"
+              : isMCPTool
+              ? "bg-slate-700 text-green-400 !mb-1"
               : isMultiAgent
               ? "bg-slate-700 text-yellow-400"
               : isSupabaseAgent
@@ -794,11 +822,11 @@ function ActionNodeComponent({ id, data, selected }: NodeProps<NodeData>) {
               : "bg-slate-700 text-blue-400"
           )}>
             <IconComponent className={cn("h-6 w-6", (isSerperApi || isGetPrice || isYahooFinanceNewsTool || isBraveSearchTool || 
-              isScrapeWebsiteTool || isEXASearchTool || isHyperbrowserTool) && "h-8 w-8")} />
+              isScrapeWebsiteTool || isEXASearchTool || isHyperbrowserTool || isMCPTool) && "h-8 w-8")} />
           </div>
           <div className={cn(
             "font-medium text-center text-white",
-            (isSerperApi || isGetPrice || isYahooFinanceNewsTool || isBraveSearchTool || isScrapeWebsiteTool || isEXASearchTool || isHyperbrowserTool) && "text-sm"
+            (isSerperApi || isGetPrice || isYahooFinanceNewsTool || isBraveSearchTool || isScrapeWebsiteTool || isEXASearchTool || isHyperbrowserTool || isMCPTool) && "text-sm"
           )}>{data.label}</div>
           
           {/* Display node description logic */}
@@ -889,7 +917,7 @@ function ActionNodeComponent({ id, data, selected }: NodeProps<NodeData>) {
         )}
         
         {/* Input handles */}
-        {/* Top input handle - Hide for Chat Trigger, Webhooks, HTTP, Transform, AI Agent, Supabase Agent, and Multi Agent */}
+        {/* Top input handle - Hide for Chat Trigger, Webhooks, HTTP, Transform, AI Agent, Supabase Agent, Multi Agent, and MCP Tool */}
         {(!isChatTrigger && !isWebhookTrigger && !isWebhookResponse && !isHttpRequest && !isTransformData && !isAIAgent && !isSupabaseAgent && !isMultiAgent) && (
           <Handle 
             id="input-top"
@@ -910,9 +938,9 @@ function ActionNodeComponent({ id, data, selected }: NodeProps<NodeData>) {
           />
         )}
         
-        {/* Left input handle - not shown for LLM, Memory, Chat Trigger nodes, or Multi Agent */}
+        {/* Left input handle - not shown for LLM, Memory, Chat Trigger nodes, Multi Agent, or MCP Tool */}
         {(!isChatTrigger && !isLLMNode && !isMemoryNode && !isWebhookTrigger && !isMultiAgent && !isLLMAgent && !isSequentialAgent && !isParallelAgent && !isLoopAgent && !isSerperApi && !isGetPrice && !isYahooFinanceNewsTool 
-        && !isBraveSearchTool && !isScrapeWebsiteTool && !isEXASearchTool && !isHyperbrowserTool) && (
+        && !isBraveSearchTool && !isScrapeWebsiteTool && !isEXASearchTool && !isHyperbrowserTool && !isMCPTool) && (
           <Handle 
             id="input-left"
             type="target" 
@@ -930,9 +958,9 @@ function ActionNodeComponent({ id, data, selected }: NodeProps<NodeData>) {
           />
         )}
         
-        {/* Right output handle - for Chat Trigger, Webhook nodes, HTTP Request, Transform Data, and all nodes except LLM, Memory, and Multi Agent */}
+        {/* Right output handle - for Chat Trigger, Webhook nodes, HTTP Request, Transform Data, and all nodes except LLM, Memory, Multi Agent, and MCP Tool */}
         {(isChatTrigger || isWebhookTrigger || isWebhookResponse || isHttpRequest || isTransformData || (!isLLMNode && !isMemoryNode && !isMultiAgent && !isLLMAgent && !isSequentialAgent && !isParallelAgent && !isLoopAgent 
-        && !isSerperApi && !isGetPrice && !isYahooFinanceNewsTool && !isBraveSearchTool && !isScrapeWebsiteTool && !isEXASearchTool && !isHyperbrowserTool)) && (
+        && !isSerperApi && !isGetPrice && !isYahooFinanceNewsTool && !isBraveSearchTool && !isScrapeWebsiteTool && !isEXASearchTool && !isHyperbrowserTool && !isMCPTool)) && (
           <Handle 
             id="output-right"
             type="source" 
@@ -952,7 +980,7 @@ function ActionNodeComponent({ id, data, selected }: NodeProps<NodeData>) {
         
         {/* Bottom output handle - Keep this for Multi Agent */}
         {((!isChatTrigger && !isWebhookTrigger && !isWebhookResponse && !isHttpRequest && !isTransformData && !isLLMNode && !isMemoryNode && !isAIAgent && !isSupabaseAgent && !isSerperApi && !isGetPrice && !isYahooFinanceNewsTool && !isBraveSearchTool 
-        && !isScrapeWebsiteTool && !isEXASearchTool && !isHyperbrowserTool) || isMultiAgent) && (
+        && !isScrapeWebsiteTool && !isEXASearchTool && !isHyperbrowserTool && !isMCPTool) || isMultiAgent) && (
           <Handle 
             id="output-bottom"
             type="source" 
