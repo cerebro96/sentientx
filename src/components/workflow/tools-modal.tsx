@@ -15,7 +15,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { toast } from 'sonner';
 import { getApiKeys, createApiKey } from "@/lib/api-keys";
-import { Plus, Eye, EyeOff } from "lucide-react";
+import { Plus, Eye, EyeOff, Info, ExternalLink } from "lucide-react";
 import {
   Select,
   SelectContent,
@@ -253,7 +253,7 @@ export function ToolsModal({
   return (
     <>
       <Dialog open={isOpen} onOpenChange={onClose}>
-        <DialogContent className="sm:max-w-[500px] max-h-[90vh] overflow-hidden flex flex-col">
+        <DialogContent className="sm:max-w-[900px] max-h-[90vh] overflow-hidden flex flex-col">
           <DialogHeader className="flex-shrink-0">
             <DialogTitle>{toolType} Configuration</DialogTitle>
             <DialogDescription>
@@ -261,119 +261,215 @@ export function ToolsModal({
             </DialogDescription>
           </DialogHeader>
           
-          <div className="grid gap-4 py-4 overflow-y-auto flex-1 min-h-0">
-            {isMCPTool ? (
-              <>
-                {/* MCP Tool Configuration */}
-                <div className="grid gap-2">
-                  <Label htmlFor="mcp-name">Name *</Label>
-                  <Input
-                    id="mcp-name"
-                    value={mcpName}
-                    onChange={(e) => setMcpName(e.target.value)}
-                    placeholder="Enter server name"
-                    required
-                  />
-                </div>
-
-                <div className="grid gap-2">
-                  <Label htmlFor="mcp-description">Description</Label>
-                  <Textarea
-                    id="mcp-description"
-                    value={mcpDescription}
-                    onChange={(e) => setMcpDescription(e.target.value)}
-                    placeholder="Enter server description (optional)"
-                    className="min-h-[80px] resize-none"
-                  />
-                </div>
-
-                <div className="grid gap-2">
-                  <Label htmlFor="mcp-url">URL *</Label>
-                  <Input
-                    id="mcp-url"
-                    value={mcpUrl}
-                    onChange={(e) => setMcpUrl(e.target.value)}
-                    placeholder="https://example.com/mcp"
-                    required
-                  />
-                </div>
-
-                <div className="grid gap-2">
-                  <Label htmlFor="mcp-transport">Transport Protocol</Label>
-                  <Select value={mcpTransportProtocol} onValueChange={setMcpTransportProtocol}>
-                    <SelectTrigger>
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="HTTP">Streamble HTTP</SelectItem>
-                      <SelectItem value="SSE">SSE</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-
-                <div className="grid gap-2">
-                  <Label htmlFor="mcp-auth">Authentication</Label>
-                  <Select value={mcpAuthentication} onValueChange={setMcpAuthentication}>
-                    <SelectTrigger>
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="No Authentication">No Authentication</SelectItem>
-                      {/* <SelectItem value="API Key">API Key</SelectItem> */}
-                      <SelectItem value="Bearer Token">Bearer Token</SelectItem>
-                      {/* <SelectItem value="Basic Auth">Basic Auth</SelectItem> */}
-                    </SelectContent>
-                  </Select>
-                </div>
-
-                {/* Bearer Token Input - Only show when Bearer Token is selected */}
-                {mcpAuthentication === 'Bearer Token' && (
+          <div className="flex gap-6 py-4 overflow-y-auto flex-1 min-h-0">
+            {/* Main Configuration Panel */}
+            <div className="flex-1 space-y-4">
+              {isMCPTool ? (
+                <>
+                  {/* MCP Tool Configuration */}
                   <div className="grid gap-2">
-                    <Label htmlFor="mcp-bearer-token">Bearer Token *</Label>
+                    <Label htmlFor="mcp-name">Name *</Label>
                     <Input
-                      id="mcp-bearer-token"
-                      type="password"
-                      value={mcpBearerToken}
-                      onChange={(e) => setMcpBearerToken(e.target.value)}
-                      placeholder="Enter your bearer token"
+                      id="mcp-name"
+                      value={mcpName}
+                      onChange={(e) => setMcpName(e.target.value)}
+                      placeholder="Enter server name"
                       required
                     />
                   </div>
-                )}
-              </>
-            ) : (
-              <>
-                {/* Regular Tool Configuration */}
-                <div className="grid gap-2">
-                  <Label>API Key *</Label>
-                  <div className="flex gap-2">
-                    {isLoadingKeys ? (
-                      <div className="flex-1 h-10 flex items-center justify-center rounded-md border border-input animate-pulse">
-                        <span className="text-sm text-muted-foreground">Loading keys...</span>
+
+                  <div className="grid gap-2">
+                    <Label htmlFor="mcp-description">Description</Label>
+                    <Textarea
+                      id="mcp-description"
+                      value={mcpDescription}
+                      onChange={(e) => setMcpDescription(e.target.value)}
+                      placeholder="Enter server description (optional)"
+                      className="min-h-[80px] resize-none"
+                    />
+                  </div>
+
+                  <div className="grid gap-2">
+                    <Label htmlFor="mcp-url">URL *</Label>
+                    <Input
+                      id="mcp-url"
+                      value={mcpUrl}
+                      onChange={(e) => setMcpUrl(e.target.value)}
+                      placeholder="https://example.com/mcp"
+                      required
+                    />
+                  </div>
+
+                  <div className="grid gap-2">
+                    <Label htmlFor="mcp-transport">Transport Protocol</Label>
+                    <Select value={mcpTransportProtocol} onValueChange={setMcpTransportProtocol}>
+                      <SelectTrigger>
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="HTTP">Streamble HTTP</SelectItem>
+                        <SelectItem value="SSE">SSE</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  <div className="grid gap-2">
+                    <Label htmlFor="mcp-auth">Authentication</Label>
+                    <Select value={mcpAuthentication} onValueChange={setMcpAuthentication}>
+                      <SelectTrigger>
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="No Authentication">No Authentication</SelectItem>
+                        {/* <SelectItem value="API Key">API Key</SelectItem> */}
+                        <SelectItem value="Bearer Token">Bearer Token</SelectItem>
+                        {/* <SelectItem value="Basic Auth">Basic Auth</SelectItem> */}
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  {/* Bearer Token Input - Only show when Bearer Token is selected */}
+                  {mcpAuthentication === 'Bearer Token' && (
+                    <div className="grid gap-2">
+                      <Label htmlFor="mcp-bearer-token">Bearer Token *</Label>
+                      <Input
+                        id="mcp-bearer-token"
+                        type="password"
+                        value={mcpBearerToken}
+                        onChange={(e) => setMcpBearerToken(e.target.value)}
+                        placeholder="Enter your bearer token"
+                        required
+                      />
+                    </div>
+                  )}
+                </>
+              ) : (
+                <>
+                  {/* Regular Tool Configuration */}
+                  <div className="grid gap-2">
+                    <Label>API Key *</Label>
+                    <div className="flex gap-2">
+                      {isLoadingKeys ? (
+                        <div className="flex-1 h-10 flex items-center justify-center rounded-md border border-input animate-pulse">
+                          <span className="text-sm text-muted-foreground">Loading keys...</span>
+                        </div>
+                      ) : (
+                        <>
+                          <Select value={selectedApiKeyId} onValueChange={setSelectedApiKeyId}>
+                            <SelectTrigger className="w-full">
+                              <SelectValue placeholder={`Select ${getServiceNameForTool(toolType)} API key`} />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {availableApiKeys.length > 0 ? 
+                                availableApiKeys.map((key) => (
+                                  <SelectItem key={key.id} value={key.id}>{key.name}</SelectItem>
+                                )) :
+                                <div className="p-2 text-sm text-muted-foreground">No keys available. Click + to add.</div>
+                              }
+                            </SelectContent>
+                          </Select>
+                          <Button variant="outline" size="icon" onClick={() => setIsAddKeyDialogOpen(true)} title="Add New API Key">
+                            <Plus className="h-4 w-4" />
+                          </Button>
+                        </>
+                      )}
+                    </div>
+                  </div>
+                </>
+              )}
+            </div>
+
+            {/* Side Panel with Instructions - Only show for MCP Tool */}
+            {isMCPTool && (
+              <div className="w-80 bg-slate-50 dark:bg-slate-900 rounded-lg p-4 border border-slate-200 dark:border-slate-700 overflow-y-auto">
+                <div className="flex items-center gap-2 mb-4">
+                  <Info className="h-5 w-5 text-blue-500" />
+                  <h3 className="font-semibold text-sm">MCP Server Setup Guide</h3>
+                </div>
+                
+                <div className="space-y-4 text-sm">
+                  <div>
+                    <h4 className="font-medium text-slate-900 dark:text-slate-100 mb-2">Recommended MCP Providers</h4>
+                    <div className="space-y-3">
+                      {/* Composio MCP */}
+                      <div className="p-3 bg-white dark:bg-slate-800 rounded border border-slate-200 dark:border-slate-600">
+                        <div className="flex items-center justify-between mb-2">
+                          <h5 className="font-medium text-slate-900 dark:text-slate-100">Composio MCP</h5>
+                          <ExternalLink className="h-4 w-4 text-slate-500" />
+                        </div>
+                        <p className="text-slate-600 dark:text-slate-400 text-xs mb-2">
+                          Connect to 200+ tools and APIs through Composio's MCP server.
+                        </p>
+                        <div className="space-y-1 text-xs">
+                          <div><span className="font-medium">URL:</span> https://api.composio.dev/mcp</div>
+                          <div><span className="font-medium">Auth:</span> No Authentication</div>
+                          <div><span className="font-medium">Protocol:</span> HTTP</div>
+                        </div>
+                        <a 
+                          href="https://docs.composio.dev/mcp" 
+                          target="_blank" 
+                          rel="noopener noreferrer"
+                          className="inline-flex items-center gap-1 text-blue-600 hover:text-blue-700 text-xs mt-2"
+                        >
+                          Setup Guide <ExternalLink className="h-3 w-3" />
+                        </a>
                       </div>
-                    ) : (
-                      <>
-                        <Select value={selectedApiKeyId} onValueChange={setSelectedApiKeyId}>
-                          <SelectTrigger className="w-full">
-                            <SelectValue placeholder={`Select ${getServiceNameForTool(toolType)} API key`} />
-                          </SelectTrigger>
-                          <SelectContent>
-                            {availableApiKeys.length > 0 ? 
-                              availableApiKeys.map((key) => (
-                                <SelectItem key={key.id} value={key.id}>{key.name}</SelectItem>
-                              )) :
-                              <div className="p-2 text-sm text-muted-foreground">No keys available. Click + to add.</div>
-                            }
-                          </SelectContent>
-                        </Select>
-                        <Button variant="outline" size="icon" onClick={() => setIsAddKeyDialogOpen(true)} title="Add New API Key">
-                          <Plus className="h-4 w-4" />
-                        </Button>
-                      </>
-                    )}
+
+                      {/* KlavisAI MCP */}
+                      <div className="p-3 bg-white dark:bg-slate-800 rounded border border-slate-200 dark:border-slate-600">
+                        <div className="flex items-center justify-between mb-2">
+                          <h5 className="font-medium text-slate-900 dark:text-slate-100">KlavisAI MCP</h5>
+                          <ExternalLink className="h-4 w-4 text-slate-500" />
+                        </div>
+                        <p className="text-slate-600 dark:text-slate-400 text-xs mb-2">
+                          Advanced AI capabilities and specialized tools through KlavisAI's MCP server.
+                        </p>
+                        <div className="space-y-1 text-xs">
+                          <div><span className="font-medium">URL:</span> https://mcp.klavisai.com/server</div>
+                          <div><span className="font-medium">Auth:</span> Bearer Token (API Key)</div>
+                          <div><span className="font-medium">Protocol:</span> HTTP</div>
+                        </div>
+                        <a 
+                          href="https://docs.klavis.ai/documentation/" 
+                          target="_blank" 
+                          rel="noopener noreferrer"
+                          className="inline-flex items-center gap-1 text-blue-600 hover:text-blue-700 text-xs mt-2"
+                        >
+                          Setup Guide <ExternalLink className="h-3 w-3" />
+                        </a>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="border-t border-slate-200 dark:border-slate-700 pt-4">
+                    <h4 className="font-medium text-slate-900 dark:text-slate-100 mb-2">Quick Setup Steps</h4>
+                    <ol className="list-decimal list-inside space-y-2 text-xs text-slate-600 dark:text-slate-400">
+                      <li>Choose an MCP provider (Composio or KlavisAI)</li>
+                      <li>Sign up and get your API key from the provider</li>
+                      <li>Enter the provider's MCP server URL</li>
+                      <li>Select "Bearer Token" authentication</li>
+                      <li>Enter your API key as the bearer token</li>
+                      <li>Give your MCP server a descriptive name</li>
+                      <li>Click "Save Configuration"</li>
+                    </ol>
+                  </div>
+
+                  <div className="border-t border-slate-200 dark:border-slate-700 pt-4">
+                    <h4 className="font-medium text-slate-900 dark:text-slate-100 mb-2">Custom MCP Server</h4>
+                    <p className="text-xs text-slate-600 dark:text-slate-400 mb-2">
+                      You can also connect to your own MCP server or any other MCP-compatible service.
+                    </p>
+                    <div className="text-xs text-slate-600 dark:text-slate-400">
+                      <div className="mb-1"><span className="font-medium">Requirements:</span></div>
+                      <ul className="list-disc list-inside ml-2 space-y-1">
+                        <li>MCP-compatible server endpoint</li>
+                        <li>Proper authentication setup</li>
+                        <li>HTTPS URL (recommended)</li>
+                      </ul>
+                    </div>
                   </div>
                 </div>
-              </>
+              </div>
             )}
           </div>
           
