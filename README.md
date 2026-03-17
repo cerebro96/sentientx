@@ -1,5 +1,8 @@
 # SentientX
 
+[![Live Demo](https://img.shields.io/badge/Live%20Demo-sentientx.mechsai.com-blue?style=for-the-badge&logo=vercel)](https://sentientx.mechsai.com)
+[![Backend Code](https://img.shields.io/badge/Backend%20Code-agentfactory-green?style=for-the-badge&logo=github)](https://github.com/cerebro96/agentfactory)
+
 SentientX is a modern AI Workflow Automation Platform that allows users to create, manage, and execute automated workflows with a visual, drag-and-drop interface.
 
 <!-- ![SentientX](https://user-images.githubusercontent.com/your-username/sentientx/assets/screenshot.png) -->
@@ -27,13 +30,13 @@ SentientX is a modern AI Workflow Automation Platform that allows users to creat
 
 - Node.js 18.x or higher
 - npm or yarn
-- Access to company Supabase account
+- Access to Supabase account
 
 ### Installation
 
-1. Clone the repository from the company's private repository:
+1. Clone the repository:
    ```bash
-   git clone [INTERNAL_REPOSITORY_URL]
+   git clone https://github.com/cerebro96/sentientx.git
    cd sentientx
    ```
 
@@ -44,7 +47,7 @@ SentientX is a modern AI Workflow Automation Platform that allows users to creat
    yarn
    ```
 
-3. Request the `.env.local` file from your team lead containing the Supabase credentials.
+3. Setup your environment variables by copying `.env.local.example` to `.env.local` and providing your Supabase credentials.
 
 4. Start the development server:
 ```bash
@@ -63,7 +66,7 @@ The application requires several tables in the Supabase database:
 2. `executions` - Stores workflow execution history
 3. User authentication tables (created automatically by Supabase)
 
-All database migrations are managed by the DevOps team. Contact them if you need any changes to the database schema.
+All database migrations are managed via the standard migration flow.
 
 ## Usage
 
@@ -90,19 +93,17 @@ All database migrations are managed by the DevOps team. Contact them if you need
 
 ## Development Guidelines
 
-This is a private commercial project. Please follow these guidelines:
+Contributions are welcome! Please follow these guidelines:
 
-1. All code changes must go through the internal review process
-2. Maintain code style and conventions established in the codebase
-3. Document new features and API changes
-4. Add appropriate test coverage for new functionality
-5. Contact your team lead for access to additional resources or documentation
+1. Fork the repository
+2. Create your feature branch (`git checkout -b feature/AmazingFeature`)
+3. Commit your changes (`git commit -m 'Add some AmazingFeature'`)
+4. Push to the branch (`git push origin feature/AmazingFeature`)
+5. Open a Pull Request
 
-## Proprietary Notice
+## License
 
-© 2025 SentientX. All rights reserved.
-
-This software is proprietary and confidential. Unauthorized copying, transfer, or use of this software in source or binary forms via any medium is strictly prohibited without express written permission.
+This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
 
 ## Third-Party Dependencies
 
