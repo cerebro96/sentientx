@@ -5,6 +5,10 @@
 
 SentientX is a modern AI Workflow Automation Platform that allows users to create, manage, and execute automated workflows with a visual, drag-and-drop interface.
 
+## Architecture & Integration
+
+The platform is built as a client-first application using **[adk-web](https://github.com/google/adk-web.git)**. It connects directly to the **[Backend Service](https://github.com/cerebro96/agentfactory)** for high-performance AI agent orchestration and workflow execution.
+
 <!-- ![SentientX](https://user-images.githubusercontent.com/your-username/sentientx/assets/screenshot.png) -->
 
 ## Features
@@ -19,6 +23,7 @@ SentientX is a modern AI Workflow Automation Platform that allows users to creat
 ## Tech Stack
 
 - **Frontend**: Next.js 15, React 19, TypeScript
+- **Client Library**: [adk-web](https://github.com/google/adk-web.git)
 - **Styling**: Tailwind CSS, shadcn/ui components
 - **State Management**: Zustand, SWR for data fetching
 - **Database**: Supabase
@@ -111,6 +116,7 @@ This project makes use of the following third-party libraries:
 
 - [Next.js](https://nextjs.org/)
 - [React](https://reactjs.org/)
+- [adk-web](https://github.com/google/adk-web.git)
 - [Tailwind CSS](https://tailwindcss.com/)
 - [shadcn/ui](https://ui.shadcn.com/)
 - [Supabase](https://supabase.io/)
