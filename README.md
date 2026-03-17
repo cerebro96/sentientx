@@ -1,4 +1,4 @@
-# SentientX - AI Agent Workflow Automation Platform
+# SentientX - AI Agent Workflow Automation Platform (https://www.mechsai.com)
 
 [![Live Demo](https://img.shields.io/badge/Live%20Demo-sentientx.mechsai.com-blue?style=for-the-badge&logo=vercel)](https://sentientx.mechsai.com)
 [![Backend Code](https://img.shields.io/badge/Backend%20Code-agentfactory-green?style=for-the-badge&logo=github)](https://github.com/cerebro96/agentfactory)
